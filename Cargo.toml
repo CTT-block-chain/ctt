@@ -1,5 +1,15 @@
 [workspace]
 members = [
+	"bin/ctt/bench",
+	"bin/ctt/browser-testing",
+	"bin/ctt/cli",
+	"bin/ctt/executor",
+	"bin/ctt/primitives",
+	"bin/ctt/rpc-client",
+	"bin/ctt/rpc",
+	"bin/ctt/runtime",
+	"bin/ctt/testing",
+	
 	"bin/node-template/node",
 	"bin/node-template/runtime",
 	"bin/node-template/pallets/template",
