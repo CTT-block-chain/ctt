@@ -24,7 +24,7 @@ use serde::{Serialize, Deserialize};
 use node_runtime::{
 	AuthorityDiscoveryConfig, BabeConfig, BalancesConfig, ContractsConfig, CouncilConfig,
 	DemocracyConfig,GrandpaConfig, ImOnlineConfig, SessionConfig, SessionKeys, StakerStatus,
-	StakingConfig, ElectionsConfig, IndicesConfig, SocietyConfig, SudoConfig, SystemConfig,
+	StakingConfig, ElectionsConfig, IndicesConfig, SocietyConfig, SudoConfig, SystemConfig, KpConfig,
 	TechnicalCommitteeConfig, wasm_binary_unwrap,
 };
 use node_runtime::Block;
@@ -151,6 +151,10 @@ fn staging_testnet_config_genesis() -> GenesisConfig {
 		root_key,
 		Some(endowed_accounts),
 		false,
+		vec![
+			get_account_id_from_seed::<sr25519::Public>("Alice"),
+			get_account_id_from_seed::<sr25519::Public>("Bob"),
+		],
 	)
 }
 
@@ -217,6 +221,7 @@ pub fn testnet_genesis(
 	root_key: AccountId,
 	endowed_accounts: Option<Vec<AccountId>>,
 	enable_println: bool,
+	auth_servers: Vec<AccountId>,
 ) -> GenesisConfig {
 	let endowed_accounts: Vec<AccountId> = endowed_accounts.unwrap_or_else(|| {
 		vec![
@@ -321,6 +326,7 @@ pub fn testnet_genesis(
 			max_members: 999,
 		}),
 		pallet_vesting: Some(Default::default()),
+		kp: Some(KpConfig { auth_servers }),
 	}
 }
 
@@ -332,6 +338,10 @@ fn development_config_genesis() -> GenesisConfig {
 		get_account_id_from_seed::<sr25519::Public>("Alice"),
 		None,
 		true,
+		vec![
+			get_account_id_from_seed::<sr25519::Public>("Alice"),
+			get_account_id_from_seed::<sr25519::Public>("Bob"),
+		],
 	)
 }
 
@@ -359,6 +369,10 @@ fn local_testnet_genesis() -> GenesisConfig {
 		get_account_id_from_seed::<sr25519::Public>("Alice"),
 		None,
 		false,
+		vec![
+			get_account_id_from_seed::<sr25519::Public>("Alice"),
+			get_account_id_from_seed::<sr25519::Public>("Bob"),
+		],
 	)
 }
 
@@ -392,6 +406,10 @@ pub(crate) mod tests {
 			get_account_id_from_seed::<sr25519::Public>("Alice"),
 			None,
 			false,
+			vec![
+				get_account_id_from_seed::<sr25519::Public>("Alice"),
+				get_account_id_from_seed::<sr25519::Public>("Bob"),
+			],
 		)
 	}
 

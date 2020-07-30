@@ -21,6 +21,8 @@
 
 #![cfg_attr(not(feature = "std"), no_std)]
 
+use sp_std::collections::btree_set::BTreeSet;
+
 use sp_runtime::{
 	generic, traits::{Verify, BlakeTwo256, IdentifyAccount}, OpaqueExtrinsic, MultiSignature
 };
@@ -93,4 +95,19 @@ pub mod report {
 		type GenericSignature = sp_core::sr25519::Signature;
 		type GenericPublic = sp_core::sr25519::Public;
 	}
+}
+
+pub type AuthAccountId = <<MultiSignature as Verify>::Signer as IdentifyAccount>::AccountId;
+/// Types that implement the AccountSet trait are able to supply a set of accounts
+/// The trait is generic over the notion of Account used.
+pub trait AccountSet {
+	type AccountId;
+
+	fn accounts() -> BTreeSet<Self::AccountId>;
+}
+
+pub trait Membership<AccountId, Hash> {
+	fn is_platform(who: &AccountId) -> bool;
+	fn is_expert(who: &AccountId) -> bool;
+	fn set_model_creator(key: &Hash, creator: &AccountId) -> ();
 }

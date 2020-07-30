@@ -34,7 +34,7 @@ use sp_runtime::{
 use sc_executor::{NativeExecutor, WasmExecutionMethod};
 use sc_executor::error::Result;
 
-use node_executor::Executor;
+use ctt_executor::Executor;
 use node_runtime::{
 	Header, Block, UncheckedExtrinsic, CheckedExtrinsic, Runtime, BuildStorage,
 	constants::currency::*,

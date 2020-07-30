@@ -1290,6 +1290,37 @@ dependencies = [
 ]
 
 [[package]]
+name = "ctt-pallet-kp"
+version = "2.0.0-rc5"
+dependencies = [
+ "ctt-pallet-members",
+ "ctt-primitives",
+ "frame-support",
+ "frame-system",
+ "parity-scale-codec",
+ "parking_lot 0.10.2",
+ "serde",
+ "sp-core",
+ "sp-io",
+ "sp-runtime",
+ "sp-std",
+]
+
+[[package]]
+name = "ctt-pallet-members"
+version = "2.0.0-rc5"
+dependencies = [
+ "ctt-primitives",
+ "frame-support",
+ "frame-system",
+ "parity-scale-codec",
+ "sp-core",
+ "sp-io",
+ "sp-runtime",
+ "sp-std",
+]
+
+[[package]]
 name = "ctt-primitives"
 version = "2.0.0-rc5"
 dependencies = [
@@ -1300,6 +1331,7 @@ dependencies = [
  "sp-core",
  "sp-runtime",
  "sp-serializer",
+ "sp-std",
 ]
 
 [[package]]
@@ -1347,6 +1379,8 @@ dependencies = [
 name = "ctt-runtime"
 version = "2.0.0-rc5"
 dependencies = [
+ "ctt-pallet-kp",
+ "ctt-pallet-members",
  "ctt-primitives",
  "frame-benchmarking",
  "frame-executive",
@@ -1356,6 +1390,7 @@ dependencies = [
  "frame-system-rpc-runtime-api",
  "hex-literal",
  "integer-sqrt",
+ "kp-runtime-api",
  "pallet-authority-discovery",
  "pallet-authorship",
  "pallet-babe",
@@ -3021,6 +3056,19 @@ checksum = "7507624b29483431c0ba2d82aece8ca6cdba9382bff4ddd0f7490560c056098d"
 dependencies = [
  "winapi 0.2.8",
  "winapi-build",
+]
+
+[[package]]
+name = "kp-runtime-api"
+version = "2.0.0-rc5"
+dependencies = [
+ "frame-support",
+ "parity-scale-codec",
+ "serde_json",
+ "sp-api",
+ "sp-core",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]

@@ -40,7 +40,7 @@ use sp_core::{
 	u32_trait::{_1, _2, _3, _4},
 	OpaqueMetadata,
 };
-pub use node_primitives::{AccountId, Signature};
+pub use node_primitives::{AccountId, Signature, AuthAccountId};
 use node_primitives::{AccountIndex, Balance, BlockNumber, Hash, Index, Moment};
 use sp_api::impl_runtime_apis;
 use sp_runtime::{
@@ -838,6 +838,57 @@ impl pallet_vesting::Trait for Runtime {
 	type WeightInfo = ();
 }
 
+impl members::Trait for Runtime {
+	type Event = Event;
+}
+
+/// Importing a CTT kp pallet
+parameter_types! {
+    pub const DocumentPowerWeightAttend: u8 = 40;
+    pub const DocumentPowerWeightContent: u8 = 30;
+    pub const DocumentPowerWeightJudge: u8 = 30;
+    pub const CommentPowerWeightCount: u8 = 35;
+    pub const CommentPowerWeightCost: u8 = 40;
+    pub const CommentPowerWeightPerCost: u8 = 20;
+    pub const CommentPowerWeightPositive: u8 = 5;
+    pub const CommentPowerWeight: u8 = 40;
+    pub const DocumentPublishWeightParamsRate: u8 = 60;
+    pub const DocumentPublishWeightParamsSelfRate: u8 = 40;
+    pub const DocumentIdentifyWeightParamsRate: u8 = 50;
+    pub const DocumentIdentifyWeightCheckRate: u8 = 50;
+    pub const DocumentTryWeightBiasRate: u8 = 60;
+    pub const DocumentTryWeightTrueRate: u8 = 40;
+    pub const TopWeightProductPublish: u8 = 15;
+    pub const TopWeightDocumentIdentify: u8 = 25;
+    pub const TopWeightDocumentTry: u8 = 35;
+    pub const TopWeightAccountAttend: u8 = 10;
+    pub const TopWeightAccountStake: u8 = 15;
+}
+
+impl kp::Trait for Runtime {
+	type Event = Event;
+	type Membership = members::Module<Runtime>;
+	type TopWeightProductPublish = TopWeightProductPublish;
+	type TopWeightDocumentIdentify = TopWeightDocumentIdentify;
+	type TopWeightDocumentTry = TopWeightDocumentTry;
+	type TopWeightAccountAttend = TopWeightAccountAttend;
+	type TopWeightAccountStake = TopWeightAccountStake;
+	type DocumentPowerWeightAttend = DocumentPowerWeightAttend;
+	type DocumentPowerWeightContent = DocumentPowerWeightContent;
+	type DocumentPowerWeightJudge = DocumentPowerWeightJudge;
+	type CommentPowerWeightCount = CommentPowerWeightCount;
+	type CommentPowerWeightCost = CommentPowerWeightCost;
+	type CommentPowerWeightPerCost = CommentPowerWeightPerCost;
+	type CommentPowerWeightPositive = CommentPowerWeightPositive;
+	type CommentPowerWeight = CommentPowerWeight;
+	type DocumentPublishWeightParamsRate = DocumentPublishWeightParamsRate;
+	type DocumentPublishWeightParamsSelfRate = DocumentPublishWeightParamsSelfRate;
+	type DocumentIdentifyWeightParamsRate = DocumentIdentifyWeightParamsRate;
+	type DocumentIdentifyWeightCheckRate = DocumentIdentifyWeightCheckRate;
+	type DocumentTryWeightBiasRate = DocumentTryWeightBiasRate;
+	type DocumentTryWeightTrueRate = DocumentTryWeightTrueRate;
+}
+
 construct_runtime!(
 	pub enum Runtime where
 		Block = Block,
@@ -876,6 +927,9 @@ construct_runtime!(
 		Scheduler: pallet_scheduler::{Module, Call, Storage, Event<T>},
 		Proxy: pallet_proxy::{Module, Call, Storage, Event<T>},
 		Multisig: pallet_multisig::{Module, Call, Storage, Event<T>},
+		// CTT pallets
+		Members: members::{Module, Call, Storage, Event<T>},
+		Kp: kp::{Module, Call, Storage, Config<T>, Event<T>},
 	}
 );
 
@@ -913,6 +967,20 @@ pub type CheckedExtrinsic = generic::CheckedExtrinsic<AccountId, Call, SignedExt
 pub type Executive = frame_executive::Executive<Runtime, Block, frame_system::ChainContext<Runtime>, Runtime, AllModules>;
 
 impl_runtime_apis! {
+	impl kp_runtime_api::KpApi<Block, AuthAccountId> for Runtime {
+        fn total_power() -> u32 {
+            Kp::kp_total_power()
+        }
+
+        fn account_power(account: AuthAccountId) -> u32 {
+            Kp::kp_account_power(account)
+        }
+
+        fn commodity_power(app_id: Vec<u8>, cart_id: Vec<u8>) -> u32 {
+            Kp::kp_commodity_power(app_id, cart_id)
+        }
+    }
+
 	impl sp_api::Core<Block> for Runtime {
 		fn version() -> RuntimeVersion {
 			VERSION

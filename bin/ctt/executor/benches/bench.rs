@@ -17,7 +17,7 @@
 
 use codec::{Decode, Encode};
 use criterion::{BatchSize, Criterion, criterion_group, criterion_main};
-use node_executor::Executor;
+use ctt_executor::Executor;
 use node_primitives::{BlockNumber, Hash};
 use node_runtime::{
 	Block, BuildStorage, Call, CheckedExtrinsic, GenesisConfig, Header, UncheckedExtrinsic,
