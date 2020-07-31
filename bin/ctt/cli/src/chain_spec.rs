@@ -21,6 +21,7 @@
 use sc_chain_spec::ChainSpecExtension;
 use sp_core::{Pair, Public, crypto::UncheckedInto, sr25519};
 use serde::{Serialize, Deserialize};
+use serde_json::json;
 use node_runtime::{
 	AuthorityDiscoveryConfig, BabeConfig, BalancesConfig, ContractsConfig, CouncilConfig,
 	DemocracyConfig,GrandpaConfig, ImOnlineConfig, SessionConfig, SessionKeys, StakerStatus,
@@ -37,6 +38,7 @@ use sp_consensus_babe::{AuthorityId as BabeId};
 use pallet_im_online::sr25519::{AuthorityId as ImOnlineId};
 use sp_authority_discovery::AuthorityId as AuthorityDiscoveryId;
 use sp_runtime::{Perbill, traits::{Verify, IdentifyAccount}};
+use sc_service::Properties;
 
 pub use node_primitives::{AccountId, Balance, Signature};
 pub use node_runtime::GenesisConfig;
@@ -355,7 +357,7 @@ pub fn development_config() -> ChainSpec {
 		vec![],
 		None,
 		None,
-		None,
+		chain_properties(),
 		Default::default(),
 	)
 }
@@ -389,6 +391,14 @@ pub fn local_testnet_config() -> ChainSpec {
 		None,
 		Default::default(),
 	)
+}
+
+fn chain_properties() -> Option<Properties> {
+	//None
+	let mut p = Properties::new();
+	p.insert("tokenDecimals".to_string(), json!(12));
+	p.insert("tokenSymbol".to_string(), json!("KPT"));
+	Some(p)
 }
 
 #[cfg(test)]
