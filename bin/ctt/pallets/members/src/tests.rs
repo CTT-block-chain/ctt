@@ -8,6 +8,7 @@ use sp_runtime::{
     traits::{BlakeTwo256, IdentityLookup},
     Perbill,
 };
+use pallet_balances::{AccountData, NegativeImbalance};
 
 impl_outer_origin! {
     pub enum Origin for TestRuntime {}
@@ -43,11 +44,20 @@ impl system::Trait for TestRuntime {
     type AvailableBlockRatio = AvailableBlockRatio;
     type Version = ();
     type ModuleToIndex = ();
-    type AccountData = ();
+    type AccountData = pallet_balances::AccountData<u64>;
     type OnNewAccount = ();
     type OnKilledAccount = ();
     type BaseCallFilter = ();
     type SystemWeightInfo = ();
+}
+
+impl pallet_balances::Trait for TestRuntime {
+    type Balance = u64;
+    type DustRemoval = ();
+    type Event = TestEvent;
+    type ExistentialDeposit = ();
+    type AccountStore = System;
+    type WeightInfo = ();
 }
 
 mod members {
@@ -58,15 +68,18 @@ impl_outer_event! {
     pub enum TestEvent for TestRuntime {
         members<T>,
         system<T>,
+        pallet_balances<T>,
     }
 }
 
 impl Trait for TestRuntime {
     type Event = TestEvent;
+    type Currency = Balances;
 }
 
 pub type System = system::Module<TestRuntime>;
 pub type Members = Module<TestRuntime>;
+pub type Balances = pallet_balances::Module<TestRuntime>;
 
 pub struct ExtBuilder;
 

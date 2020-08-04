@@ -1,6 +1,6 @@
 // Creating mock runtime here
 
-use frame_support::{impl_outer_origin, parameter_types, weights::Weight};
+use frame_support::{impl_outer_origin, parameter_types, weights::Weight, impl_outer_event};
 use sp_core::H256;
 use sp_runtime::{
     testing::Header,
@@ -14,9 +14,22 @@ use frame_system as system;
 use crate::*;
 use primitives::{AccountSet, Membership};
 
+mod kp {
+    pub use crate::Event;
+}
+
 impl<Hash: Clone, AccountId: Clone> PartialEq for KPDocumentData<AccountId, Hash> {
     fn eq(&self, other: &Self) -> bool {
         self.document_type == other.document_type && self.document_id == other.document_id
+    }
+}
+
+impl_outer_event! {
+    pub enum TestEvent for Test {
+        kp<T>,
+        system<T>,
+        pallet_balances<T>,
+        members<T>,
     }
 }
 
@@ -66,7 +79,7 @@ impl system::Trait for Test {
     type AccountId = u64;
     type Lookup = IdentityLookup<Self::AccountId>;
     type Header = Header;
-    type Event = ();
+    type Event = TestEvent;
     type BlockHashCount = BlockHashCount;
     type MaximumBlockWeight = MaximumBlockWeight;
     type DbWeight = ();
@@ -77,14 +90,14 @@ impl system::Trait for Test {
     type AvailableBlockRatio = AvailableBlockRatio;
     type Version = ();
     type ModuleToIndex = ();
-    type AccountData = ();
+    type AccountData = pallet_balances::AccountData<u64>;
     type OnNewAccount = ();
     type OnKilledAccount = ();
     type SystemWeightInfo = ();
 }
 
 impl Trait for Test {
-    type Event = ();
+    type Event = TestEvent;
     type Membership = members::Module<Test>;
     type TopWeightProductPublish = TopWeightProductPublish;
     type TopWeightDocumentIdentify = TopWeightDocumentIdentify;
@@ -107,9 +120,21 @@ impl Trait for Test {
     type DocumentTryWeightTrueRate = DocumentTryWeightTrueRate;
 }
 
-impl members::Trait for Test {
-    type Event = ();
+impl pallet_balances::Trait for Test {
+    type Balance = u64;
+    type DustRemoval = ();
+    type Event = TestEvent;
+    type ExistentialDeposit = ();
+    type AccountStore = System;
+    type WeightInfo = ();
 }
+
+impl members::Trait for Test {
+    type Event = TestEvent;
+    type Currency = Balances;
+}
+pub type System = system::Module<Test>;
+pub type Balances = pallet_balances::Module<Test>;
 
 pub type KpModule = Module<Test>;
 

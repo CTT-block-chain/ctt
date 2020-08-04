@@ -840,6 +840,7 @@ impl pallet_vesting::Trait for Runtime {
 
 impl members::Trait for Runtime {
 	type Event = Event;
+	type Currency = Balances;
 }
 
 parameter_types! {

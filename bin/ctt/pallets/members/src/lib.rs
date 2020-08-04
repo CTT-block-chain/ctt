@@ -8,9 +8,10 @@ use frame_support::{
     decl_error, decl_event, decl_module, decl_storage,
     dispatch::DispatchResult,
     ensure,
+    traits::{Currency, ExistenceRequirement::KeepAlive},
 };
 use frame_system::{self as system, ensure_root, ensure_signed};
-use primitives::{AccountSet, AuthAccountId, Membership};
+use primitives::{AccountSet, AuthAccountId, Balance, Membership};
 use sp_core::sr25519;
 use sp_runtime::{print, traits::Hash, MultiSignature, RuntimeDebug};
 use sp_std::collections::btree_set::BTreeSet;
@@ -19,14 +20,19 @@ use sp_std::prelude::*;
 #[cfg(test)]
 mod tests;
 
+type BalanceOf<T> =
+    <<T as Trait>::Currency as Currency<<T as frame_system::Trait>::AccountId>>::Balance;
+
 pub trait Trait: system::Trait {
     type Event: From<Event<Self>> + Into<<Self as system::Trait>::Event>;
+    type Currency: Currency<Self::AccountId>;
 }
 
 decl_event!(
     pub enum Event<T>
     where
-        AccountId = <T as system::Trait>::AccountId,
+        Balance = BalanceOf<T>,
+        <T as frame_system::Trait>::AccountId,
     {
         /// Added a member2222
         MemberAdded(AccountId),
@@ -34,6 +40,7 @@ decl_event!(
         MemberRemoved(AccountId),
         AppAdminSet(AccountId),
         ModleCreatorAdded(AccountId),
+        NewUserBenefitDrpped(AccountId, Balance),
     }
 );
 
@@ -64,6 +71,10 @@ decl_storage! {
         // app_id model_id account -> u32
         ExpertMemberProfitRate get(fn expert_member_profit_rate):
             map hasher(twox_64_concat) T::Hash => u32;
+
+        // app_id user_id -> u32 record first time user KPT drop
+        NewAccountBenefitRecords get(fn new_account_benifit_records):
+            map hasher(twox_64_concat) T::Hash => BalanceOf<T>;
     }
 }
 
@@ -75,6 +86,7 @@ decl_error! {
         NotMember,
         NotAppAdmin,
         NotModelCreator,
+        BenefitAlreadyDropped,
     }
 }
 
@@ -290,6 +302,25 @@ decl_module! {
                 // If the search fails, the caller is not a member, so just return
                 Err(_) => Err(Error::<T>::NotMember.into()),
             }
+        }
+
+        #[weight = 0]
+        pub fn air_drop_new_user_benefit(origin, app_id: Vec<u8>, user_id: Vec<u8>,
+            receiver: <T as frame_system::Trait>::AccountId, amount: BalanceOf<T>) -> DispatchResult {
+
+            let who = ensure_signed(origin)?;
+            let key = T::Hashing::hash_of(&(&app_id, &user_id));
+
+            ensure!(!<NewAccountBenefitRecords<T>>::contains_key(&key), Error::<T>::BenefitAlreadyDropped);
+
+            // start air drop
+            let _ = T::Currency::transfer(&who, &receiver, amount, KeepAlive);
+
+            // record it
+            <NewAccountBenefitRecords<T>>::insert(&key, amount);
+
+            Self::deposit_event(RawEvent::NewUserBenefitDrpped(receiver, amount));
+            Ok(())
         }
     }
 }
