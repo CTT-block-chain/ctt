@@ -842,7 +842,6 @@ impl members::Trait for Runtime {
 	type Event = Event;
 }
 
-/// Importing a CTT kp pallet
 parameter_types! {
     pub const DocumentPowerWeightAttend: u8 = 40;
     pub const DocumentPowerWeightContent: u8 = 30;

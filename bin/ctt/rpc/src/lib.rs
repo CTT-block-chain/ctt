@@ -32,7 +32,7 @@
 
 use std::sync::Arc;
 
-use node_primitives::{Block, BlockNumber, AccountId, Index, Balance, Hash};
+use node_primitives::{Block, BlockNumber, AccountId, Index, Balance, Hash, AuthAccountId};
 use node_runtime::UncheckedExtrinsic;
 use sp_api::ProvideRuntimeApi;
 use sp_transaction_pool::TransactionPool;
@@ -47,6 +47,8 @@ use sc_finality_grandpa::{SharedVoterState, SharedAuthoritySet};
 use sc_finality_grandpa_rpc::GrandpaRpcHandler;
 use sc_rpc_api::DenyUnsafe;
 use sp_block_builder::BlockBuilder;
+use sp_runtime::{traits::Block as BlockT};
+use kp_rpc::{KpApi, Kp};
 
 /// Light client extra dependencies.
 pub struct LightDeps<C, F, P> {
@@ -109,6 +111,7 @@ pub fn create_full<C, P, M, SC>(
 	C::Api: pallet_transaction_payment_rpc::TransactionPaymentRuntimeApi<Block, Balance, UncheckedExtrinsic>,
 	C::Api: BabeApi<Block>,
 	C::Api: BlockBuilder<Block>,
+    C::Api: kp_rpc::KpRuntimeRpcApi<Block, AuthAccountId>,
 	P: TransactionPool + 'static,
 	M: jsonrpc_core::Metadata + Default,
 	SC: SelectChain<Block> +'static,
@@ -147,6 +150,9 @@ pub fn create_full<C, P, M, SC>(
 	);
 	io.extend_with(
 		TransactionPaymentApi::to_delegate(TransactionPayment::new(client.clone()))
+	);
+	io.extend_with(
+		KpApi::to_delegate(Kp::new(client.clone()))
 	);
 	io.extend_with(
 		sc_consensus_babe_rpc::BabeApi::to_delegate(

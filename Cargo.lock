@@ -1341,6 +1341,7 @@ dependencies = [
  "ctt-primitives",
  "ctt-runtime",
  "jsonrpc-core",
+ "kp-rpc",
  "pallet-contracts-rpc",
  "pallet-transaction-payment-rpc",
  "sc-client-api",
@@ -3056,6 +3057,24 @@ checksum = "7507624b29483431c0ba2d82aece8ca6cdba9382bff4ddd0f7490560c056098d"
 dependencies = [
  "winapi 0.2.8",
  "winapi-build",
+]
+
+[[package]]
+name = "kp-rpc"
+version = "2.0.0-rc5"
+dependencies = [
+ "ctt-primitives",
+ "jsonrpc-core",
+ "jsonrpc-core-client",
+ "jsonrpc-derive",
+ "kp-runtime-api",
+ "parity-scale-codec",
+ "serde",
+ "sp-api",
+ "sp-blockchain",
+ "sp-core",
+ "sp-rpc",
+ "sp-runtime",
 ]
 
 [[package]]

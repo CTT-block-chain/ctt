@@ -10,6 +10,9 @@ use sp_blockchain::HeaderBackend;
 use sp_core::Bytes;
 use sp_runtime::{generic::BlockId, traits::Block as BlockT};
 use std::sync::Arc;
+pub use kp_runtime_api::KpApi as KpRuntimeRpcApi;
+pub use self::gen_client::Client as KpClient;
+
 
 #[derive(Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -54,21 +57,21 @@ impl<C, M> Kp<C, M> {
 }
 
 /// Error type of this RPC api.
-// pub enum Error {
-// 	/// The transaction was not decodable.
-// 	DecodeError,
-// 	/// The call to runtime failed.
-// 	RuntimeError,
-// }
-//
-// impl From<Error> for i64 {
-// 	fn from(e: Error) -> i64 {
-// 		match e {
-// 			Error::RuntimeError => 1,
-// 			Error::DecodeError => 2,
-// 		}
-// 	}
-// }
+pub enum Error {
+    /// The transaction was not decodable.
+    DecodeError,
+    /// The call to runtime failed.
+    RuntimeError,
+}
+
+impl From<Error> for i64 {
+    fn from(e: Error) -> i64 {
+        match e {
+            Error::RuntimeError => 1,
+            Error::DecodeError => 2,
+        }
+    }
+}
 
 impl<C, Block> KpApi<<Block as BlockT>::Hash, AuthAccountId> for Kp<C, Block>
 where
@@ -76,7 +79,7 @@ where
     C: Send + Sync + 'static,
     C: ProvideRuntimeApi<Block>,
     C: HeaderBackend<Block>,
-    C::Api: KpRuntimeApi<Block, AuthAccountId>,
+    C::Api: KpRuntimeRpcApi<Block, AuthAccountId>,
 {
     fn total_power(&self, at: Option<<Block as BlockT>::Hash>) -> Result<u32> {
         let api = self.client.runtime_api();
