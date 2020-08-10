@@ -24,6 +24,13 @@ use sp_runtime::{
     MultiSignature, RuntimeDebug,
 };
 
+pub trait PowerVote<AccountId> {
+    fn account_power_ratio(account: &AccountId) -> f64 {
+        // default return 1.0
+        1.0
+    }
+}
+
 const FLOAT_COMPUTE_PRECISION: u32 = 10000;
 const POWER_PRECISION_ADJUST: u32 = FLOAT_COMPUTE_PRECISION * 100;
 
@@ -420,7 +427,7 @@ decl_storage! {
 
         // miner power table
         MinerPowerByAccount get(fn miner_power_by_account):
-            map hasher(blake2_128_concat) AuthAccountId => u32;
+            map hasher(blake2_128_concat) T::AccountId => u32;
 
         // account attend power (AuthAccountId, AppId) -> u32
         AccountAttendPowerMap get(fn account_attend_power_map):
@@ -829,7 +836,18 @@ impl<T: Trait> Module<T> {
     }
 
     pub fn kp_account_power(account: AuthAccountId) -> u32 {
-        MinerPowerByAccount::get(account)
+        let account_id = Self::convert_account(&account);
+        <MinerPowerByAccount<T>>::get(account_id)
+    }
+
+    pub fn kp_account_power_ratio(account: &T::AccountId) -> f64 {
+        let account_power = <MinerPowerByAccount<T>>::get(account) as f64;
+        let total_power = Self::kp_total_power();
+        if total_power == 0 {
+            0.0
+        } else {
+            account_power / total_power as f64
+        }
     }
 
     pub fn kp_commodity_power(app_id: Vec<u8>, cart_id: Vec<u8>) -> u32 {
@@ -1272,12 +1290,18 @@ impl<T: Trait> Module<T> {
 
         if increased_power > 0 {
             // need update
-            <MinerPowerByAccount>::mutate(doc.owner.clone(), |pow| {
+            <MinerPowerByAccount<T>>::mutate(Self::convert_account(&doc.owner), |pow| {
                 *pow += increased_power;
             });
 
             // update last power
             <KPPurchasePowerByIdHash<T>>::insert(&power_key_hash, &power);
         }
+    }
+}
+
+impl<T: Trait> PowerVote<T::AccountId> for Module<T> {
+    fn account_power_ratio(account: &T::AccountId) -> f64 {
+        Self::kp_account_power_ratio(account)
     }
 }
