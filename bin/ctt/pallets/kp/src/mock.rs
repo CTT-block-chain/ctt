@@ -1,6 +1,6 @@
 // Creating mock runtime here
 
-use frame_support::{impl_outer_origin, parameter_types, weights::Weight, impl_outer_event};
+use frame_support::{impl_outer_event, impl_outer_origin, parameter_types, weights::Weight};
 use sp_core::H256;
 use sp_runtime::{
     testing::Header,
@@ -12,7 +12,6 @@ use sp_std::prelude::*;
 use frame_system as system;
 
 use crate::*;
-use primitives::{AccountSet, Membership};
 
 mod kp {
     pub use crate::Event;

@@ -17,15 +17,15 @@ use sp_std::prelude::*;
 /// https://github.com/paritytech/substrate/blob/master/frame/example/src/lib.rs
 use frame_system::{self as system, ensure_signed};
 use primitives::{AuthAccountId, Membership};
-use sp_core::{sr25519, H160};
+use sp_core::sr25519;
 use sp_runtime::{
     print,
-    traits::{Hash, IdentifyAccount, Verify},
+    traits::{Hash, Verify},
     MultiSignature, RuntimeDebug,
 };
 
 pub trait PowerVote<AccountId> {
-    fn account_power_ratio(account: &AccountId) -> f64 {
+    fn account_power_ratio(_account: &AccountId) -> f64 {
         // default return 1.0
         1.0
     }
@@ -626,6 +626,10 @@ decl_module! {
             let product_key_hash = T::Hashing::hash_of(&(&app_id, &product_id));
             ensure!(!<KPDocumentProductIndexByIdHash<T>>::contains_key(&product_key_hash), Error::<T>::ProductAlreadyExisted);
 
+            // check if model exist
+            let model_key = T::Hashing::hash_of(&(&app_id, &model_id));
+            ensure!(<KPModelDataByIdHash<T>>::contains_key(&model_key), Error::<T>::ModelNotFound);
+
             // TODO: 2 sign verification
             // construct verification u8 array:
             /*let mut buf = vec![];
@@ -651,7 +655,7 @@ decl_module! {
                 ..Default::default()
             };
 
-            Self::process_document_content_power(&doc);
+            let _result = Self::process_document_content_power(&doc);
 
             // create document record
             <KPDocumentDataByIdHash<T>>::insert(&doc_key_hash, &doc);
@@ -1015,8 +1019,8 @@ impl<T: Trait> Module<T> {
     }
 
     fn process_document_content_power(doc: &KPDocumentData<T::AccountId, T::Hash>) {
-        let mut content_power = 0;
-        let mut initial_judge_power: u32 = 0;
+        let content_power;
+        let initial_judge_power;
         match &doc.document_data {
             DocumentSpecificData::ProductPublish(data) => {
                 let params_max = <DocumentPublishMaxParams>::get(&doc.app_id);
@@ -1110,8 +1114,8 @@ impl<T: Trait> Module<T> {
         comment: &KPCommentData<T::AccountId, T::Hash>,
     ) -> Result<u32, Error<T>> {
         // target compute
-        let mut account_comment_power: u32 = 0;
-        let mut doc_comment_power: u32 = 0;
+        let mut account_comment_power: u32;
+        let doc_comment_power: u32;
         let doc_key_hash = T::Hashing::hash_of(&(&comment.app_id, &comment.document_id));
 
         // read out document
@@ -1234,8 +1238,8 @@ impl<T: Trait> Module<T> {
     // 4. product try was commented
     fn process_account_power(doc: &KPDocumentData<T::AccountId, T::Hash>) {
         let mut document_id: Vec<u8> = vec![];
-        let mut couple_document_power: DocumentPower;
-        let mut couple_document_weight: u32 = 0;
+        let couple_document_power: DocumentPower;
+        let couple_document_weight: u32;
         let mut power: u32 = 0;
         let mut cart_id: Vec<u8> = vec![];
 

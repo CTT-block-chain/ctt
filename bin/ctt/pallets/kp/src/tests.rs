@@ -1,9 +1,9 @@
-use frame_support::assert_ok;
+use frame_support::{assert_err, assert_ok, dispatch};
 use sp_core::H256;
 use sp_io::hashing::blake2_256;
 
 use crate::mock::*;
-use crate::{DocumentSpecificData, KPProductIdentifyData, KPProductPublishData, KPProductTryData};
+use crate::*;
 use sp_core::{sr25519, Pair};
 
 use sp_runtime::traits::{BlakeTwo256, Hash};
@@ -26,8 +26,8 @@ fn kp_test_product_publish() {
 
         let test_signature = test_signer_pair.sign(&buf);
 
-        const para_issue_rate: u32 = 32;
-        const self_issue_rate: u32 = 45;
+        let para_issue_rate: u32 = 32;
+        let self_issue_rate: u32 = 45;
 
         assert_ok!(KpModule::create_product_publish_document(
             Origin::signed(1),
@@ -87,9 +87,9 @@ fn kp_test_product_identify() {
 
         let test_signature = test_signer_pair.sign(&buf);
 
-        const goods_price: u32 = 100;
-        const ident_rate: u32 = 10;
-        const ident_consistence: u32 = 23;
+        let goods_price: u32 = 100;
+        let ident_rate: u32 = 10;
+        let ident_consistence: u32 = 23;
         let cart_id: Vec<u8> = String::from("C01").into_bytes();
 
         assert_ok!(KpModule::create_product_identify_document(
@@ -154,9 +154,9 @@ fn kp_test_product_try() {
 
         let test_signature = test_signer_pair.sign(&buf);
 
-        const goods_price: u32 = 100;
-        const offset_rate: u32 = 33;
-        const true_rate: u32 = 21;
+        let goods_price: u32 = 100;
+        let offset_rate: u32 = 33;
+        let true_rate: u32 = 21;
         let cart_id: Vec<u8> = String::from("C01").into_bytes();
 
         assert_ok!(KpModule::create_product_try_document(
@@ -251,4 +251,147 @@ fn kp_test_model_operate() {
         println!("expected power:{}", power);
         assert_eq!(read_power.content, power);*/
     });
+}
+
+#[test]
+fn kp_account_power() {
+    new_test_ext().execute_with(|| {
+        // define some shared vars
+        let app_id = "app01";
+        let model_id = "m01";
+        let document_id = "d01";
+        let product_id = "p01";
+        let para_issue_rate: u32 = 10;
+        let self_issue_rate: u32 = 30;
+
+        // step 0: create product publish without model create should fail
+        assert_err!(
+            create_product_publish(
+                app_id,
+                document_id,
+                model_id,
+                product_id,
+                "hash",
+                para_issue_rate,
+                self_issue_rate
+            ),
+            Error::<Test>::ModelNotFound
+        );
+
+        // step 1: create product model
+        assert_ok!(create_model(
+            app_id, model_id, "e01", "name", "type", "hash"
+        ));
+
+        // step 1_1: create repeat model should fail
+        assert_err!(
+            create_model(app_id, model_id, "e01", "name", "type", "hash"),
+            Error::<Test>::ModelAlreadyExisted
+        );
+
+        // step 2: create product publish parameters
+        assert_ok!(create_product_publish(
+            app_id,
+            document_id,
+            model_id,
+            product_id,
+            "hash",
+            para_issue_rate,
+            self_issue_rate
+        ));
+
+        // step 2_1 create repeat product_publish should fail
+        assert_err!(
+            create_product_publish(
+                app_id,
+                document_id,
+                model_id,
+                product_id,
+                "hash",
+                para_issue_rate,
+                self_issue_rate
+            ),
+            Error::<Test>::DocumentAlreadyExisted
+        );
+
+        // step 3 verify product publish records correct knowledge power
+    });
+}
+
+fn create_product_publish(
+    app_id: &str,
+    document_id: &str,
+    model_id: &str,
+    product_id: &str,
+    hash_content: &str,
+    para_issue_rate: u32,
+    self_issue_rate: u32,
+) -> dispatch::DispatchResult {
+    let test_hash = H256::from_slice(&blake2_256(hash_content.as_bytes()));
+    let test_signer_pair =
+        sr25519::Pair::from_string(&format!("//{}", "Alice"), None).expect("valid seed");
+
+    let app_id_vec = app_id.as_bytes().to_vec();
+    let model_id_vec = model_id.as_bytes().to_vec();
+    let product_id_vec = product_id.as_bytes().to_vec();
+    let document_id_vec = document_id.as_bytes().to_vec();
+
+    // TODO: sign
+    let test_signature = test_signer_pair.sign("abc".as_bytes());
+
+    KpModule::create_product_publish_document(
+        Origin::signed(1),
+        app_id_vec,
+        document_id_vec,
+        model_id_vec,
+        product_id_vec,
+        test_hash,
+        KPProductPublishData {
+            para_issue_rate,
+            self_issue_rate,
+        },
+        test_signer_pair.public().clone().into(),
+        test_signature.clone(),
+        test_signer_pair.public().into(),
+        test_signature,
+    )
+}
+
+fn create_model(
+    app_id: &str,
+    model_id: &str,
+    expert_id: &str,
+    commodity_name: &str,
+    commodity_type: &str,
+    hash_content: &str,
+) -> dispatch::DispatchResult {
+    let test_hash = H256::from_slice(&blake2_256(hash_content.as_bytes()));
+    let test_signer_pair =
+        sr25519::Pair::from_string(&format!("//{}", "Alice"), None).expect("valid seed");
+
+    let app_id_vec = app_id.as_bytes().to_vec();
+    let model_id_vec = model_id.as_bytes().to_vec();
+    let expert_id_vec = expert_id.as_bytes().to_vec();
+    let commodity_name_vec = commodity_name.as_bytes().to_vec();
+    let commodity_type_vec = commodity_type.as_bytes().to_vec();
+
+    let mut buf = vec![];
+    buf.append(&mut (app_id_vec.clone()));
+    buf.append(&mut (model_id_vec.clone()));
+
+    let test_signature = test_signer_pair.sign(&buf);
+
+    KpModule::create_model(
+        Origin::signed(1),
+        app_id_vec,
+        model_id_vec,
+        expert_id_vec,
+        commodity_name_vec,
+        commodity_type_vec,
+        test_hash,
+        test_signer_pair.public().clone().into(),
+        test_signature.clone(),
+        test_signer_pair.public().into(),
+        test_signature,
+    )
 }
