@@ -18,13 +18,14 @@
 //! Low-level types used throughout the Substrate code.
 
 #![warn(missing_docs)]
-
 #![cfg_attr(not(feature = "std"), no_std)]
 
 use sp_std::collections::btree_set::BTreeSet;
 
 use sp_runtime::{
-	generic, traits::{Verify, BlakeTwo256, IdentifyAccount}, OpaqueExtrinsic, MultiSignature
+    generic,
+    traits::{BlakeTwo256, IdentifyAccount, Verify},
+    MultiSignature, OpaqueExtrinsic,
 };
 
 /// An index to a block.
@@ -70,44 +71,44 @@ pub type BlockId = generic::BlockId<Block>;
 /// GRANDPA. Any rewards for misbehavior reporting will be paid out to this
 /// account.
 pub mod report {
-	use super::{Signature, Verify};
-	use frame_system::offchain::AppCrypto;
-	use sp_core::crypto::{key_types, KeyTypeId};
+    use super::{Signature, Verify};
+    use frame_system::offchain::AppCrypto;
+    use sp_core::crypto::{key_types, KeyTypeId};
 
-	/// Key type for the reporting module. Used for reporting BABE and GRANDPA
-	/// equivocations.
-	pub const KEY_TYPE: KeyTypeId = key_types::REPORTING;
+    /// Key type for the reporting module. Used for reporting BABE and GRANDPA
+    /// equivocations.
+    pub const KEY_TYPE: KeyTypeId = key_types::REPORTING;
 
-	mod app {
-		use sp_application_crypto::{app_crypto, sr25519};
-		app_crypto!(sr25519, super::KEY_TYPE);
-	}
+    mod app {
+        use sp_application_crypto::{app_crypto, sr25519};
+        app_crypto!(sr25519, super::KEY_TYPE);
+    }
 
-	/// Identity of the equivocation/misbehavior reporter.
-	pub type ReporterId = app::Public;
+    /// Identity of the equivocation/misbehavior reporter.
+    pub type ReporterId = app::Public;
 
-	/// An `AppCrypto` type to allow submitting signed transactions using the reporting
-	/// application key as signer.
-	pub struct ReporterAppCrypto;
+    /// An `AppCrypto` type to allow submitting signed transactions using the reporting
+    /// application key as signer.
+    pub struct ReporterAppCrypto;
 
-	impl AppCrypto<<Signature as Verify>::Signer, Signature> for ReporterAppCrypto {
-		type RuntimeAppPublic = ReporterId;
-		type GenericSignature = sp_core::sr25519::Signature;
-		type GenericPublic = sp_core::sr25519::Public;
-	}
+    impl AppCrypto<<Signature as Verify>::Signer, Signature> for ReporterAppCrypto {
+        type RuntimeAppPublic = ReporterId;
+        type GenericSignature = sp_core::sr25519::Signature;
+        type GenericPublic = sp_core::sr25519::Public;
+    }
 }
 
 pub type AuthAccountId = <<MultiSignature as Verify>::Signer as IdentifyAccount>::AccountId;
 /// Types that implement the AccountSet trait are able to supply a set of accounts
 /// The trait is generic over the notion of Account used.
 pub trait AccountSet {
-	type AccountId;
+    type AccountId;
 
-	fn accounts() -> BTreeSet<Self::AccountId>;
+    fn accounts() -> BTreeSet<Self::AccountId>;
 }
 
 pub trait Membership<AccountId, Hash> {
-	fn is_platform(who: &AccountId) -> bool;
-	fn is_expert(who: &AccountId) -> bool;
-	fn set_model_creator(key: &Hash, creator: &AccountId) -> ();
+    fn is_platform(who: &AccountId) -> bool;
+    fn is_expert(who: &AccountId) -> bool;
+    fn set_model_creator(key: &Hash, creator: &AccountId) -> ();
 }

@@ -4051,6 +4051,7 @@ dependencies = [
 name = "node-runtime"
 version = "2.0.0-rc5"
 dependencies = [
+ "ctt-pallet-kp",
  "frame-benchmarking",
  "frame-executive",
  "frame-support",
@@ -4422,6 +4423,7 @@ dependencies = [
 name = "pallet-babe"
 version = "2.0.0-rc5"
 dependencies = [
+ "ctt-pallet-kp",
  "frame-benchmarking",
  "frame-support",
  "frame-system",
@@ -4701,6 +4703,7 @@ dependencies = [
 name = "pallet-grandpa"
 version = "2.0.0-rc5"
 dependencies = [
+ "ctt-pallet-kp",
  "finality-grandpa",
  "frame-benchmarking",
  "frame-support",
@@ -4844,6 +4847,7 @@ dependencies = [
 name = "pallet-offences-benchmarking"
 version = "2.0.0-rc5"
 dependencies = [
+ "ctt-pallet-kp",
  "frame-benchmarking",
  "frame-support",
  "frame-system",
@@ -4968,6 +4972,7 @@ dependencies = [
 name = "pallet-session-benchmarking"
 version = "2.0.0-rc5"
 dependencies = [
+ "ctt-pallet-kp",
  "frame-benchmarking",
  "frame-support",
  "frame-system",
@@ -5006,6 +5011,7 @@ dependencies = [
 name = "pallet-staking"
 version = "2.0.0-rc5"
 dependencies = [
+ "ctt-pallet-kp",
  "env_logger 0.7.1",
  "frame-benchmarking",
  "frame-support",
@@ -5036,6 +5042,7 @@ dependencies = [
 name = "pallet-staking-fuzz"
 version = "0.0.0"
 dependencies = [
+ "ctt-pallet-kp",
  "frame-support",
  "frame-system",
  "honggfuzz",
