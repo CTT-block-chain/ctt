@@ -343,11 +343,11 @@ impl<T: Trait> AccountSet for Module<T> {
 impl<T: Trait> Membership<T::AccountId, T::Hash> for Module<T> {
     fn is_platform(_who: &T::AccountId) -> bool {
         // TODO
-        true
+        false
     }
     fn is_expert(_who: &T::AccountId) -> bool {
         // TODO
-        true
+        false
     }
 
     fn set_model_creator(key: &T::Hash, creator: &T::AccountId) -> () {

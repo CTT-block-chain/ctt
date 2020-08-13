@@ -27,6 +27,9 @@ use sp_runtime::{
     MultiSignature, OpaqueExtrinsic,
 };
 
+/// power compute base size
+pub type PowerSize = u128;
+
 /// An index to a block.
 pub type BlockNumber = u32;
 

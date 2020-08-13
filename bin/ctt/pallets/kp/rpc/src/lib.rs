@@ -1,18 +1,17 @@
 //! RPC interface for the kp module.
 
+pub use self::gen_client::Client as KpClient;
 use jsonrpc_core::{Error as RpcError, ErrorCode, Result};
 use jsonrpc_derive::rpc;
 use kp_runtime_api::KpApi as KpRuntimeApi;
-use primitives::AuthAccountId;
+pub use kp_runtime_api::KpApi as KpRuntimeRpcApi;
+use primitives::{AuthAccountId, PowerSize};
 use serde::{Deserialize, Serialize};
 use sp_api::ProvideRuntimeApi;
 use sp_blockchain::HeaderBackend;
 use sp_core::Bytes;
 use sp_runtime::{generic::BlockId, traits::Block as BlockT};
 use std::sync::Arc;
-pub use kp_runtime_api::KpApi as KpRuntimeRpcApi;
-pub use self::gen_client::Client as KpClient;
-
 
 #[derive(Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -25,17 +24,17 @@ pub struct QueryCommodityPowerParams {
 #[rpc]
 pub trait KpApi<BlockHash, AccountId> {
     #[rpc(name = "kP_totalPower")]
-    fn total_power(&self, at: Option<BlockHash>) -> Result<u32>;
+    fn total_power(&self, at: Option<BlockHash>) -> Result<PowerSize>;
 
     #[rpc(name = "kP_accountPower")]
-    fn account_power(&self, account: AccountId, at: Option<BlockHash>) -> Result<u32>;
+    fn account_power(&self, account: AccountId, at: Option<BlockHash>) -> Result<PowerSize>;
 
     #[rpc(name = "kP_commodityPower")]
     fn commodity_power(
         &self,
         query: QueryCommodityPowerParams,
         at: Option<BlockHash>,
-    ) -> Result<u32>;
+    ) -> Result<PowerSize>;
 }
 
 /// A struct that implements the `KpApi`.
@@ -81,7 +80,7 @@ where
     C: HeaderBackend<Block>,
     C::Api: KpRuntimeRpcApi<Block, AuthAccountId>,
 {
-    fn total_power(&self, at: Option<<Block as BlockT>::Hash>) -> Result<u32> {
+    fn total_power(&self, at: Option<<Block as BlockT>::Hash>) -> Result<PowerSize> {
         let api = self.client.runtime_api();
         let at = BlockId::hash(at.unwrap_or_else(||
             // If the block hash is not supplied assume the best block.
@@ -99,7 +98,7 @@ where
         &self,
         account: AuthAccountId,
         at: Option<<Block as BlockT>::Hash>,
-    ) -> Result<u32> {
+    ) -> Result<PowerSize> {
         let api = self.client.runtime_api();
         let at = BlockId::hash(at.unwrap_or_else(||
             // If the block hash is not supplied assume the best block.
@@ -117,7 +116,7 @@ where
         &self,
         query: QueryCommodityPowerParams,
         at: Option<<Block as BlockT>::Hash>,
-    ) -> Result<u32> {
+    ) -> Result<PowerSize> {
         let api = self.client.runtime_api();
         let at = BlockId::hash(at.unwrap_or_else(||
             // If the block hash is not supplied assume the best block.

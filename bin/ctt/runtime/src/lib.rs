@@ -36,7 +36,7 @@ use frame_support::{
     RuntimeDebug,
 };
 use frame_system::{EnsureOneOf, EnsureRoot};
-pub use node_primitives::{AccountId, AuthAccountId, Signature};
+pub use node_primitives::{AccountId, AuthAccountId, PowerSize, Signature};
 use node_primitives::{AccountIndex, Balance, BlockNumber, Hash, Index, Moment};
 use pallet_contracts_rpc_runtime_api::ContractExecResult;
 use pallet_grandpa::fg_primitives;
@@ -1004,15 +1004,15 @@ pub type Executive = frame_executive::Executive<
 
 impl_runtime_apis! {
     impl kp_runtime_api::KpApi<Block, AuthAccountId> for Runtime {
-        fn total_power() -> u32 {
+        fn total_power() -> PowerSize {
             Kp::kp_total_power()
         }
 
-        fn account_power(account: AuthAccountId) -> u32 {
-            Kp::kp_account_power(account)
+        fn account_power(account: AuthAccountId) -> PowerSize {
+            Kp::kp_auth_account_power(account)
         }
 
-        fn commodity_power(app_id: Vec<u8>, cart_id: Vec<u8>) -> u32 {
+        fn commodity_power(app_id: Vec<u8>, cart_id: Vec<u8>) -> PowerSize {
             Kp::kp_commodity_power(app_id, cart_id)
         }
     }

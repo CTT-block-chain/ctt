@@ -35,7 +35,7 @@ use frame_support::{
     },
     RuntimeDebug,
 };
-use frame_system::{EnsureOneOf, EnsureRoot, Trait};
+use frame_system::{EnsureOneOf, EnsureRoot};
 pub use node_primitives::{AccountId, Signature};
 use node_primitives::{AccountIndex, Balance, BlockNumber, Hash, Index, Moment};
 use pallet_contracts_rpc_runtime_api::ContractExecResult;
