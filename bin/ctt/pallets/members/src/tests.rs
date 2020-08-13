@@ -1,5 +1,5 @@
 use crate::*;
-use frame_support::{assert_noop, assert_ok, impl_outer_event, impl_outer_origin, parameter_types};
+use frame_support::{assert_ok, impl_outer_event, impl_outer_origin, parameter_types};
 use frame_system::{self as system, RawOrigin};
 use sp_core::H256;
 use sp_io::TestExternalities;
@@ -8,7 +8,6 @@ use sp_runtime::{
     traits::{BlakeTwo256, IdentityLookup},
     Perbill,
 };
-use pallet_balances::{AccountData, NegativeImbalance};
 
 impl_outer_origin! {
     pub enum Origin for TestRuntime {}

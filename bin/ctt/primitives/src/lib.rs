@@ -17,7 +17,6 @@
 
 //! Low-level types used throughout the Substrate code.
 
-#![warn(missing_docs)]
 #![cfg_attr(not(feature = "std"), no_std)]
 
 use sp_std::collections::btree_set::BTreeSet;
@@ -27,6 +26,9 @@ use sp_runtime::{
     traits::{BlakeTwo256, IdentifyAccount, Verify},
     MultiSignature, OpaqueExtrinsic,
 };
+
+/// power compute base size
+pub type PowerSize = u128;
 
 /// An index to a block.
 pub type BlockNumber = u32;
@@ -98,6 +100,7 @@ pub mod report {
     }
 }
 
+/// Used for outside interface
 pub type AuthAccountId = <<MultiSignature as Verify>::Signer as IdentifyAccount>::AccountId;
 /// Types that implement the AccountSet trait are able to supply a set of accounts
 /// The trait is generic over the notion of Account used.

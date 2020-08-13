@@ -4,16 +4,16 @@
 //! tradeoffs when using map sets.
 
 use frame_support::{
-    codec::{Decode, Encode},
+    codec::Decode,
     decl_error, decl_event, decl_module, decl_storage,
     dispatch::DispatchResult,
     ensure,
     traits::{Currency, ExistenceRequirement::KeepAlive},
 };
 use frame_system::{self as system, ensure_root, ensure_signed};
-use primitives::{AccountSet, AuthAccountId, Balance, Membership};
+use primitives::{AccountSet, AuthAccountId, Membership};
 use sp_core::sr25519;
-use sp_runtime::{print, traits::Hash, MultiSignature, RuntimeDebug};
+use sp_runtime::traits::Hash;
 use sp_std::collections::btree_set::BTreeSet;
 use sp_std::prelude::*;
 
@@ -99,7 +99,7 @@ decl_module! {
         /// Adds a member to the membership set unless the max is reached
         #[weight = 0]
         pub fn add_council_member(origin, new_member: T::AccountId) -> DispatchResult {
-            let who = ensure_root(origin)?;
+            let _who = ensure_root(origin)?;
 
             let mut members = CouncilMembers::<T>::get();
             //ensure!(members.len() < MAX_MEMBERS, Error::<T>::MembershipLimitReached);
@@ -124,7 +124,7 @@ decl_module! {
         /// Removes a member.
         #[weight = 0]
         pub fn remove_council_member(origin, old_member: T::AccountId) -> DispatchResult {
-            let who = ensure_root(origin)?;
+            let _who = ensure_root(origin)?;
 
             let mut members = CouncilMembers::<T>::get();
 
@@ -144,7 +144,7 @@ decl_module! {
 
         #[weight = 0]
         pub fn add_finance_member(origin, new_member: T::AccountId) -> DispatchResult {
-            let who = ensure_root(origin)?;
+            let _who = ensure_root(origin)?;
 
             let mut members = FinanceMembers::<T>::get();
             //ensure!(members.len() < MAX_MEMBERS, Error::<T>::MembershipLimitReached);
@@ -169,7 +169,7 @@ decl_module! {
         /// Removes a member.
         #[weight = 0]
         pub fn remove_finance_member(origin, old_member: T::AccountId) -> DispatchResult {
-            let who = ensure_root(origin)?;
+            let _who = ensure_root(origin)?;
 
             let mut members = FinanceMembers::<T>::get();
 
@@ -189,7 +189,7 @@ decl_module! {
 
         #[weight = 0]
         pub fn set_app_admin(origin, app_id: Vec<u8>, admin: T::AccountId) -> DispatchResult {
-            let who = ensure_root(origin)?;
+            let _who = ensure_root(origin)?;
 
             <AppAdmins<T>>::insert(app_id, admin.clone());
             Self::deposit_event(RawEvent::AppAdminSet(admin));
@@ -280,7 +280,7 @@ decl_module! {
             auth_sign: sr25519::Signature) -> DispatchResult {
 
             // this is app server account
-            let who = ensure_signed(origin)?;
+            let _who = ensure_signed(origin)?;
 
             // TODO: verify 2 sign
 
@@ -341,13 +341,13 @@ impl<T: Trait> AccountSet for Module<T> {
 }
 
 impl<T: Trait> Membership<T::AccountId, T::Hash> for Module<T> {
-    fn is_platform(who: &T::AccountId) -> bool {
+    fn is_platform(_who: &T::AccountId) -> bool {
         // TODO
-        true
+        false
     }
-    fn is_expert(who: &T::AccountId) -> bool {
+    fn is_expert(_who: &T::AccountId) -> bool {
         // TODO
-        true
+        false
     }
 
     fn set_model_creator(key: &T::Hash, creator: &T::AccountId) -> () {

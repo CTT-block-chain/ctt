@@ -16,23 +16,24 @@ use sp_std::prelude::*;
 /// For more guidance on Substrate FRAME, see the example pallet
 /// https://github.com/paritytech/substrate/blob/master/frame/example/src/lib.rs
 use frame_system::{self as system, ensure_signed};
-use primitives::{AuthAccountId, Membership};
-use sp_core::{sr25519, H160};
+use primitives::{AuthAccountId, Membership, PowerSize};
+use sp_core::sr25519;
 use sp_runtime::{
     print,
-    traits::{Hash, IdentifyAccount, Verify},
+    traits::{Hash, Verify},
     MultiSignature, RuntimeDebug,
 };
 
 pub trait PowerVote<AccountId> {
-    fn account_power_ratio(account: &AccountId) -> f64 {
+    fn account_power_ratio(_account: &AccountId) -> f64 {
         // default return 1.0
         1.0
     }
 }
 
-const FLOAT_COMPUTE_PRECISION: u32 = 10000;
-const POWER_PRECISION_ADJUST: u32 = FLOAT_COMPUTE_PRECISION * 100;
+const FLOAT_COMPUTE_PRECISION: PowerSize = 10000;
+const RATIO_DIV: f64 = 100.0;
+// const POWER_PRECISION_ADJUST: PowerSize = FLOAT_COMPUTE_PRECISION * 100;
 
 #[cfg(test)]
 mod mock;
@@ -112,42 +113,42 @@ impl From<u8> for CommentTrend {
 
 #[derive(Encode, Decode, Clone, Default, PartialEq, RuntimeDebug)]
 pub struct KPProductPublishData {
-    para_issue_rate: u32,
-    self_issue_rate: u32,
+    para_issue_rate: PowerSize,
+    self_issue_rate: PowerSize,
 }
 
 #[derive(Encode, Decode, Clone, Default, PartialEq, RuntimeDebug)]
 pub struct KPProductPublishRateMax {
-    para_issue_rate: u32,
-    self_issue_rate: u32,
+    para_issue_rate: PowerSize,
+    self_issue_rate: PowerSize,
 }
 
 #[derive(Encode, Decode, Clone, Default, PartialEq, RuntimeDebug)]
 pub struct KPProductIdentifyData {
-    goods_price: u32,
-    ident_rate: u32,
-    ident_consistence: u32,
+    goods_price: PowerSize,
+    ident_rate: PowerSize,
+    ident_consistence: PowerSize,
     cart_id: Vec<u8>,
 }
 
 #[derive(Encode, Decode, Clone, Default, PartialEq, RuntimeDebug)]
 pub struct KPProductIdentifyRateMax {
-    ident_rate: u32,
-    ident_consistence: u32,
+    ident_rate: PowerSize,
+    ident_consistence: PowerSize,
 }
 
 #[derive(Encode, Decode, Clone, Default, PartialEq, RuntimeDebug)]
 pub struct KPProductTryData {
-    goods_price: u32,
-    offset_rate: u32,
-    true_rate: u32,
+    goods_price: PowerSize,
+    offset_rate: PowerSize,
+    true_rate: PowerSize,
     cart_id: Vec<u8>,
 }
 
 #[derive(Encode, Decode, Clone, Default, PartialEq, RuntimeDebug)]
 pub struct KPProductTryRateMax {
-    offset_rate: u32,
-    true_rate: u32,
+    offset_rate: PowerSize,
+    true_rate: PowerSize,
 }
 
 #[derive(Encode, Decode, Clone, PartialEq, RuntimeDebug)]
@@ -166,20 +167,20 @@ impl Default for DocumentSpecificData {
 // account comment action record
 #[derive(Encode, Decode, Clone, PartialEq, Default, RuntimeDebug)]
 pub struct KPCommentAccountRecord {
-    count: u32,
-    fees: u32,
-    positive_count: u32,
+    count: PowerSize,
+    fees: PowerSize,
+    positive_count: PowerSize,
 }
 
 #[derive(Encode, Decode, Clone, PartialEq, Default, RuntimeDebug)]
 pub struct CommentMaxRecord {
-    max_count: u32,
-    max_fee: u32,
-    max_positive: u32,
+    max_count: PowerSize,
+    max_fee: PowerSize,
+    max_positive: PowerSize,
 
     // for document, this is the max of document's total comment cost/count
     // for account, this is the max of account's total comment fees/count
-    max_unit_fee: u32,
+    max_unit_fee: PowerSize,
 }
 
 type KPDocumentDataOf<T> =
@@ -196,9 +197,9 @@ pub struct KPDocumentData<AccountId, Hash> {
     owner: AuthAccountId,
     document_type: DocumentType,
     document_data: DocumentSpecificData,
-    comment_count: u32,
-    comment_total_fee: u32,
-    comment_positive_count: u32,
+    comment_count: PowerSize,
+    comment_total_fee: PowerSize,
+    comment_positive_count: PowerSize,
     expert_trend: CommentTrend,
     platform_trend: CommentTrend,
 }
@@ -206,17 +207,17 @@ pub struct KPDocumentData<AccountId, Hash> {
 // power store
 #[derive(Encode, Decode, Clone, Default, PartialEq, RuntimeDebug)]
 pub struct DocumentPower {
-    attend: u32,
-    content: u32,
-    judge: u32,
+    attend: PowerSize,
+    content: PowerSize,
+    judge: PowerSize,
 }
 
 pub trait PowerSum {
-    fn total(&self) -> u32;
+    fn total(&self) -> PowerSize;
 }
 
 impl PowerSum for DocumentPower {
-    fn total(&self) -> u32 {
+    fn total(&self) -> PowerSize {
         self.attend + self.content + self.judge
     }
 }
@@ -230,7 +231,7 @@ pub struct KPCommentData<AccountId, Hash> {
     document_id: Vec<u8>,
     comment_id: Vec<u8>,
     comment_hash: Hash,
-    comment_fee: u32,
+    comment_fee: PowerSize,
     comment_trend: u8,
     sender: AccountId,
     owner: AuthAccountId,
@@ -390,13 +391,13 @@ decl_storage! {
         KPCommentAccountRecordMap get(fn kp_comment_account_record_map):
             map hasher(twox_64_concat) T::Hash => KPCommentAccountRecord;
 
-        // AuthAccountId -> u32 max goods_price
+        // AuthAccountId -> PowerSize max goods_price
         KPAccountMaxPurchaseByIdHash get(fn kp_account_max_purchase_by_idhash):
-            map hasher(twox_64_concat) AuthAccountId => u32;
+            map hasher(twox_64_concat) AuthAccountId => PowerSize;
 
-        // (AppId, CartId) -> u32 user computed product identify/try power map
+        // (AppId, CartId) -> PowerSize user computed product identify/try power map
         KPPurchasePowerByIdHash get(fn kp_purchase_power_by_idhash):
-            map hasher(twox_64_concat) T::Hash => u32;
+            map hasher(twox_64_concat) T::Hash => PowerSize;
 
         // (AppId, DocumentId) -> KPDocumentData
         KPDocumentDataByIdHash get(fn kp_document_data_by_idhash):
@@ -423,15 +424,15 @@ decl_storage! {
             map hasher(twox_64_concat) T::Hash => KPCommentDataOf<T>;
 
         // global total knowledge power
-        TotalPower get(fn total_power): u32;
+        TotalPower get(fn total_power): PowerSize;
 
         // miner power table
         MinerPowerByAccount get(fn miner_power_by_account):
-            map hasher(blake2_128_concat) T::AccountId => u32;
+            map hasher(blake2_128_concat) T::AccountId => PowerSize;
 
-        // account attend power (AuthAccountId, AppId) -> u32
+        // account attend power (AccountId, AppId) -> PowerSize
         AccountAttendPowerMap get(fn account_attend_power_map):
-            map hasher(blake2_128_concat) T::Hash => u32;
+            map hasher(blake2_128_concat) T::Hash => PowerSize;
 
         // global power compute related parameters:
         // AppId -> single document's max comment count
@@ -444,7 +445,7 @@ decl_storage! {
 
         // AppId -> single account's max goods_price
         MaxGoodsPricePerAccountMap get(fn max_goods_price_per_account_map):
-            map hasher(twox_64_concat) Vec<u8> => u32;
+            map hasher(twox_64_concat) Vec<u8> => PowerSize;
 
         // AppId -> document publish params max
         DocumentPublishMaxParams get(fn document_publish_max_params):
@@ -626,6 +627,10 @@ decl_module! {
             let product_key_hash = T::Hashing::hash_of(&(&app_id, &product_id));
             ensure!(!<KPDocumentProductIndexByIdHash<T>>::contains_key(&product_key_hash), Error::<T>::ProductAlreadyExisted);
 
+            // check if model exist
+            let model_key = T::Hashing::hash_of(&(&app_id, &model_id));
+            ensure!(<KPModelDataByIdHash<T>>::contains_key(&model_key), Error::<T>::ModelNotFound);
+
             // TODO: 2 sign verification
             // construct verification u8 array:
             /*let mut buf = vec![];
@@ -780,7 +785,7 @@ decl_module! {
             document_id: Vec<u8>,
 
             comment_hash: T::Hash,
-            comment_fee: u32,
+            comment_fee: PowerSize,
             comment_trend: u8,
 
             app_user_account: AuthAccountId,
@@ -831,13 +836,17 @@ decl_module! {
 }
 
 impl<T: Trait> Module<T> {
-    pub fn kp_total_power() -> u32 {
+    pub fn kp_total_power() -> PowerSize {
         TotalPower::get()
     }
 
-    pub fn kp_account_power(account: AuthAccountId) -> u32 {
+    pub fn kp_account_power(account: T::AccountId) -> PowerSize {
+        <MinerPowerByAccount<T>>::get(account)
+    }
+
+    pub fn kp_auth_account_power(account: AuthAccountId) -> PowerSize {
         let account_id = Self::convert_account(&account);
-        <MinerPowerByAccount<T>>::get(account_id)
+        Self::kp_account_power(account_id)
     }
 
     pub fn kp_account_power_ratio(account: &T::AccountId) -> f64 {
@@ -850,9 +859,19 @@ impl<T: Trait> Module<T> {
         }
     }
 
-    pub fn kp_commodity_power(app_id: Vec<u8>, cart_id: Vec<u8>) -> u32 {
+    pub fn kp_commodity_power(app_id: Vec<u8>, cart_id: Vec<u8>) -> PowerSize {
         let key = T::Hashing::hash_of(&(&app_id, &cart_id));
         <KPPurchasePowerByIdHash<T>>::get(&key)
+    }
+
+    pub fn kp_document_power(app_id: Vec<u8>, document_id: Vec<u8>) -> DocumentPower {
+        let key = T::Hashing::hash_of(&(&app_id, &document_id));
+        <KPDocumentPowerByIdHash<T>>::get(&key)
+    }
+
+    pub fn kp_account_attend_power(app_id: Vec<u8>, account: T::AccountId) -> PowerSize {
+        let key = T::Hashing::hash_of(&(&account, &app_id));
+        <AccountAttendPowerMap<T>>::get(&key)
     }
 
     fn is_auth_server(who: &T::AccountId) -> bool {
@@ -869,71 +888,83 @@ impl<T: Trait> Module<T> {
         T::AccountId::decode(&mut &tmp[..]).unwrap_or_default()
     }
 
-    fn compute_publish_product_content_power(para_issue_rate: u32, self_issue_rate: u32) -> u32 {
-        (para_issue_rate * T::DocumentPublishWeightParamsRate::get() as u32
-            + self_issue_rate * T::DocumentPublishWeightParamsSelfRate::get() as u32)
-            * T::DocumentPowerWeightContent::get() as u32
-            * T::TopWeightProductPublish::get() as u32
-            / POWER_PRECISION_ADJUST
+    fn compute_publish_product_content_power(
+        para_issue_rate: f64,
+        self_issue_rate: f64,
+    ) -> PowerSize {
+        ((para_issue_rate * T::DocumentPublishWeightParamsRate::get() as f64 / RATIO_DIV
+            + self_issue_rate * T::DocumentPublishWeightParamsSelfRate::get() as f64 / RATIO_DIV)
+            * T::DocumentPowerWeightContent::get() as f64
+            / RATIO_DIV
+            * T::TopWeightProductPublish::get() as f64
+            / RATIO_DIV
+            * FLOAT_COMPUTE_PRECISION as f64) as PowerSize
     }
 
-    fn compute_identify_content_power(ident_rate: u32, ident_consistence: u32) -> u32 {
-        (ident_rate * T::DocumentIdentifyWeightParamsRate::get() as u32
-            + ident_consistence * T::DocumentIdentifyWeightCheckRate::get() as u32)
-            * T::DocumentPowerWeightContent::get() as u32
-            * T::TopWeightDocumentIdentify::get() as u32
-            / POWER_PRECISION_ADJUST
+    fn compute_identify_content_power(ident_rate: f64, ident_consistence: f64) -> PowerSize {
+        ((ident_rate * T::DocumentIdentifyWeightParamsRate::get() as f64 / RATIO_DIV
+            + ident_consistence * T::DocumentIdentifyWeightCheckRate::get() as f64 / RATIO_DIV)
+            * T::DocumentPowerWeightContent::get() as f64
+            / RATIO_DIV
+            * T::TopWeightDocumentIdentify::get() as f64
+            / RATIO_DIV
+            * FLOAT_COMPUTE_PRECISION as f64) as PowerSize
     }
 
-    fn compute_try_content_power(offset_rate: u32, true_rate: u32) -> u32 {
-        (offset_rate * T::DocumentTryWeightBiasRate::get() as u32
-            + true_rate * T::DocumentTryWeightTrueRate::get() as u32)
-            * T::DocumentPowerWeightContent::get() as u32
-            * T::TopWeightDocumentTry::get() as u32
-            / POWER_PRECISION_ADJUST
+    fn compute_try_content_power(offset_rate: f64, true_rate: f64) -> PowerSize {
+        ((offset_rate * T::DocumentTryWeightBiasRate::get() as f64 / RATIO_DIV
+            + true_rate * T::DocumentTryWeightTrueRate::get() as f64 / RATIO_DIV)
+            * T::DocumentPowerWeightContent::get() as f64
+            / RATIO_DIV
+            * T::TopWeightDocumentTry::get() as f64
+            / RATIO_DIV
+            * FLOAT_COMPUTE_PRECISION as f64) as PowerSize
     }
 
     fn compute_attend_power(
-        rates: (u32, u32, u32, u32),
-        second_weight: u32,
-        top_weight: u32,
-    ) -> u32 {
-        (rates.0 * T::CommentPowerWeightCount::get() as u32
-            + rates.1 * T::CommentPowerWeightCost::get() as u32
-            + rates.2 * T::CommentPowerWeightPerCost::get() as u32
-            + rates.3 * T::CommentPowerWeightPositive::get() as u32)
-            * second_weight
-            * top_weight
-            / POWER_PRECISION_ADJUST
+        rates: (f64, f64, f64, f64),
+        second_weight: PowerSize,
+        top_weight: PowerSize,
+    ) -> PowerSize {
+        ((rates.0 * T::CommentPowerWeightCount::get() as f64 / RATIO_DIV
+            + rates.1 * T::CommentPowerWeightCost::get() as f64 / RATIO_DIV
+            + rates.2 * T::CommentPowerWeightPerCost::get() as f64 / RATIO_DIV
+            + rates.3 * T::CommentPowerWeightPositive::get() as f64 / RATIO_DIV)
+            * second_weight as f64
+            / RATIO_DIV
+            * top_weight as f64
+            / RATIO_DIV
+            * FLOAT_COMPUTE_PRECISION as f64) as PowerSize
     }
 
-    fn compute_judge_power(origin_power: u32, top_weight: u32) -> u32 {
-        origin_power * T::DocumentPowerWeightJudge::get() as u32 * top_weight
-            / POWER_PRECISION_ADJUST
+    fn compute_judge_power(origin_power: f64, top_weight: PowerSize) -> PowerSize {
+        (origin_power * T::DocumentPowerWeightJudge::get() as f64 / RATIO_DIV * top_weight as f64
+            / RATIO_DIV
+            * FLOAT_COMPUTE_PRECISION as f64) as PowerSize
     }
 
     fn compute_comment_action_rate(
         max: &CommentMaxRecord,
-        count: u32,
-        fee: u32,
-        positive: u32,
-        unit_fee: u32,
-    ) -> (u32, u32, u32, u32) {
-        let mut positive_rate = 0;
-        let count_rate = count * FLOAT_COMPUTE_PRECISION / max.max_count;
-        let cost_rate = fee * FLOAT_COMPUTE_PRECISION / max.max_fee;
-        let unit_cost_rate = unit_fee * FLOAT_COMPUTE_PRECISION / max.max_unit_fee;
+        count: PowerSize,
+        fee: PowerSize,
+        positive: PowerSize,
+        unit_fee: PowerSize,
+    ) -> (f64, f64, f64, f64) {
+        let mut positive_rate: f64 = 0.0;
+        let count_rate = count as f64 / max.max_count as f64;
+        let cost_rate = fee as f64 / max.max_fee as f64;
+        let unit_cost_rate = unit_fee as f64 / max.max_unit_fee as f64;
 
         if max.max_positive > 0 {
-            positive_rate = positive * FLOAT_COMPUTE_PRECISION / max.max_positive;
+            positive_rate = positive as f64 / max.max_positive as f64;
         }
 
         (count_rate, cost_rate, unit_cost_rate, positive_rate)
     }
 
-    fn update_max<F>(rate: u32, mut max: u32, updater: F) -> u32
+    fn update_max<F>(rate: PowerSize, mut max: PowerSize, updater: F) -> f64
     where
-        F: Fn(u32) -> (),
+        F: Fn(PowerSize) -> (),
     {
         if rate > max {
             max = rate;
@@ -941,18 +972,18 @@ impl<T: Trait> Module<T> {
         }
 
         if rate > 0 {
-            return rate * FLOAT_COMPUTE_PRECISION / max;
+            return rate as f64 / max as f64;
         }
 
-        0
+        0.0
     }
 
     fn update_comment_max(
         max: &mut CommentMaxRecord,
-        count: u32,
-        fees: u32,
-        positive: u32,
-        unit_fee: u32,
+        count: PowerSize,
+        fees: PowerSize,
+        positive: PowerSize,
+        unit_fee: PowerSize,
     ) -> bool {
         let mut is_updated = false;
 
@@ -976,7 +1007,7 @@ impl<T: Trait> Module<T> {
         is_updated
     }
 
-    fn compute_doc_trend_power(doc: &KPDocumentData<T::AccountId, T::Hash>) -> u32 {
+    fn compute_doc_trend_power(doc: &KPDocumentData<T::AccountId, T::Hash>) -> f64 {
         match doc {
             KPDocumentData {
                 expert_trend,
@@ -988,26 +1019,26 @@ impl<T: Trait> Module<T> {
 
                 match et ^ pt {
                     // 01 10, 10 01  single negative
-                    0b11 => (0.25 * FLOAT_COMPUTE_PRECISION as f64) as u32,
+                    0b11 => 0.25,
                     // 00 00, 01 01, 10 10
                     0b00 => match et & pt {
-                        0b00 => 1 * FLOAT_COMPUTE_PRECISION,
-                        0b01 => 0,
-                        0b10 => (0.375 * FLOAT_COMPUTE_PRECISION as f64) as u32,
+                        0b00 => 1.0,
+                        0b01 => 0.0,
+                        0b10 => 0.375,
                         // unexpected!!!
                         _ => {
                             print("unexpected");
-                            0
+                            0.0
                         }
                     },
                     // 00 01, 01 00 positive and negative
-                    0b01 => (0.5 * FLOAT_COMPUTE_PRECISION as f64) as u32,
+                    0b01 => 0.5,
                     // 00 10, 10 00 single positive
-                    0b10 => (0.75 * FLOAT_COMPUTE_PRECISION as f64) as u32,
+                    0b10 => 0.75,
                     // unexpected!!!
                     _ => {
                         print("unexpected");
-                        0
+                        0.0
                     }
                 }
             }
@@ -1015,8 +1046,8 @@ impl<T: Trait> Module<T> {
     }
 
     fn process_document_content_power(doc: &KPDocumentData<T::AccountId, T::Hash>) {
-        let mut content_power = 0;
-        let mut initial_judge_power: u32 = 0;
+        let content_power;
+        let initial_judge_power;
         match &doc.document_data {
             DocumentSpecificData::ProductPublish(data) => {
                 let params_max = <DocumentPublishMaxParams>::get(&doc.app_id);
@@ -1042,7 +1073,7 @@ impl<T: Trait> Module<T> {
 
                 initial_judge_power = Self::compute_judge_power(
                     Self::compute_doc_trend_power(&doc),
-                    T::TopWeightProductPublish::get() as u32,
+                    T::TopWeightProductPublish::get() as PowerSize,
                 );
             }
             DocumentSpecificData::ProductIdentify(data) => {
@@ -1065,7 +1096,7 @@ impl<T: Trait> Module<T> {
 
                 initial_judge_power = Self::compute_judge_power(
                     Self::compute_doc_trend_power(&doc),
-                    T::TopWeightDocumentIdentify::get() as u32,
+                    T::TopWeightDocumentIdentify::get() as PowerSize,
                 );
             }
             DocumentSpecificData::ProductTry(data) => {
@@ -1087,7 +1118,7 @@ impl<T: Trait> Module<T> {
 
                 initial_judge_power = Self::compute_judge_power(
                     Self::compute_doc_trend_power(&doc),
-                    T::TopWeightDocumentTry::get() as u32,
+                    T::TopWeightDocumentTry::get() as PowerSize,
                 );
             }
         }
@@ -1106,12 +1137,10 @@ impl<T: Trait> Module<T> {
         }
     }
 
-    fn process_comment_power(
-        comment: &KPCommentData<T::AccountId, T::Hash>,
-    ) -> Result<u32, Error<T>> {
+    fn process_comment_power(comment: &KPCommentData<T::AccountId, T::Hash>) {
         // target compute
-        let mut account_comment_power: u32 = 0;
-        let mut doc_comment_power: u32 = 0;
+        let account_comment_power: PowerSize;
+        let doc_comment_power: PowerSize;
         let doc_key_hash = T::Hashing::hash_of(&(&comment.app_id, &comment.document_id));
 
         // read out document
@@ -1150,7 +1179,7 @@ impl<T: Trait> Module<T> {
                 account_comment_unit_fee,
             ),
             100,
-            T::TopWeightAccountAttend::get() as u32,
+            T::TopWeightAccountAttend::get() as PowerSize,
         );
 
         // read out document based max record
@@ -1173,22 +1202,24 @@ impl<T: Trait> Module<T> {
                 doc.comment_positive_count,
                 doc_comment_unit_fee,
             ),
-            T::CommentPowerWeight::get() as u32,
-            T::TopWeightAccountAttend::get() as u32,
+            T::CommentPowerWeight::get() as PowerSize,
+            T::TopWeightAccountAttend::get() as PowerSize,
         );
 
         // chcek if owner's membership
-        let mut platform_comment_power: u32 = 0;
+        let mut platform_comment_power: PowerSize = 0;
         let mut is_need_update_platform_comment = false;
         let owner = Self::convert_account(&comment.owner);
         if doc.expert_trend == CommentTrend::Empty && T::Membership::is_expert(&owner) {
             doc.expert_trend = comment.comment_trend.into();
-            platform_comment_power = Self::compute_doc_trend_power(&doc);
+            platform_comment_power =
+                (Self::compute_doc_trend_power(&doc) * FLOAT_COMPUTE_PRECISION as f64) as PowerSize;
             is_need_update_platform_comment = true;
         }
         if doc.platform_trend == CommentTrend::Empty && T::Membership::is_platform(&owner) {
             doc.platform_trend = comment.comment_trend.into();
-            platform_comment_power = Self::compute_doc_trend_power(&doc);
+            platform_comment_power =
+                (Self::compute_doc_trend_power(&doc) * FLOAT_COMPUTE_PRECISION as f64) as PowerSize;
             is_need_update_platform_comment = true;
         }
 
@@ -1212,7 +1243,7 @@ impl<T: Trait> Module<T> {
         }
 
         // update account attend power store
-        let key = T::Hashing::hash_of(&(&comment.owner, &comment.app_id));
+        let key = T::Hashing::hash_of(&(&Self::convert_account(&comment.owner), &comment.app_id));
         <AccountAttendPowerMap<T>>::insert(&key, account_comment_power);
 
         // update document attend power store
@@ -1223,8 +1254,6 @@ impl<T: Trait> Module<T> {
                 pow_record.judge = platform_comment_power;
             }
         });
-
-        Ok(0)
     }
 
     // triggered when:
@@ -1234,22 +1263,22 @@ impl<T: Trait> Module<T> {
     // 4. product try was commented
     fn process_account_power(doc: &KPDocumentData<T::AccountId, T::Hash>) {
         let mut document_id: Vec<u8> = vec![];
-        let mut couple_document_power: DocumentPower;
-        let mut couple_document_weight: u32 = 0;
-        let mut power: u32 = 0;
+        let couple_document_power: DocumentPower;
+        //let couple_document_weight: PowerSize;
+        let mut power: PowerSize = 0;
         let mut cart_id: Vec<u8> = vec![];
 
         match &doc.document_data {
             DocumentSpecificData::ProductIdentify(data) => {
                 let key = T::Hashing::hash_of(&(&doc.app_id, &data.cart_id));
                 document_id = Self::kp_cart_product_try_index_by_idhash(&key);
-                couple_document_weight = T::TopWeightDocumentTry::get() as u32;
+                //couple_document_weight = T::TopWeightDocumentTry::get() as PowerSize;
                 cart_id = data.cart_id.clone();
             }
             DocumentSpecificData::ProductTry(data) => {
                 let key = T::Hashing::hash_of(&(&doc.app_id, &data.cart_id));
                 document_id = Self::kp_cart_product_identify_index_by_idhash(&key);
-                couple_document_weight = T::TopWeightDocumentIdentify::get() as u32;
+                //couple_document_weight = T::TopWeightDocumentIdentify::get() as PowerSize;
                 cart_id = data.cart_id.clone();
             }
             _ => {}
@@ -1278,7 +1307,7 @@ impl<T: Trait> Module<T> {
         power += product_publish_power.total();
 
         // read document owner action power
-        let key = T::Hashing::hash_of(&(&doc.owner, &doc.app_id));
+        let key = T::Hashing::hash_of(&(&Self::convert_account(&doc.owner), &doc.app_id));
         power += Self::account_attend_power_map(&key);
 
         // TODO: read document owner eocnomic power
