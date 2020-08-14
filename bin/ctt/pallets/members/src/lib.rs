@@ -330,6 +330,28 @@ impl<T: Trait> Module<T> {
         let tmp: [u8; 32] = origin.clone().into();
         T::AccountId::decode(&mut &tmp[..]).unwrap_or_default()
     }
+
+    pub fn is_platform_expert(who: &T::AccountId, app_id: &Vec<u8>) -> bool {
+        let members = <AppPlatformExpertMembers<T>>::get(app_id);
+        match members.binary_search(who) {
+            Ok(_) => true,
+            Err(_) => false,
+        }
+    }
+
+    pub fn is_model_expert(who: &T::AccountId, app_id: &Vec<u8>, model_id: &Vec<u8>) -> bool {
+        let key = T::Hashing::hash_of(&(app_id, model_id));
+        let members = <ExpertMembers<T>>::get(&key);
+        match members.binary_search(who) {
+            Ok(_) => true,
+            Err(_) => false,
+        }
+    }
+
+    pub fn is_model_creator(who: &T::AccountId, app_id: &Vec<u8>, model_id: &Vec<u8>) -> bool {
+        let key = T::Hashing::hash_of(&(app_id, model_id));
+        <ModelCreators<T>>::contains_key(&key) && <ModelCreators<T>>::get(&key) == *who
+    }
 }
 
 impl<T: Trait> AccountSet for Module<T> {
@@ -342,19 +364,10 @@ impl<T: Trait> AccountSet for Module<T> {
 
 impl<T: Trait> Membership<T::AccountId, T::Hash> for Module<T> {
     fn is_platform(who: &T::AccountId, app_id: &Vec<u8>) -> bool {
-        let members = <AppPlatformExpertMembers<T>>::get(app_id);
-        match members.binary_search(who) {
-            Ok(_) => true,
-            Err(_) => false,
-        }
+        Self::is_platform_expert(who, app_id)
     }
     fn is_expert(who: &T::AccountId, app_id: &Vec<u8>, model_id: &Vec<u8>) -> bool {
-        let key = T::Hashing::hash_of(&(app_id, model_id));
-        let members = <ExpertMembers<T>>::get(&key);
-        match members.binary_search(who) {
-            Ok(_) => true,
-            Err(_) => false,
-        }
+        Self::is_model_expert(who, app_id, model_id)
     }
 
     fn set_model_creator(key: &T::Hash, creator: &T::AccountId) -> () {

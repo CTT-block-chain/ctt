@@ -33,6 +33,7 @@
 use std::sync::Arc;
 
 use kp_rpc::{Kp, KpApi};
+use members_rpc::{Members, MembersApi};
 use node_primitives::{AccountId, AuthAccountId, Balance, Block, BlockNumber, Hash, Index};
 use node_runtime::UncheckedExtrinsic;
 use sc_consensus_babe::{Config, Epoch};
@@ -114,6 +115,7 @@ where
     C::Api: BabeApi<Block>,
     C::Api: BlockBuilder<Block>,
     C::Api: kp_rpc::KpRuntimeRpcApi<Block, AuthAccountId>,
+    C::Api: members_rpc::MembersRuntimeRpcApi<Block, AccountId>,
     P: TransactionPool + 'static,
     M: jsonrpc_core::Metadata + Default,
     SC: SelectChain<Block> + 'static,
@@ -154,6 +156,7 @@ where
         client.clone(),
     )));
     io.extend_with(KpApi::to_delegate(Kp::new(client.clone())));
+    io.extend_with(MembersApi::to_delegate(Members::new(client.clone())));
     io.extend_with(sc_consensus_babe_rpc::BabeApi::to_delegate(
         BabeRpcHandler::new(
             client,

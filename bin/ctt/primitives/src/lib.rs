@@ -29,7 +29,7 @@ use sp_runtime::{
 };
 
 /// power compute base size
-pub type PowerSize = u128;
+pub type PowerSize = u64;
 
 /// An index to a block.
 pub type BlockNumber = u32;

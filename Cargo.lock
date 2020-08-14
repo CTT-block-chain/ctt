@@ -1289,6 +1289,7 @@ dependencies = [
  "ctt-runtime",
  "jsonrpc-core",
  "kp-rpc",
+ "members-rpc",
  "pallet-contracts-rpc",
  "pallet-transaction-payment-rpc",
  "sc-client-api",
@@ -1339,6 +1340,7 @@ dependencies = [
  "hex-literal",
  "integer-sqrt",
  "kp-runtime-api",
+ "members-runtime-api",
  "pallet-authority-discovery",
  "pallet-authorship",
  "pallet-babe",
@@ -3629,6 +3631,38 @@ name = "maybe-uninit"
 version = "2.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "60302e4db3a61da70c0cb7991976248362f30319e88850c487b9b95bbf059e00"
+
+[[package]]
+name = "members-rpc"
+version = "2.0.0-rc5"
+dependencies = [
+ "ctt-primitives",
+ "jsonrpc-core",
+ "jsonrpc-core-client",
+ "jsonrpc-derive",
+ "members-runtime-api",
+ "parity-scale-codec",
+ "serde",
+ "sp-api",
+ "sp-blockchain",
+ "sp-core",
+ "sp-rpc",
+ "sp-runtime",
+]
+
+[[package]]
+name = "members-runtime-api"
+version = "2.0.0-rc5"
+dependencies = [
+ "ctt-primitives",
+ "frame-support",
+ "parity-scale-codec",
+ "serde_json",
+ "sp-api",
+ "sp-core",
+ "sp-runtime",
+ "sp-std",
+]
 
 [[package]]
 name = "memchr"

@@ -1017,6 +1017,20 @@ impl_runtime_apis! {
         }
     }
 
+    impl members_runtime_api::MembersApi<Block, AccountId> for Runtime {
+        fn is_platform_expert(account: AccountId, app_id: Vec<u8>) -> bool {
+            Members::is_platform_expert(&account, &app_id)
+        }
+
+        fn is_model_expert(account: AccountId, app_id: Vec<u8>, model_id: Vec<u8>) -> bool {
+            Members::is_model_expert(&account, &app_id, &model_id)
+        }
+
+        fn is_model_creator(account: AccountId, app_id: Vec<u8>, model_id: Vec<u8>) -> bool {
+            Members::is_model_creator(&account, &app_id, &model_id)
+        }
+    }
+
     impl sp_api::Core<Block> for Runtime {
         fn version() -> RuntimeVersion {
             VERSION
