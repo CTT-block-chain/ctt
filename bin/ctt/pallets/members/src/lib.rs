@@ -341,13 +341,20 @@ impl<T: Trait> AccountSet for Module<T> {
 }
 
 impl<T: Trait> Membership<T::AccountId, T::Hash> for Module<T> {
-    fn is_platform(_who: &T::AccountId) -> bool {
-        // TODO
-        false
+    fn is_platform(who: &T::AccountId, app_id: &Vec<u8>) -> bool {
+        let members = <AppPlatformExpertMembers<T>>::get(app_id);
+        match members.binary_search(who) {
+            Ok(_) => true,
+            Err(_) => false,
+        }
     }
-    fn is_expert(_who: &T::AccountId) -> bool {
-        // TODO
-        false
+    fn is_expert(who: &T::AccountId, app_id: &Vec<u8>, model_id: &Vec<u8>) -> bool {
+        let key = T::Hashing::hash_of(&(app_id, model_id));
+        let members = <ExpertMembers<T>>::get(&key);
+        match members.binary_search(who) {
+            Ok(_) => true,
+            Err(_) => false,
+        }
     }
 
     fn set_model_creator(key: &T::Hash, creator: &T::AccountId) -> () {

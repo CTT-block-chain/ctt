@@ -1210,13 +1210,17 @@ impl<T: Trait> Module<T> {
         let mut platform_comment_power: PowerSize = 0;
         let mut is_need_update_platform_comment = false;
         let owner = Self::convert_account(&comment.owner);
-        if doc.expert_trend == CommentTrend::Empty && T::Membership::is_expert(&owner) {
+        if doc.expert_trend == CommentTrend::Empty
+            && T::Membership::is_expert(&owner, &doc.app_id, &doc.model_id)
+        {
             doc.expert_trend = comment.comment_trend.into();
             platform_comment_power =
                 (Self::compute_doc_trend_power(&doc) * FLOAT_COMPUTE_PRECISION as f64) as PowerSize;
             is_need_update_platform_comment = true;
         }
-        if doc.platform_trend == CommentTrend::Empty && T::Membership::is_platform(&owner) {
+        if doc.platform_trend == CommentTrend::Empty
+            && T::Membership::is_platform(&owner, &doc.app_id)
+        {
             doc.platform_trend = comment.comment_trend.into();
             platform_comment_power =
                 (Self::compute_doc_trend_power(&doc) * FLOAT_COMPUTE_PRECISION as f64) as PowerSize;
