@@ -5,6 +5,10 @@ use frame_support::{
     decl_error, decl_event, decl_module, decl_storage, dispatch, ensure,
     traits::Get,
 };
+
+#[macro_use]
+extern crate sp_std;
+
 use sp_std::prelude::*;
 
 /// Knowledge power pallet  with necessary imports
