@@ -1799,6 +1799,12 @@ decl_module! {
         pub fn validate(origin, prefs: ValidatorPrefs) {
             ensure!(Self::era_election_status().is_closed(), Error::<T>::CallNotAllowed);
             let controller = ensure_signed(origin)?;
+
+            // CTT
+            // read out account kp power, only kp power > 0 permit nominate
+            let kp_power_raio = T::PowerVote::account_power_ratio(&controller);
+            ensure!(kp_power_raio > 0.0, Error::<T>::KnowledgePowerZero);
+
             let ledger = Self::ledger(&controller).ok_or(Error::<T>::NotController)?;
             let stash = &ledger.stash;
             <Nominators<T>>::remove(stash);
