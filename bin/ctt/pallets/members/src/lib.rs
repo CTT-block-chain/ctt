@@ -87,6 +87,7 @@ decl_error! {
         NotAppAdmin,
         NotModelCreator,
         BenefitAlreadyDropped,
+        NotEnoughFund,
     }
 }
 
@@ -312,6 +313,10 @@ decl_module! {
             let key = T::Hashing::hash_of(&(&app_id, &user_id));
 
             ensure!(!<NewAccountBenefitRecords<T>>::contains_key(&key), Error::<T>::BenefitAlreadyDropped);
+
+            // make sure sender has enough fund
+            let available = T::Currency::free_balance(&who);
+            ensure!(available > amount, Error::<T>::NotEnoughFund);
 
             // start air drop
             let _ = T::Currency::transfer(&who, &receiver, amount, KeepAlive);
