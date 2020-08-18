@@ -74,6 +74,7 @@ impl_outer_event! {
 impl Trait for TestRuntime {
     type Event = TestEvent;
     type Currency = Balances;
+    type ModelCreatorCreateBenefit = ();
 }
 
 pub type System = system::Module<TestRuntime>;

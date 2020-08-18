@@ -868,9 +868,14 @@ impl pallet_vesting::Trait for Runtime {
     type WeightInfo = ();
 }
 
+parameter_types! {
+    pub const ModelCreatorCreateBenefit: Balance = 2000*DOLLARS;
+}
+
 impl members::Trait for Runtime {
     type Event = Event;
     type Currency = Balances;
+    type ModelCreatorCreateBenefit = ModelCreatorCreateBenefit;
 }
 
 parameter_types! {

@@ -8,7 +8,7 @@ use frame_support::{
     decl_error, decl_event, decl_module, decl_storage,
     dispatch::DispatchResult,
     ensure,
-    traits::{Currency, ExistenceRequirement::KeepAlive},
+    traits::{Currency, ExistenceRequirement::KeepAlive, Get},
 };
 use frame_system::{self as system, ensure_root, ensure_signed};
 use primitives::{AccountSet, AuthAccountId, Membership};
@@ -26,6 +26,7 @@ type BalanceOf<T> =
 pub trait Trait: system::Trait {
     type Event: From<Event<Self>> + Into<<Self as system::Trait>::Event>;
     type Currency: Currency<Self::AccountId>;
+    type ModelCreatorCreateBenefit: Get<BalanceOf<Self>>;
 }
 
 decl_event!(
@@ -375,8 +376,16 @@ impl<T: Trait> Membership<T::AccountId, T::Hash> for Module<T> {
         Self::is_model_expert(who, app_id, model_id)
     }
 
-    fn set_model_creator(key: &T::Hash, creator: &T::AccountId) -> () {
+    fn set_model_creator(key: &T::Hash, creator: &T::AccountId, admin: &T::AccountId) -> () {
         // this interface is only available form pallet internal (from kp to member invoking)
         <ModelCreators<T>>::insert(key, creator);
+        // give benifit to creator
+        // TODO: should from Treasury
+        let _ = T::Currency::transfer(
+            admin,
+            creator,
+            T::ModelCreatorCreateBenefit::get(),
+            KeepAlive,
+        );
     }
 }

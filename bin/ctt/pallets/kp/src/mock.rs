@@ -131,6 +131,7 @@ impl pallet_balances::Trait for Test {
 impl members::Trait for Test {
     type Event = TestEvent;
     type Currency = Balances;
+    type ModelCreatorCreateBenefit = ();
 }
 pub type System = system::Module<Test>;
 pub type Balances = pallet_balances::Module<Test>;

@@ -569,7 +569,7 @@ decl_module! {
 
             <KPModelDataByIdHash<T>>::insert(&key, &model);
 
-            T::Membership::set_model_creator(&key, &(Self::convert_account(&model.owner)));
+            T::Membership::set_model_creator(&key, &(Self::convert_account(&model.owner)), &who);
 
             Self::deposit_event(RawEvent::ModelCreated(who));
             Ok(())
