@@ -396,7 +396,7 @@ fn create_model(
         model_id_vec,
         expert_id_vec,
         commodity_name_vec,
-        commodity_type_vec,
+        10001,
         test_hash,
         test_signer_pair.public().clone().into(),
         test_signature.clone(),

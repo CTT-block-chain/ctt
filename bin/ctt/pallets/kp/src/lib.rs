@@ -9,6 +9,7 @@ use frame_support::{
 #[macro_use]
 extern crate sp_std;
 
+use sp_std::cmp::Ordering;
 use sp_std::prelude::*;
 
 /// Knowledge power pallet  with necessary imports
@@ -19,7 +20,7 @@ use sp_std::prelude::*;
 
 /// For more guidance on Substrate FRAME, see the example pallet
 /// https://github.com/paritytech/substrate/blob/master/frame/example/src/lib.rs
-use frame_system::{self as system, ensure_signed};
+use frame_system::{self as system, ensure_root, ensure_signed};
 use primitives::{AuthAccountId, Membership, PowerSize};
 use sp_core::sr25519;
 use sp_runtime::{
@@ -249,10 +250,34 @@ pub struct KPModelData<AccountId, Hash> {
     expert_id: Vec<u8>,
     status: ModelStatus,
     commodity_name: Vec<u8>,
-    commodity_type: Vec<u8>,
+    commodity_type: u32,
     content_hash: Hash,
     sender: AccountId,
     owner: AuthAccountId,
+}
+
+#[derive(Encode, Decode, Clone, Default, Eq, RuntimeDebug)]
+pub struct CommodityTypeData {
+    type_id: u32,
+    type_desc: Vec<u8>,
+}
+
+impl PartialEq for CommodityTypeData {
+    fn eq(&self, other: &Self) -> bool {
+        self.type_id == other.type_id
+    }
+}
+
+impl Ord for CommodityTypeData {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.type_id.cmp(&other.type_id)
+    }
+}
+
+impl PartialOrd for CommodityTypeData {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
 }
 
 /*
@@ -460,6 +485,16 @@ decl_storage! {
 
         DocumentTryMaxParams get(fn document_try_max_params):
             map hasher(twox_64_concat) Vec<u8> => KPProductTryRateMax;
+
+        CommodityTypeSets get(fn commodity_type_sets): Vec<CommodityTypeData>;
+
+        // commodity_type_id => type desc map
+        CommodityTypeMap get(fn commodity_type_map):
+            map hasher(twox_64_concat) u32 => Vec<u8>;
+
+        // app_id & commodity_type_id => true/false
+        ModelFirstTypeBenefitRecord get(fn model_first_type_benefit_record):
+            map hasher(twox_64_concat) T::Hash => bool;
     }
 }
 
@@ -477,6 +512,7 @@ decl_event!(
         CommentCreated(AccountId),
         ModelCreated(AccountId),
         ModelDisabled(AccountId),
+        CommodityTypeCreated(u32),
     }
 );
 
@@ -490,7 +526,9 @@ decl_error! {
         ProductAlreadyExisted,
         CommentAlreadyExisted,
         ModelAlreadyExisted,
+        ModelTypeInvalid,
         ModelNotFound,
+        CommodityTypeExisted,
     }
 }
 
@@ -538,7 +576,7 @@ decl_module! {
             model_id: Vec<u8>,
             expert_id: Vec<u8>,
             commodity_name: Vec<u8>,
-            commodity_type: Vec<u8>,
+            commodity_type: u32,
             content_hash: T::Hash,
 
             app_user_account: AuthAccountId,
@@ -555,8 +593,11 @@ decl_module! {
             let key = T::Hashing::hash_of(&(&app_id, &model_id));
             ensure!(!<KPModelDataByIdHash<T>>::contains_key(&key), Error::<T>::ModelAlreadyExisted);
 
+            // check if valid commodity_type
+            ensure!(CommodityTypeMap::contains_key(commodity_type),  Error::<T>::ModelTypeInvalid);
+
             let model = KPModelData {
-                app_id,
+                app_id: app_id.clone(),
                 model_id,
                 expert_id,
                 status: ModelStatus::ENABLED,
@@ -569,7 +610,12 @@ decl_module! {
 
             <KPModelDataByIdHash<T>>::insert(&key, &model);
 
-            T::Membership::set_model_creator(&key, &(Self::convert_account(&model.owner)), &who);
+            let type_key = T::Hashing::hash_of(&(&app_id, commodity_type));
+            let should_transfer = !<ModelFirstTypeBenefitRecord<T>>::contains_key(&type_key);
+            T::Membership::set_model_creator(&key, &(Self::convert_account(&model.owner)), &who, should_transfer);
+            if should_transfer {
+                <ModelFirstTypeBenefitRecord<T>>::insert(&type_key, true);
+            }
 
             Self::deposit_event(RawEvent::ModelCreated(who));
             Ok(())
@@ -836,6 +882,33 @@ decl_module! {
             Self::deposit_event(RawEvent::CommentCreated(who));
             Ok(())
         }
+
+        #[weight = 0]
+        pub fn create_commodity_type(origin, type_id: u32, type_desc: Vec<u8>) -> dispatch::DispatchResult {
+            ensure_root(origin)?;
+            ensure!(!<CommodityTypeMap>::contains_key(type_id), Error::<T>::CommodityTypeExisted);
+
+            let mut types = CommodityTypeSets::get();
+
+            let type_data = CommodityTypeData {
+                type_id,
+                type_desc: type_desc.clone()
+            };
+
+            match types.binary_search(&type_data) {
+                Ok(_) => Err(Error::<T>::CommodityTypeExisted.into()),
+                Err(index) => {
+                    types.insert(index, type_data);
+                    CommodityTypeSets::put(types);
+
+                    // insert into CommodityTypeMap
+                    <CommodityTypeMap>::insert(type_id, type_desc);
+
+                    Self::deposit_event(RawEvent::CommodityTypeCreated(type_id));
+                    Ok(())
+                }
+            }
+        }
     }
 }
 
@@ -876,6 +949,10 @@ impl<T: Trait> Module<T> {
     pub fn kp_account_attend_power(app_id: Vec<u8>, account: T::AccountId) -> PowerSize {
         let key = T::Hashing::hash_of(&(&account, &app_id));
         <AccountAttendPowerMap<T>>::get(&key)
+    }
+
+    pub fn kp_get_commodity_types() -> Vec<CommodityTypeData> {
+        CommodityTypeSets::get()
     }
 
     fn is_auth_server(who: &T::AccountId) -> bool {

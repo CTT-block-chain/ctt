@@ -376,16 +376,23 @@ impl<T: Trait> Membership<T::AccountId, T::Hash> for Module<T> {
         Self::is_model_expert(who, app_id, model_id)
     }
 
-    fn set_model_creator(key: &T::Hash, creator: &T::AccountId, admin: &T::AccountId) -> () {
+    fn set_model_creator(
+        key: &T::Hash,
+        creator: &T::AccountId,
+        admin: &T::AccountId,
+        is_give_benefit: bool,
+    ) -> () {
         // this interface is only available form pallet internal (from kp to member invoking)
         <ModelCreators<T>>::insert(key, creator);
         // give benifit to creator
         // TODO: should from Treasury
-        let _ = T::Currency::transfer(
-            admin,
-            creator,
-            T::ModelCreatorCreateBenefit::get(),
-            KeepAlive,
-        );
+        if is_give_benefit {
+            let _ = T::Currency::transfer(
+                admin,
+                creator,
+                T::ModelCreatorCreateBenefit::get(),
+                KeepAlive,
+            );
+        }
     }
 }

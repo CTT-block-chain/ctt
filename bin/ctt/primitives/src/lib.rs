@@ -114,5 +114,10 @@ pub trait AccountSet {
 pub trait Membership<AccountId, Hash> {
     fn is_platform(who: &AccountId, app_id: &Vec<u8>) -> bool;
     fn is_expert(who: &AccountId, app_id: &Vec<u8>, model_id: &Vec<u8>) -> bool;
-    fn set_model_creator(key: &Hash, creator: &AccountId, admin: &AccountId) -> ();
+    fn set_model_creator(
+        key: &Hash,
+        creator: &AccountId,
+        admin: &AccountId,
+        is_give_benefit: bool,
+    ) -> ();
 }
