@@ -495,6 +495,16 @@ decl_storage! {
         // app_id & commodity_type_id => true/false
         ModelFirstTypeBenefitRecord get(fn model_first_type_benefit_record):
             map hasher(twox_64_concat) T::Hash => bool;
+
+        // app id => u32
+        AppModelTotalConfig get(fn app_model_total_config):
+            map hasher(twox_64_concat) Vec<u8> => u32;
+
+        // app id => u32
+        AppModelCount get(fn app_model_count):
+            map hasher(twox_64_concat) Vec<u8> => u32;
+
+
     }
 }
 
@@ -513,6 +523,7 @@ decl_event!(
         ModelCreated(AccountId),
         ModelDisabled(AccountId),
         CommodityTypeCreated(u32),
+        AppModelTotal(u32),
     }
 );
 
@@ -529,6 +540,7 @@ decl_error! {
         ModelTypeInvalid,
         ModelNotFound,
         CommodityTypeExisted,
+        ModelOverSizeLimit,
     }
 }
 
@@ -596,6 +608,10 @@ decl_module! {
             // check if valid commodity_type
             ensure!(CommodityTypeMap::contains_key(commodity_type),  Error::<T>::ModelTypeInvalid);
 
+            // check if size over
+            let count = <AppModelCount>::get(&app_id);
+            ensure!(count < <AppModelTotalConfig>::get(&app_id), Error::<T>::ModelOverSizeLimit);
+
             let model = KPModelData {
                 app_id: app_id.clone(),
                 model_id,
@@ -609,6 +625,7 @@ decl_module! {
             };
 
             <KPModelDataByIdHash<T>>::insert(&key, &model);
+            <AppModelCount>::insert(&app_id, count + 1);
 
             let type_key = T::Hashing::hash_of(&(&app_id, commodity_type));
             let should_transfer = !<ModelFirstTypeBenefitRecord<T>>::contains_key(&type_key);
@@ -908,6 +925,16 @@ decl_module! {
                     Ok(())
                 }
             }
+        }
+
+        #[weight = 0]
+        pub fn set_app_model_total(origin, app_id: Vec<u8>, total: u32) -> dispatch::DispatchResult {
+            ensure_root(origin)?;
+
+            <AppModelTotalConfig>::insert(app_id, total);
+
+            Self::deposit_event(RawEvent::AppModelTotal(total));
+            Ok(())
         }
     }
 }
