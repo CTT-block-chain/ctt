@@ -504,7 +504,12 @@ decl_storage! {
         AppModelCount get(fn app_model_count):
             map hasher(twox_64_concat) Vec<u8> => u32;
 
+        // model year incoming double map, main key is year (u32), sub key is hash of AppId & ModelId
+        ModelYearIncome get(fn model_year_income):
+            double_map hasher(twox_64_concat) u32, hasher(twox_64_concat) T::Hash => u64;
 
+        AppYearIncomeTotal get(fn app_year_income_total):
+            map hasher(twox_64_concat) u32 => u64;
     }
 }
 
@@ -524,6 +529,7 @@ decl_event!(
         ModelDisabled(AccountId),
         CommodityTypeCreated(u32),
         AppModelTotal(u32),
+        ModelYearIncome(AccountId),
     }
 );
 
@@ -541,6 +547,8 @@ decl_error! {
         ModelNotFound,
         CommodityTypeExisted,
         ModelOverSizeLimit,
+        NotAppAdmin,
+        ModelYearIncomeAlreadyExisted,
     }
 }
 
@@ -934,6 +942,29 @@ decl_module! {
             <AppModelTotalConfig>::insert(app_id, total);
 
             Self::deposit_event(RawEvent::AppModelTotal(total));
+            Ok(())
+        }
+
+        #[weight = 0]
+        pub fn set_model_year_income(origin, year: u32, app_id: Vec<u8>, model_id: Vec<u8>, income: u64) -> dispatch::DispatchResult {
+            let who = ensure_signed(origin)?;
+            // check if who is app admin
+            ensure!(T::Membership::is_app_admin(&who, &app_id), Error::<T>::NotAppAdmin);
+
+            let subkey = T::Hashing::hash_of(&(&app_id, &model_id));
+
+            // check if it is existed already
+            ensure!(!<ModelYearIncome<T>>::contains_key(year, &subkey), Error::<T>::ModelYearIncomeAlreadyExisted);
+
+            // add this model income to year total
+            let result = match <AppYearIncomeTotal>::get(year).checked_add(income) {
+                Some(r) => r,
+                None => return Err(<Error<T>>::AddOverflow.into()),
+            };
+            <AppYearIncomeTotal>::insert(year, result);
+            <ModelYearIncome<T>>::insert(year, &subkey, income);
+
+            Self::deposit_event(RawEvent::ModelYearIncome(who));
             Ok(())
         }
     }

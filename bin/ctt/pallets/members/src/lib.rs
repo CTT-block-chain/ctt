@@ -376,6 +376,10 @@ impl<T: Trait> Membership<T::AccountId, T::Hash> for Module<T> {
         Self::is_model_expert(who, app_id, model_id)
     }
 
+    fn is_app_admin(who: &T::AccountId, app_id: &Vec<u8>) -> bool {
+        <AppAdmins<T>>::contains_key(app_id) && <AppAdmins<T>>::get(app_id) == *who
+    }
+
     fn set_model_creator(
         key: &T::Hash,
         creator: &T::AccountId,
