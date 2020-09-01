@@ -50,8 +50,11 @@ decl_storage! {
         // The set of platform council members. Stored as a single vec, system level
         CouncilMembers get(fn council_members): Vec<T::AccountId>;
 
-        // Finance members, system levele
-        FinanceMembers get(fn finance_members): Vec<T::AccountId>;
+        // Investor members, system level
+        InvestorMembers get(fn investor_members): Vec<T::AccountId>;
+
+        // Developer members, system level
+        DeveloperMembers get(fn developer_members): Vec<T::AccountId>;
 
         // app level admin members key is app_id
         AppAdmins get(fn app_admins):
@@ -101,7 +104,7 @@ decl_module! {
         /// Adds a member to the membership set unless the max is reached
         #[weight = 0]
         pub fn add_council_member(origin, new_member: T::AccountId) -> DispatchResult {
-            let _who = ensure_root(origin)?;
+            ensure_root(origin)?;
 
             let mut members = CouncilMembers::<T>::get();
             //ensure!(members.len() < MAX_MEMBERS, Error::<T>::MembershipLimitReached);
@@ -126,7 +129,7 @@ decl_module! {
         /// Removes a member.
         #[weight = 0]
         pub fn remove_council_member(origin, old_member: T::AccountId) -> DispatchResult {
-            let _who = ensure_root(origin)?;
+            ensure_root(origin)?;
 
             let mut members = CouncilMembers::<T>::get();
 
@@ -145,10 +148,10 @@ decl_module! {
         }
 
         #[weight = 0]
-        pub fn add_finance_member(origin, new_member: T::AccountId) -> DispatchResult {
-            let _who = ensure_root(origin)?;
+        pub fn add_investor_member(origin, new_member: T::AccountId) -> DispatchResult {
+            ensure_root(origin)?;
 
-            let mut members = FinanceMembers::<T>::get();
+            let mut members = InvestorMembers::<T>::get();
             //ensure!(members.len() < MAX_MEMBERS, Error::<T>::MembershipLimitReached);
 
             // We don't want to add duplicate members, so we check whether the potential new
@@ -161,7 +164,7 @@ decl_module! {
                 // they should be inserted
                 Err(index) => {
                     members.insert(index, new_member.clone());
-                    FinanceMembers::<T>::put(members);
+                    InvestorMembers::<T>::put(members);
                     Self::deposit_event(RawEvent::MemberAdded(new_member));
                     Ok(())
                 }
@@ -170,17 +173,62 @@ decl_module! {
 
         /// Removes a member.
         #[weight = 0]
-        pub fn remove_finance_member(origin, old_member: T::AccountId) -> DispatchResult {
-            let _who = ensure_root(origin)?;
+        pub fn remove_investor_member(origin, old_member: T::AccountId) -> DispatchResult {
+            ensure_root(origin)?;
 
-            let mut members = FinanceMembers::<T>::get();
+            let mut members = InvestorMembers::<T>::get();
 
             // We have to find out if the member exists in the sorted vec, and, if so, where.
             match members.binary_search(&old_member) {
                 // If the search succeeds, the caller is a member, so remove her
                 Ok(index) => {
                     members.remove(index);
-                    FinanceMembers::<T>::put(members);
+                    InvestorMembers::<T>::put(members);
+                    Self::deposit_event(RawEvent::MemberRemoved(old_member));
+                    Ok(())
+                },
+                // If the search fails, the caller is not a member, so just return
+                Err(_) => Err(Error::<T>::NotMember.into()),
+            }
+        }
+
+        #[weight = 0]
+        pub fn add_developer_member(origin, new_member: T::AccountId) -> DispatchResult {
+            ensure_root(origin)?;
+
+            let mut members = DeveloperMembers::<T>::get();
+            //ensure!(members.len() < MAX_MEMBERS, Error::<T>::MembershipLimitReached);
+
+            // We don't want to add duplicate members, so we check whether the potential new
+            // member is already present in the list. Because the list is always ordered, we can
+            // leverage the binary search which makes this check O(log n).
+            match members.binary_search(&new_member) {
+                // If the search succeeds, the caller is already a member, so just return
+                Ok(_) => Err(Error::<T>::AlreadyMember.into()),
+                // If the search fails, the caller is not a member and we learned the index where
+                // they should be inserted
+                Err(index) => {
+                    members.insert(index, new_member.clone());
+                    DeveloperMembers::<T>::put(members);
+                    Self::deposit_event(RawEvent::MemberAdded(new_member));
+                    Ok(())
+                }
+            }
+        }
+
+        /// Removes a member.
+        #[weight = 0]
+        pub fn remove_developer_member(origin, old_member: T::AccountId) -> DispatchResult {
+            ensure_root(origin)?;
+
+            let mut members = DeveloperMembers::<T>::get();
+
+            // We have to find out if the member exists in the sorted vec, and, if so, where.
+            match members.binary_search(&old_member) {
+                // If the search succeeds, the caller is a member, so remove her
+                Ok(index) => {
+                    members.remove(index);
+                    DeveloperMembers::<T>::put(members);
                     Self::deposit_event(RawEvent::MemberRemoved(old_member));
                     Ok(())
                 },
@@ -354,6 +402,22 @@ impl<T: Trait> Module<T> {
         }
     }
 
+    pub fn is_investor(who: &T::AccountId) -> bool {
+        let members = InvestorMembers::<T>::get();
+        match members.binary_search(who) {
+            Ok(_) => true,
+            Err(_) => false,
+        }
+    }
+
+    pub fn is_developer(who: &T::AccountId) -> bool {
+        let members = DeveloperMembers::<T>::get();
+        match members.binary_search(who) {
+            Ok(_) => true,
+            Err(_) => false,
+        }
+    }
+
     pub fn is_model_creator(who: &T::AccountId, app_id: &Vec<u8>, model_id: &Vec<u8>) -> bool {
         let key = T::Hashing::hash_of(&(app_id, model_id));
         <ModelCreators<T>>::contains_key(&key) && <ModelCreators<T>>::get(&key) == *who
@@ -378,6 +442,14 @@ impl<T: Trait> Membership<T::AccountId, T::Hash> for Module<T> {
 
     fn is_app_admin(who: &T::AccountId, app_id: &Vec<u8>) -> bool {
         <AppAdmins<T>>::contains_key(app_id) && <AppAdmins<T>>::get(app_id) == *who
+    }
+
+    fn is_investor(who: &T::AccountId) -> bool {
+        Self::is_investor(who)
+    }
+
+    fn is_developer(who: &T::AccountId) -> bool {
+        Self::is_developer(who)
     }
 
     fn set_model_creator(
