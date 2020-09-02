@@ -148,8 +148,11 @@ decl_module! {
         }
 
         #[weight = 0]
-        pub fn add_investor_member(origin, new_member: T::AccountId) -> DispatchResult {
-            ensure_root(origin)?;
+        pub fn add_investor_member(origin, app_id: Vec<u8>, new_member: T::AccountId) -> DispatchResult {
+            let who = ensure_signed(origin)?;
+
+            // check if who is app admin
+            ensure!(Self::is_app_admin(&who, &app_id), Error::<T>::NotAppAdmin);
 
             let mut members = InvestorMembers::<T>::get();
             //ensure!(members.len() < MAX_MEMBERS, Error::<T>::MembershipLimitReached);
@@ -173,8 +176,11 @@ decl_module! {
 
         /// Removes a member.
         #[weight = 0]
-        pub fn remove_investor_member(origin, old_member: T::AccountId) -> DispatchResult {
-            ensure_root(origin)?;
+        pub fn remove_investor_member(origin, app_id: Vec<u8>, old_member: T::AccountId) -> DispatchResult {
+            let who = ensure_signed(origin)?;
+
+            // check if who is app admin
+            ensure!(Self::is_app_admin(&who, &app_id), Error::<T>::NotAppAdmin);
 
             let mut members = InvestorMembers::<T>::get();
 
@@ -241,7 +247,7 @@ decl_module! {
         pub fn set_app_admin(origin, app_id: Vec<u8>, admin: T::AccountId) -> DispatchResult {
             let _who = ensure_root(origin)?;
 
-            <AppAdmins<T>>::insert(app_id, admin.clone());
+            <AppAdmins<T>>::insert(&app_id, admin.clone());
             Self::deposit_event(RawEvent::AppAdminSet(admin));
             Ok(())
         }
@@ -421,6 +427,10 @@ impl<T: Trait> Module<T> {
     pub fn is_model_creator(who: &T::AccountId, app_id: &Vec<u8>, model_id: &Vec<u8>) -> bool {
         let key = T::Hashing::hash_of(&(app_id, model_id));
         <ModelCreators<T>>::contains_key(&key) && <ModelCreators<T>>::get(&key) == *who
+    }
+
+    pub fn is_app_admin(who: &T::AccountId, app_id: &Vec<u8>) -> bool {
+        <AppAdmins<T>>::get(app_id) == *who
     }
 }
 
