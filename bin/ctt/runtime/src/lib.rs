@@ -412,6 +412,7 @@ impl pallet_session::historical::Trait for Runtime {
     type FullIdentificationOf = pallet_staking::ExposureOf<Runtime>;
 }
 
+// adjust setting for CTT
 pallet_staking_reward_curve::build! {
     const REWARD_CURVE: PiecewiseLinear<'static> = curve!(
         min_inflation: 0_026_300,
