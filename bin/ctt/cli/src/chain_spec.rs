@@ -183,7 +183,8 @@ fn staging_testnet_config_genesis() -> GenesisConfig {
     let endowed_accounts: Vec<AccountId> = vec![root_key.clone()];
 
     testnet_genesis(
-        initial_authorities,
+        //initial_authorities,
+        vec![authority_keys_from_seed("Alice")],
         root_key,
         Some(endowed_accounts),
         false,
@@ -431,7 +432,6 @@ pub fn local_testnet_config() -> ChainSpec {
 }
 
 fn chain_properties() -> Option<Properties> {
-    //None
     let mut p = Properties::new();
     p.insert("tokenDecimals".to_string(), json!(14));
     p.insert("tokenSymbol".to_string(), json!("KPT"));
