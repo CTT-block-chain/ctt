@@ -414,9 +414,9 @@ impl pallet_session::historical::Trait for Runtime {
 
 pallet_staking_reward_curve::build! {
     const REWARD_CURVE: PiecewiseLinear<'static> = curve!(
-        min_inflation: 0_026_300,
-        max_inflation: 0_052_600,
-        ideal_stake: 0_600_000,
+        min_inflation: 0_025_000,
+        max_inflation: 0_100_000,
+        ideal_stake: 0_500_000,
         falloff: 0_050_000,
         max_piece_count: 40,
         test_precision: 0_005_000,
