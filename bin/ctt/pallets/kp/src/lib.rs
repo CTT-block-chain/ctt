@@ -1,3 +1,4 @@
+#![recursion_limit = "256"]
 #![cfg_attr(not(feature = "std"), no_std)]
 
 use frame_support::{
@@ -73,6 +74,11 @@ pub enum DocumentType {
     ProductPublish = 0,
     ProductIdentify,
     ProductTry,
+
+    // this two types need speical process
+    ProductChoose,
+    ModelCreate,
+
     Unknown,
 }
 
@@ -85,9 +91,11 @@ impl Default for DocumentType {
 impl From<u8> for DocumentType {
     fn from(orig: u8) -> Self {
         return match orig {
-            0x0 => DocumentType::ProductPublish,
-            0x1 => DocumentType::ProductIdentify,
-            0x2 => DocumentType::ProductTry,
+            0 => DocumentType::ProductPublish,
+            1 => DocumentType::ProductIdentify,
+            2 => DocumentType::ProductTry,
+            3 => DocumentType::ProductChoose,
+            4 => DocumentType::ModelCreate,
             _ => DocumentType::Unknown,
         };
     }
@@ -156,11 +164,37 @@ pub struct KPProductTryRateMax {
     true_rate: PowerSize,
 }
 
+#[derive(Encode, Decode, Clone, Default, PartialEq, RuntimeDebug)]
+pub struct KPProductChooseData {
+    sell_count: PowerSize,
+    try_count: PowerSize,
+}
+
+#[derive(Encode, Decode, Clone, Default, PartialEq, RuntimeDebug)]
+pub struct KPProductChooseDataMax {
+    sell_count: PowerSize,
+    try_count: PowerSize,
+}
+
+#[derive(Encode, Decode, Clone, Default, PartialEq, RuntimeDebug)]
+pub struct KPModelCreateData {
+    producer_count: PowerSize,
+    product_count: PowerSize,
+}
+
+#[derive(Encode, Decode, Clone, Default, PartialEq, RuntimeDebug)]
+pub struct KPModelCreateDataMax {
+    producer_count: PowerSize,
+    product_count: PowerSize,
+}
+
 #[derive(Encode, Decode, Clone, PartialEq, RuntimeDebug)]
 pub enum DocumentSpecificData {
     ProductPublish(KPProductPublishData),
     ProductIdentify(KPProductIdentifyData),
     ProductTry(KPProductTryData),
+    ProductChoose(KPProductChooseData),
+    ModelCreate(KPModelCreateData),
 }
 
 impl Default for DocumentSpecificData {
@@ -402,6 +436,38 @@ pub trait Trait: system::Trait {
     /// Document Try content weight
     type DocumentTryWeightBiasRate: Get<u8>;
     type DocumentTryWeightTrueRate: Get<u8>;
+
+    /// Below for Choose & Model special documents
+    /// Document Choose content weight
+    type DocumentChooseWeightSellCount: Get<u8>;
+    type DocumentChooseWeightTryCount: Get<u8>;
+
+    /// Document Model content weight
+    type DocumentModelWeightProducerCount: Get<u8>;
+    type DocumentModelWeightProductCount: Get<u8>;
+
+    /// Document Choose & Model Power attend weight
+    type DocumentCMPowerWeightAttend: Get<u8>;
+
+    /// Document Choose & Model Power content weight
+    type DocumentCMPowerWeightContent: Get<u8>;
+
+    /// Document Choose & Model Power judge weight
+    type DocumentCMPowerWeightJudge: Get<u8>;
+
+    /// Comment Power count weight
+    type CommentCMPowerWeightCount: Get<u8>;
+
+    /// Comment Power cost weight
+    type CommentCMPowerWeightCost: Get<u8>;
+
+    /// Comment Power cost per uint weight
+    type CommentCMPowerWeightPerCost: Get<u8>;
+
+    /// Comment Power positive weight
+    type CommentCMPowerWeightPositive: Get<u8>;
+
+    type CMPowerAccountAttend: Get<u8>;
 }
 
 // This pallet's storage items.
@@ -485,6 +551,12 @@ decl_storage! {
 
         DocumentTryMaxParams get(fn document_try_max_params):
             map hasher(twox_64_concat) Vec<u8> => KPProductTryRateMax;
+
+        DocumentChooseMaxParams get(fn document_choose_max_params):
+            map hasher(twox_64_concat) Vec<u8> => KPProductChooseDataMax;
+
+        DocumentModelCreateMaxParams get(fn document_model_create_max_params):
+            map hasher(twox_64_concat) Vec<u8> => KPModelCreateDataMax;
 
         CommodityTypeSets get(fn commodity_type_sets): Vec<CommodityTypeData>;
 
@@ -589,6 +661,20 @@ decl_module! {
 
         const DocumentTryWeightBiasRate: u8 = T::DocumentTryWeightBiasRate::get();
         const DocumentTryWeightTrueRate: u8 = T::DocumentTryWeightTrueRate::get();
+
+        // CM parameters
+        const DocumentChooseWeightSellCount: u8 = T::DocumentChooseWeightSellCount::get();
+        const DocumentChooseWeightTryCount: u8 = T::DocumentChooseWeightTryCount::get();
+        const DocumentModelWeightProducerCount: u8 = T::DocumentModelWeightProducerCount::get();
+        const DocumentModelWeightProductCount: u8 = T::DocumentModelWeightProductCount::get();
+        const DocumentCMPowerWeightAttend: u8 = T::DocumentCMPowerWeightAttend::get();
+        const DocumentCMPowerWeightContent: u8 = T::DocumentCMPowerWeightContent::get();
+        const DocumentCMPowerWeightJudge: u8 = T::DocumentCMPowerWeightJudge::get();
+        const CommentCMPowerWeightCount: u8 = T::CommentCMPowerWeightCount::get();
+        const CommentCMPowerWeightCost: u8 = T::CommentCMPowerWeightCost::get();
+        const CommentCMPowerWeightPerCost: u8 = T::CommentCMPowerWeightPerCost::get();
+        const CommentCMPowerWeightPositive: u8 = T::CommentCMPowerWeightPositive::get();
+        const CMPowerAccountAttend: u8 = T::CMPowerAccountAttend::get();
 
         #[weight = 0]
         pub fn create_model(origin,
@@ -967,6 +1053,98 @@ decl_module! {
             Self::deposit_event(RawEvent::ModelYearIncome(who));
             Ok(())
         }
+
+        #[weight = 0]
+        pub fn create_product_choose_document(origin,
+            app_id: Vec<u8>,
+            document_id: Vec<u8>,
+            model_id: Vec<u8>,
+            product_id: Vec<u8>,
+            content_hash: T::Hash,
+
+            document_power_data: KPProductChooseData,
+
+            app_user_account: AuthAccountId,
+            app_user_sign: sr25519::Signature,
+
+            auth_server: AuthAccountId,
+            auth_sign: sr25519::Signature) -> dispatch::DispatchResult {
+
+            let who = ensure_signed(origin)?;
+
+            let doc_key_hash = T::Hashing::hash_of(&(&app_id, &document_id));
+
+            ensure!(!<KPDocumentDataByIdHash<T>>::contains_key(&doc_key_hash), Error::<T>::DocumentAlreadyExisted);
+
+            // create doc
+            let doc = KPDocumentData {
+                sender: who.clone(),
+                owner: app_user_account.clone(),
+                document_type: DocumentType::ProductChoose,
+                app_id: app_id.clone(),
+                document_id: document_id.clone(),
+                model_id,
+                product_id,
+                content_hash,
+                document_data: DocumentSpecificData::ProductChoose(document_power_data),
+                ..Default::default()
+            };
+
+            // process content power
+            Self::process_document_content_power(&doc);
+
+            // create document record
+            <KPDocumentDataByIdHash<T>>::insert(&doc_key_hash, &doc);
+
+            Self::deposit_event(RawEvent::KnowledgeCreated(who));
+            Ok(())
+        }
+
+        #[weight = 0]
+        pub fn create_model_create_document(origin,
+            app_id: Vec<u8>,
+            document_id: Vec<u8>,
+            model_id: Vec<u8>,
+            product_id: Vec<u8>,
+            content_hash: T::Hash,
+
+            document_power_data: KPModelCreateData,
+
+            app_user_account: AuthAccountId,
+            app_user_sign: sr25519::Signature,
+
+            auth_server: AuthAccountId,
+            auth_sign: sr25519::Signature) -> dispatch::DispatchResult {
+
+            let who = ensure_signed(origin)?;
+
+            let doc_key_hash = T::Hashing::hash_of(&(&app_id, &document_id));
+
+            ensure!(!<KPDocumentDataByIdHash<T>>::contains_key(&doc_key_hash), Error::<T>::DocumentAlreadyExisted);
+
+            // create doc
+            let doc = KPDocumentData {
+                sender: who.clone(),
+                owner: app_user_account.clone(),
+                document_type: DocumentType::ModelCreate,
+                app_id: app_id.clone(),
+                document_id: document_id.clone(),
+                model_id,
+                product_id,
+                content_hash,
+                document_data: DocumentSpecificData::ModelCreate(document_power_data),
+                ..Default::default()
+            };
+
+            // process content power
+            Self::process_document_content_power(&doc);
+
+            // create document record
+            <KPDocumentDataByIdHash<T>>::insert(&doc_key_hash, &doc);
+
+            Self::deposit_event(RawEvent::KnowledgeCreated(who));
+            Ok(())
+        }
     }
 }
 
@@ -1060,6 +1238,22 @@ impl<T: Trait> Module<T> {
             * FLOAT_COMPUTE_PRECISION as f64) as PowerSize
     }
 
+    fn compute_choose_content_power(sell_count_rate: f64, try_count_rate: f64) -> PowerSize {
+        ((sell_count_rate * T::DocumentChooseWeightSellCount::get() as f64 / RATIO_DIV
+            + try_count_rate * T::DocumentChooseWeightTryCount::get() as f64 / RATIO_DIV)
+            * T::DocumentCMPowerWeightContent::get() as f64
+            / RATIO_DIV
+            * FLOAT_COMPUTE_PRECISION as f64) as PowerSize
+    }
+
+    fn compute_model_content_power(producer_count_rate: f64, product_count_rate: f64) -> PowerSize {
+        ((producer_count_rate * T::DocumentModelWeightProducerCount::get() as f64 / RATIO_DIV
+            + product_count_rate * T::DocumentModelWeightProductCount::get() as f64 / RATIO_DIV)
+            * T::DocumentCMPowerWeightContent::get() as f64
+            / RATIO_DIV
+            * FLOAT_COMPUTE_PRECISION as f64) as PowerSize
+    }
+
     fn compute_attend_power(
         rates: (f64, f64, f64, f64),
         second_weight: PowerSize,
@@ -1076,9 +1270,12 @@ impl<T: Trait> Module<T> {
             * FLOAT_COMPUTE_PRECISION as f64) as PowerSize
     }
 
-    fn compute_judge_power(origin_power: f64, top_weight: PowerSize) -> PowerSize {
-        (origin_power * T::DocumentPowerWeightJudge::get() as f64 / RATIO_DIV * top_weight as f64
-            / RATIO_DIV
+    fn compute_judge_power(
+        origin_power: f64,
+        top_weight: PowerSize,
+        document_weight: u8,
+    ) -> PowerSize {
+        (origin_power * document_weight as f64 / RATIO_DIV * top_weight as f64 / RATIO_DIV
             * FLOAT_COMPUTE_PRECISION as f64) as PowerSize
     }
 
@@ -1213,6 +1410,7 @@ impl<T: Trait> Module<T> {
                 initial_judge_power = Self::compute_judge_power(
                     Self::compute_doc_trend_power(&doc),
                     T::TopWeightProductPublish::get() as PowerSize,
+                    T::DocumentPowerWeightJudge::get(),
                 );
             }
             DocumentSpecificData::ProductIdentify(data) => {
@@ -1236,6 +1434,7 @@ impl<T: Trait> Module<T> {
                 initial_judge_power = Self::compute_judge_power(
                     Self::compute_doc_trend_power(&doc),
                     T::TopWeightDocumentIdentify::get() as PowerSize,
+                    T::DocumentPowerWeightJudge::get(),
                 );
             }
             DocumentSpecificData::ProductTry(data) => {
@@ -1258,6 +1457,54 @@ impl<T: Trait> Module<T> {
                 initial_judge_power = Self::compute_judge_power(
                     Self::compute_doc_trend_power(&doc),
                     T::TopWeightDocumentTry::get() as PowerSize,
+                    T::DocumentPowerWeightJudge::get(),
+                );
+            }
+            DocumentSpecificData::ProductChoose(data) => {
+                let params_max = <DocumentChooseMaxParams>::get(&doc.app_id);
+                let sell_count_p = Self::update_max(data.sell_count, params_max.sell_count, |v| {
+                    <DocumentChooseMaxParams>::mutate(&doc.app_id, |max| {
+                        max.sell_count = v;
+                    })
+                });
+
+                let try_count_p = Self::update_max(data.try_count, params_max.try_count, |v| {
+                    <DocumentChooseMaxParams>::mutate(&doc.app_id, |max| {
+                        max.try_count = v;
+                    })
+                });
+
+                content_power = Self::compute_choose_content_power(sell_count_p, try_count_p);
+
+                initial_judge_power = Self::compute_judge_power(
+                    Self::compute_doc_trend_power(&doc),
+                    100 as PowerSize,
+                    T::DocumentCMPowerWeightJudge::get(),
+                );
+            }
+            DocumentSpecificData::ModelCreate(data) => {
+                let params_max = <DocumentModelCreateMaxParams>::get(&doc.app_id);
+                let producer_count_p =
+                    Self::update_max(data.producer_count, params_max.producer_count, |v| {
+                        <DocumentModelCreateMaxParams>::mutate(&doc.app_id, |max| {
+                            max.producer_count = v;
+                        })
+                    });
+
+                let product_count_p =
+                    Self::update_max(data.product_count, params_max.product_count, |v| {
+                        <DocumentModelCreateMaxParams>::mutate(&doc.app_id, |max| {
+                            max.product_count = v;
+                        })
+                    });
+
+                content_power =
+                    Self::compute_model_content_power(producer_count_p, product_count_p);
+
+                initial_judge_power = Self::compute_judge_power(
+                    Self::compute_doc_trend_power(&doc),
+                    100 as PowerSize,
+                    T::DocumentCMPowerWeightJudge::get(),
                 );
             }
         }
@@ -1309,6 +1556,40 @@ impl<T: Trait> Module<T> {
             account.positive_count,
             account_comment_unit_fee,
         );
+
+        let mut account_attend_weight: PowerSize = 0;
+        let mut comment_power_weight: PowerSize = 0;
+        let mut doc_comment_top_weight: PowerSize = 0;
+        // according doc type to decide weight
+        match doc.document_type {
+            DocumentType::ProductPublish => {
+                account_attend_weight = T::TopWeightAccountAttend::get() as PowerSize;
+                comment_power_weight = T::DocumentPowerWeightAttend::get() as PowerSize;
+                doc_comment_top_weight = T::TopWeightProductPublish::get() as PowerSize;
+            }
+            DocumentType::ProductIdentify => {
+                account_attend_weight = T::TopWeightAccountAttend::get() as PowerSize;
+                comment_power_weight = T::DocumentPowerWeightAttend::get() as PowerSize;
+                doc_comment_top_weight = T::TopWeightDocumentIdentify::get() as PowerSize;
+            }
+            DocumentType::ProductTry => {
+                account_attend_weight = T::TopWeightAccountAttend::get() as PowerSize;
+                comment_power_weight = T::DocumentPowerWeightAttend::get() as PowerSize;
+                doc_comment_top_weight = T::TopWeightDocumentTry::get() as PowerSize;
+            }
+            DocumentType::ProductChoose => {
+                account_attend_weight = T::CMPowerAccountAttend::get() as PowerSize;
+                comment_power_weight = T::DocumentCMPowerWeightAttend::get() as PowerSize;
+                doc_comment_top_weight = 100 as PowerSize;
+            }
+            DocumentType::ModelCreate => {
+                account_attend_weight = T::CMPowerAccountAttend::get() as PowerSize;
+                comment_power_weight = T::DocumentCMPowerWeightAttend::get() as PowerSize;
+                doc_comment_top_weight = 100 as PowerSize;
+            }
+            _ => {}
+        }
+
         account_comment_power = Self::compute_attend_power(
             Self::compute_comment_action_rate(
                 &account_comment_max,
@@ -1318,7 +1599,7 @@ impl<T: Trait> Module<T> {
                 account_comment_unit_fee,
             ),
             100,
-            T::TopWeightAccountAttend::get() as PowerSize,
+            account_attend_weight,
         );
 
         // read out document based max record
@@ -1341,8 +1622,8 @@ impl<T: Trait> Module<T> {
                 doc.comment_positive_count,
                 doc_comment_unit_fee,
             ),
-            T::CommentPowerWeight::get() as PowerSize,
-            T::TopWeightAccountAttend::get() as PowerSize,
+            comment_power_weight,
+            doc_comment_top_weight,
         );
 
         // chcek if owner's membership

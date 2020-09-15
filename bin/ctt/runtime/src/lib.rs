@@ -882,9 +882,9 @@ parameter_types! {
     pub const DocumentPowerWeightAttend: u8 = 40;
     pub const DocumentPowerWeightContent: u8 = 30;
     pub const DocumentPowerWeightJudge: u8 = 30;
-    pub const CommentPowerWeightCount: u8 = 35;
-    pub const CommentPowerWeightCost: u8 = 40;
-    pub const CommentPowerWeightPerCost: u8 = 20;
+    pub const CommentPowerWeightCount: u8 = 65;
+    pub const CommentPowerWeightCost: u8 = 20;
+    pub const CommentPowerWeightPerCost: u8 = 10;
     pub const CommentPowerWeightPositive: u8 = 5;
     pub const CommentPowerWeight: u8 = 40;
     pub const DocumentPublishWeightParamsRate: u8 = 60;
@@ -898,6 +898,23 @@ parameter_types! {
     pub const TopWeightDocumentTry: u8 = 35;
     pub const TopWeightAccountAttend: u8 = 10;
     pub const TopWeightAccountStake: u8 = 15;
+
+    // for CM
+    pub const DocumentChooseWeightSellCount: u8 = 60;
+    pub const DocumentChooseWeightTryCount: u8 = 40;
+
+    pub const DocumentModelWeightProducerCount: u8 = 40;
+    pub const DocumentModelWeightProductCount: u8 = 60;
+
+    pub const DocumentCMPowerWeightAttend: u8 = 35;
+    pub const DocumentCMPowerWeightContent: u8 = 30;
+    pub const DocumentCMPowerWeightJudge: u8 = 30;
+    pub const CMPowerAccountAttend: u8 = 5;
+
+    pub const CommentCMPowerWeightCount: u8 = 65;
+    pub const CommentCMPowerWeightCost: u8 = 20;
+    pub const CommentCMPowerWeightPerCost: u8 = 10;
+    pub const CommentCMPowerWeightPositive: u8 = 5;
 }
 
 impl kp::Trait for Runtime {
@@ -922,6 +939,19 @@ impl kp::Trait for Runtime {
     type DocumentIdentifyWeightCheckRate = DocumentIdentifyWeightCheckRate;
     type DocumentTryWeightBiasRate = DocumentTryWeightBiasRate;
     type DocumentTryWeightTrueRate = DocumentTryWeightTrueRate;
+
+    type DocumentChooseWeightSellCount = DocumentChooseWeightSellCount;
+    type DocumentChooseWeightTryCount = DocumentChooseWeightTryCount;
+    type DocumentModelWeightProducerCount = DocumentModelWeightProducerCount;
+    type DocumentModelWeightProductCount = DocumentModelWeightProductCount;
+    type DocumentCMPowerWeightAttend = DocumentCMPowerWeightAttend;
+    type DocumentCMPowerWeightContent = DocumentCMPowerWeightContent;
+    type DocumentCMPowerWeightJudge = DocumentCMPowerWeightJudge;
+    type CommentCMPowerWeightCount = CommentCMPowerWeightCount;
+    type CommentCMPowerWeightCost = CommentCMPowerWeightCost;
+    type CommentCMPowerWeightPerCost = CommentCMPowerWeightPerCost;
+    type CommentCMPowerWeightPositive = CommentCMPowerWeightPositive;
+    type CMPowerAccountAttend = CMPowerAccountAttend;
 }
 
 construct_runtime!(

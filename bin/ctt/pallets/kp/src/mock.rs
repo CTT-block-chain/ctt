@@ -50,9 +50,9 @@ parameter_types! {
     pub const DocumentPowerWeightAttend: u8 = 40;
     pub const DocumentPowerWeightContent: u8 = 30;
     pub const DocumentPowerWeightJudge: u8 = 30;
-    pub const CommentPowerWeightCount: u8 = 35;
-    pub const CommentPowerWeightCost: u8 = 40;
-    pub const CommentPowerWeightPerCost: u8 = 20;
+    pub const CommentPowerWeightCount: u8 = 65;
+    pub const CommentPowerWeightCost: u8 = 20;
+    pub const CommentPowerWeightPerCost: u8 = 10;
     pub const CommentPowerWeightPositive: u8 = 5;
     pub const CommentPowerWeight: u8 = 40;
     pub const DocumentPublishWeightParamsRate: u8 = 60;
@@ -66,6 +66,23 @@ parameter_types! {
     pub const TopWeightDocumentTry: u8 = 35;
     pub const TopWeightAccountAttend: u8 = 10;
     pub const TopWeightAccountStake: u8 = 15;
+
+    // for CM
+    pub const DocumentChooseWeightSellCount: u8 = 60;
+    pub const DocumentChooseWeightTryCount: u8 = 40;
+
+    pub const DocumentModelWeightProducerCount: u8 = 40;
+    pub const DocumentModelWeightProductCount: u8 = 60;
+
+    pub const DocumentCMPowerWeightAttend: u8 = 35;
+    pub const DocumentCMPowerWeightContent: u8 = 30;
+    pub const DocumentCMPowerWeightJudge: u8 = 30;
+    pub const CMPowerAccountAttend: u8 = 5;
+
+    pub const CommentCMPowerWeightCount: u8 = 65;
+    pub const CommentCMPowerWeightCost: u8 = 20;
+    pub const CommentCMPowerWeightPerCost: u8 = 10;
+    pub const CommentCMPowerWeightPositive: u8 = 5;
 }
 impl system::Trait for Test {
     type BaseCallFilter = ();
@@ -117,6 +134,19 @@ impl Trait for Test {
     type DocumentIdentifyWeightCheckRate = DocumentIdentifyWeightCheckRate;
     type DocumentTryWeightBiasRate = DocumentTryWeightBiasRate;
     type DocumentTryWeightTrueRate = DocumentTryWeightTrueRate;
+
+    type DocumentChooseWeightSellCount = ();
+    type DocumentChooseWeightTryCount = ();
+    type DocumentModelWeightProducerCount = ();
+    type DocumentModelWeightProductCount = ();
+    type DocumentCMPowerWeightAttend = ();
+    type DocumentCMPowerWeightContent = ();
+    type DocumentCMPowerWeightJudge = ();
+    type CommentCMPowerWeightCount = ();
+    type CommentCMPowerWeightCost = ();
+    type CommentCMPowerWeightPerCost = ();
+    type CommentCMPowerWeightPositive = ();
+    type CMPowerAccountAttend = ();
 }
 
 impl pallet_balances::Trait for Test {
