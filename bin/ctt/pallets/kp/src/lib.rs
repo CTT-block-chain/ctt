@@ -602,6 +602,7 @@ decl_event!(
         CommodityTypeCreated(u32),
         AppModelTotal(u32),
         ModelYearIncome(AccountId),
+        PowerSlashed(AccountId),
     }
 );
 
@@ -621,6 +622,8 @@ decl_error! {
         ModelOverSizeLimit,
         NotAppAdmin,
         ModelYearIncomeAlreadyExisted,
+        CommentNotFound,
+        DocumentNotFound,
     }
 }
 
@@ -1145,6 +1148,39 @@ decl_module! {
             Self::deposit_event(RawEvent::KnowledgeCreated(who));
             Ok(())
         }
+
+        #[weight = 0]
+        pub fn democracy_slash_commodity_power(origin,
+            app_id: Vec<u8>,
+            cart_id: Vec<u8>,
+            comment_id: Vec<u8>,
+
+            app_user_account: AuthAccountId,
+            app_user_sign: sr25519::Signature,
+
+            auth_server: AuthAccountId,
+            auth_sign: sr25519::Signature) -> dispatch::DispatchResult {
+
+            ensure_root(origin)?;
+
+            // read out comment to get related document owner
+            let comment_key = T::Hashing::hash_of(&(&app_id, &comment_id));
+            ensure!(<KPCommentDataByIdHash<T>>::contains_key(&comment_key), Error::<T>::CommentNotFound);
+            let comment = <KPCommentDataByIdHash<T>>::get(&comment_key);
+
+            let doc_key = T::Hashing::hash_of(&(&app_id, &comment.document_id));
+            ensure!(!<KPDocumentDataByIdHash<T>>::contains_key(&doc_key), Error::<T>::DocumentNotFound);
+            let doc = <KPDocumentDataByIdHash<T>>::get(&doc_key);
+
+            // perform slash
+            let key_hash = T::Hashing::hash_of(&(&app_id, &cart_id));
+            let owner_account = Self::convert_account(&doc.owner);
+            Self::slash_power(&key_hash, &owner_account);
+
+            Self::deposit_event(RawEvent::PowerSlashed(owner_account));
+            Ok(())
+        }
+
     }
 }
 
@@ -1748,7 +1784,23 @@ impl<T: Trait> Module<T> {
             });
 
             // update last power
-            <KPPurchasePowerByIdHash<T>>::insert(&power_key_hash, &power);
+            <KPPurchasePowerByIdHash<T>>::insert(&power_key_hash, power);
+        }
+    }
+
+    fn slash_power(cart_key: &T::Hash, power_owner: &T::AccountId) {
+        // clear cart hash
+        let cart_power = <KPPurchasePowerByIdHash<T>>::get(cart_key);
+        if cart_power > 0 {
+            <KPPurchasePowerByIdHash<T>>::insert(cart_key, 0);
+            // reduce account power
+            <MinerPowerByAccount<T>>::mutate(power_owner, |pow| {
+                if *pow > cart_power {
+                    *pow -= cart_power;
+                } else {
+                    *pow = 0
+                }
+            });
         }
     }
 }
