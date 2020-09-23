@@ -31,10 +31,7 @@ sp-consensus = { version = "0.8.0", path = "../../../primitives/consensus/common
 sp-blockchain = { version = "2.0.0", path = "../../../primitives/blockchain" }
 sc-finality-grandpa = { version = "0.8.0", path = "../../../client/finality-grandpa" }
 sc-finality-grandpa-rpc = { version = "0.8.0", path = "../../../client/finality-grandpa/rpc" }
-sc-keystore = { version = "2.0.0", path = "../../../client/keystore" }
 sc-rpc-api = { version = "0.8.0", path = "../../../client/rpc-api" }
-sc-rpc = { version = "2.0.0", path = "../../../client/rpc" }
-sp-api = { version = "2.0.0", path = "../../../primitives/api" }
 sp-block-builder = { version = "2.0.0", path = "../../../primitives/block-builder" }
 kp-rpc = { version = "2.0.0", path = "../pallets/kp/rpc" }
 members-rpc = { version = "2.0.0", path = "../pallets/members/rpc" }
