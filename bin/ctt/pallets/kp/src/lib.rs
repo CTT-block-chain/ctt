@@ -722,13 +722,15 @@ decl_module! {
             let key = T::Hashing::hash_of(&(&app_id, &model_id));
             ensure!(!<KPModelDataByIdHash<T>>::contains_key(&key), Error::<T>::ModelAlreadyExisted);
 
+            print(commodity_type);
+
             // check if valid commodity_type
             ensure!(CommodityTypeMap::contains_key(commodity_type),  Error::<T>::ModelTypeInvalid);
 
-            // TODO: check if size over
             let count = <AppModelCount>::get(&app_id);
             ensure!(count < <AppModelTotalConfig>::get(&app_id), Error::<T>::ModelOverSizeLimit);
 
+            print("checking deposit");
             // deposit
             let user_account = Self::convert_account(&app_user_account);
             let value = T::ModelCreateDeposit::get();
