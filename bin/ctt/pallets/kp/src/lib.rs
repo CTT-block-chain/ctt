@@ -4,7 +4,7 @@
 use frame_support::{
     codec::{Decode, Encode},
     decl_error, decl_event, decl_module, decl_storage, dispatch, ensure,
-    traits::Get,
+    traits::{Currency, Get, LockableCurrency, OnUnbalanced, ReservableCurrency},
 };
 
 #[macro_use]
@@ -40,6 +40,11 @@ pub trait PowerVote<AccountId> {
 const FLOAT_COMPUTE_PRECISION: PowerSize = 10000;
 const RATIO_DIV: f64 = 100.0;
 // const POWER_PRECISION_ADJUST: PowerSize = FLOAT_COMPUTE_PRECISION * 100;
+
+type BalanceOf<T> =
+    <<T as Trait>::Currency as Currency<<T as frame_system::Trait>::AccountId>>::Balance;
+type NegativeImbalanceOf<T> =
+    <<T as Trait>::Currency as Currency<<T as frame_system::Trait>::AccountId>>::NegativeImbalance;
 
 #[cfg(test)]
 mod mock;
@@ -392,6 +397,13 @@ pub trait Trait: system::Trait {
     /// Membership control
     type Membership: Membership<Self::AccountId, Self::Hash>;
 
+    /// Currency type for this module.
+    type Currency: ReservableCurrency<Self::AccountId>
+        + LockableCurrency<Self::AccountId, Moment = Self::BlockNumber>;
+
+    /// Handler for the unbalanced reduction when slashing a model create deposit.
+    type Slash: OnUnbalanced<NegativeImbalanceOf<Self>>;
+
     /// The overarching event type.
     type Event: From<Event<Self>> + Into<<Self as system::Trait>::Event>;
 
@@ -468,6 +480,8 @@ pub trait Trait: system::Trait {
     type CommentCMPowerWeightPositive: Get<u8>;
 
     type CMPowerAccountAttend: Get<u8>;
+
+    type ModelCreateDeposit: Get<BalanceOf<Self>>;
 }
 
 // This pallet's storage items.
@@ -481,6 +495,10 @@ decl_storage! {
         // (AppId, ModelId) -> KPModelData
         KPModelDataByIdHash get(fn kp_model_data_by_idhash):
             map hasher(twox_64_concat) T::Hash => KPModelDataOf<T>;
+
+        // (AppId, ModelId) -> BalanceOf<T>  deposit value of create model
+        KPModelDepositMap get(fn kp_model_):
+            map hasher(twox_64_concat) T::Hash => BalanceOf<T>;
 
         // (AppId, AuthAccountId) -> KPCommentAccountRecord
         KPCommentAccountRecordMap get(fn kp_comment_account_record_map):
@@ -679,6 +697,8 @@ decl_module! {
         const CommentCMPowerWeightPositive: u8 = T::CommentCMPowerWeightPositive::get();
         const CMPowerAccountAttend: u8 = T::CMPowerAccountAttend::get();
 
+        const ModelCreateDeposit: BalanceOf<T> = T::ModelCreateDeposit::get();
+
         #[weight = 0]
         pub fn create_model(origin,
             app_id: Vec<u8>,
@@ -708,6 +728,12 @@ decl_module! {
             // check if size over
             let count = <AppModelCount>::get(&app_id);
             ensure!(count < <AppModelTotalConfig>::get(&app_id), Error::<T>::ModelOverSizeLimit);
+
+            // deposit
+            let user_account = Self::convert_account(&app_user_account);
+            let value = T::ModelCreateDeposit::get();
+            T::Currency::reserve(&user_account, value)?;
+            <KPModelDepositMap<T>>::insert(&key, value);
 
             let model = KPModelData {
                 app_id: app_id.clone(),
@@ -751,6 +777,8 @@ decl_module! {
             <KPModelDataByIdHash<T>>::mutate(&key, |model| {
                 model.status = ModelStatus::DISABLED;
             });
+
+            // TODO: delay return of deposit money
 
             Self::deposit_event(RawEvent::ModelDisabled(who));
             Ok(())
@@ -1176,6 +1204,8 @@ decl_module! {
             let key_hash = T::Hashing::hash_of(&(&app_id, &cart_id));
             let owner_account = Self::convert_account(&doc.owner);
             Self::slash_power(&key_hash, &owner_account);
+
+            // TODO: send benefit to app_user_account
 
             Self::deposit_event(RawEvent::PowerSlashed(owner_account));
             Ok(())

@@ -114,6 +114,7 @@ impl system::Trait for Test {
 
 impl Trait for Test {
     type Event = TestEvent;
+    type Currency = Balances;
     type Membership = members::Module<Test>;
     type TopWeightProductPublish = TopWeightProductPublish;
     type TopWeightDocumentIdentify = TopWeightDocumentIdentify;
@@ -147,6 +148,8 @@ impl Trait for Test {
     type CommentCMPowerWeightPerCost = ();
     type CommentCMPowerWeightPositive = ();
     type CMPowerAccountAttend = ();
+    type ModelCreateDeposit = ();
+    type Slash = ();
 }
 
 impl pallet_balances::Trait for Test {

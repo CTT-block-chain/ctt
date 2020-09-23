@@ -915,10 +915,14 @@ parameter_types! {
     pub const CommentCMPowerWeightCost: u8 = 20;
     pub const CommentCMPowerWeightPerCost: u8 = 10;
     pub const CommentCMPowerWeightPositive: u8 = 5;
+
+    pub const ModelCreateDeposit: Balance = 100 * DOLLARS;
 }
 
 impl kp::Trait for Runtime {
     type Event = Event;
+    type Currency = Balances;
+    type Slash = Treasury;
     type Membership = members::Module<Runtime>;
     type TopWeightProductPublish = TopWeightProductPublish;
     type TopWeightDocumentIdentify = TopWeightDocumentIdentify;
@@ -952,6 +956,7 @@ impl kp::Trait for Runtime {
     type CommentCMPowerWeightPerCost = CommentCMPowerWeightPerCost;
     type CommentCMPowerWeightPositive = CommentCMPowerWeightPositive;
     type CMPowerAccountAttend = CMPowerAccountAttend;
+    type ModelCreateDeposit = ModelCreateDeposit;
 }
 
 construct_runtime!(
