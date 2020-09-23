@@ -725,9 +725,9 @@ decl_module! {
             // check if valid commodity_type
             ensure!(CommodityTypeMap::contains_key(commodity_type),  Error::<T>::ModelTypeInvalid);
 
-            // check if size over
-            let count = <AppModelCount>::get(&app_id);
-            ensure!(count < <AppModelTotalConfig>::get(&app_id), Error::<T>::ModelOverSizeLimit);
+            // TODO: check if size over
+            //let count = <AppModelCount>::get(&app_id);
+            //ensure!(count < <AppModelTotalConfig>::get(&app_id), Error::<T>::ModelOverSizeLimit);
 
             // deposit
             let user_account = Self::convert_account(&app_user_account);
