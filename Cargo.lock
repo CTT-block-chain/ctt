@@ -10202,8 +10202,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "93b162580e34310e5931c4b792560108b10fd14d64915d7fff8ff00180e70092"
 
 [[package]]
-<<<<<<< HEAD
-=======
 name = "wasm-bindgen-test"
 version = "0.3.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -10228,7 +10226,6 @@ dependencies = [
 ]
 
 [[package]]
->>>>>>> upstream/master
 name = "wasm-gc-api"
 version = "0.1.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
