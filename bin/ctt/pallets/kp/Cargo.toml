@@ -2,7 +2,7 @@
 authors = ['ctt-dev']
 edition = '2018'
 name = 'ctt-pallet-kp'
-version = "2.0.0-rc5"
+version = "2.0.0"
 license = "GPL-3.0-or-later"
 repository = "https://github.com/CTT-block-chain/substrate.git"
 description = "Knowledge power pallet"
@@ -11,7 +11,7 @@ description = "Knowledge power pallet"
 categories = [
 	"pallet",
 ]
-compatibility_version = "2.0.0-rc5"
+compatibility_version = "2.0.0"
 
 
 [dependencies]
@@ -21,14 +21,14 @@ parking_lot = "0.10.0"
 serde = { version = "1.0.101", optional = true }
 
 # Substrate dependencies
-frame-support = { version = '2.0.0-rc5', default-features = false, path = "../../../../frame/support" }
-frame-system = { version = '2.0.0-rc5', default-features = false, path = "../../../../frame/system" }
-sp-runtime = { version = '2.0.0-rc5', default-features = false, path = "../../../../primitives/runtime" }
-sp-core = { version = '2.0.0-rc5', default-features = false, path = "../../../../primitives/core" }
-sp-io = { version = '2.0.0-rc5', default-features = false, path = "../../../../primitives/io" }
-sp-std = { version = '2.0.0-rc5', default-features = false, path = "../../../../primitives/std" }
-pallet-balances = { version = "2.0.0-rc5", default-features = false, path = "../../../../frame/balances" }
-members = { version = "2.0.0-rc5", path = "../members", package = "ctt-pallet-members", default-features = false }
+frame-support = { version = '2.0.0', default-features = false, path = "../../../../frame/support" }
+frame-system = { version = '2.0.0', default-features = false, path = "../../../../frame/system" }
+sp-runtime = { version = '2.0.0', default-features = false, path = "../../../../primitives/runtime" }
+sp-core = { version = '2.0.0', default-features = false, path = "../../../../primitives/core" }
+sp-io = { version = '2.0.0', default-features = false, path = "../../../../primitives/io" }
+sp-std = { version = '2.0.0', default-features = false, path = "../../../../primitives/std" }
+pallet-balances = { version = "2.0.0", default-features = false, path = "../../../../frame/balances" }
+members = { version = "2.0.0", path = "../members", package = "ctt-pallet-members", default-features = false }
 primitives = { package = "ctt-primitives", path = "../../primitives", default-features = false }
 
 [features]
