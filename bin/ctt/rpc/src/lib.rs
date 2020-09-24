@@ -35,7 +35,6 @@ use std::sync::Arc;
 use kp_rpc::{Kp, KpApi};
 use members_rpc::{Members, MembersApi};
 use node_primitives::{AccountId, AuthAccountId, Balance, Block, BlockNumber, Hash, Index};
-use node_runtime::UncheckedExtrinsic;
 use sc_consensus_babe::{Config, Epoch};
 use sc_consensus_babe_rpc::BabeRpcHandler;
 use sc_consensus_epochs::SharedEpochChanges;

@@ -21,6 +21,7 @@
 use sc_chain_spec::ChainSpecExtension;
 use sp_core::{Pair, Public, crypto::UncheckedInto, sr25519};
 use serde::{Serialize, Deserialize};
+use serde_json::json;
 use node_runtime::{
 	AuthorityDiscoveryConfig, BabeConfig, BalancesConfig, ContractsConfig, CouncilConfig,
 	DemocracyConfig,GrandpaConfig, ImOnlineConfig, KpConfig, SessionConfig, SessionKeys, StakerStatus,
@@ -29,7 +30,7 @@ use node_runtime::{
 };
 use node_runtime::Block;
 use node_runtime::constants::currency::*;
-use sc_service::ChainType;
+use sc_service::{ChainType, Properties};
 use hex_literal::hex;
 use sc_telemetry::TelemetryEndpoints;
 use grandpa_primitives::{AuthorityId as GrandpaId};
@@ -326,6 +327,7 @@ pub fn testnet_genesis(
 			max_members: 999,
 		}),
 		pallet_vesting: Some(Default::default()),
+		kp: Some(KpConfig { auth_servers }),
 	}
 }
 
