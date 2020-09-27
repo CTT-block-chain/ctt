@@ -26,7 +26,7 @@ use node_runtime::{
     wasm_binary_unwrap, AuthorityDiscoveryConfig, BabeConfig, BalancesConfig, ContractsConfig,
     CouncilConfig, DemocracyConfig, ElectionsConfig, GrandpaConfig, ImOnlineConfig, IndicesConfig,
     KpConfig, SessionConfig, SessionKeys, SocietyConfig, StakerStatus, StakingConfig, SudoConfig,
-    SystemConfig, TechnicalCommitteeConfig,
+    SystemConfig, TechnicalCommitteeConfig, Treasury, TreasuryFin, TreasuryMod, TreasuryTech,
 };
 use pallet_im_online::sr25519::AuthorityId as ImOnlineId;
 use sc_chain_spec::ChainSpecExtension;
@@ -268,15 +268,14 @@ pub fn testnet_genesis(
             get_account_id_from_seed::<sr25519::Public>("Alice"),
             get_account_id_from_seed::<sr25519::Public>("Bob"),
             get_account_id_from_seed::<sr25519::Public>("Charlie"),
-            get_account_id_from_seed::<sr25519::Public>("Dave"),
-            get_account_id_from_seed::<sr25519::Public>("Eve"),
-            get_account_id_from_seed::<sr25519::Public>("Ferdie"),
+            //get_account_id_from_seed::<sr25519::Public>("Dave"),
+            //get_account_id_from_seed::<sr25519::Public>("Eve"),
+            //get_account_id_from_seed::<sr25519::Public>("Ferdie"),
             get_account_id_from_seed::<sr25519::Public>("Alice//stash"),
             get_account_id_from_seed::<sr25519::Public>("Bob//stash"),
             get_account_id_from_seed::<sr25519::Public>("Charlie//stash"),
-            get_account_id_from_seed::<sr25519::Public>("Dave//stash"),
-            get_account_id_from_seed::<sr25519::Public>("Eve//stash"),
-            get_account_id_from_seed::<sr25519::Public>("Ferdie//stash"),
+            //get_account_id_from_seed::<sr25519::Public>("Dave//stash"),
+            //get_account_id_from_seed::<sr25519::Public>("Eve//stash"),
         ]
     });
     let num_endowed_accounts = endowed_accounts.len();
@@ -284,19 +283,31 @@ pub fn testnet_genesis(
     const ENDOWMENT: Balance = 10_000_000 * DOLLARS;
     const STASH: Balance = 100 * DOLLARS;
 
+    let mut balances: Vec<(AccountId, Balance)> = endowed_accounts
+        .iter()
+        .cloned()
+        .map(|k| (k, ENDOWMENT))
+        .chain(initial_authorities.iter().map(|x| (x.0.clone(), STASH)))
+        .collect();
+
+    let treasury_balances: Vec<(AccountId, Balance)> = vec![
+        (TreasuryFin::account_id(), 10_000_000 * DOLLARS),
+        (TreasuryTech::account_id(), 10_000_000 * DOLLARS),
+        (TreasuryMod::account_id(), 10_000_000 * DOLLARS),
+    ];
+
+    balances = balances
+        .iter()
+        .cloned()
+        .chain(treasury_balances.iter().cloned())
+        .collect();
+
     GenesisConfig {
         frame_system: Some(SystemConfig {
             code: wasm_binary_unwrap().to_vec(),
             changes_trie_config: Default::default(),
         }),
-        pallet_balances: Some(BalancesConfig {
-            balances: endowed_accounts
-                .iter()
-                .cloned()
-                .map(|k| (k, ENDOWMENT))
-                .chain(initial_authorities.iter().map(|x| (x.0.clone(), STASH)))
-                .collect(),
-        }),
+        pallet_balances: Some(BalancesConfig { balances }),
         pallet_indices: Some(IndicesConfig { indices: vec![] }),
         pallet_session: Some(SessionConfig {
             keys: initial_authorities
