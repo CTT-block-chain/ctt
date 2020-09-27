@@ -1155,6 +1155,9 @@ decl_module! {
 
             ensure!(!<KPDocumentDataByIdHash<T>>::contains_key(&doc_key_hash), Error::<T>::DocumentAlreadyExisted);
 
+            let model_key = T::Hashing::hash_of(&(&app_id, &model_id));
+            ensure!(<KPModelDataByIdHash<T>>::contains_key(&model_key), Error::<T>::ModelNotFound);
+
             // create doc
             let doc = KPDocumentData {
                 sender: who.clone(),
