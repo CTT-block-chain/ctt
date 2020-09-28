@@ -642,6 +642,7 @@ decl_error! {
         ModelYearIncomeAlreadyExisted,
         CommentNotFound,
         DocumentNotFound,
+        ProductNotFound,
     }
 }
 
@@ -881,8 +882,10 @@ decl_module! {
             let who = ensure_signed(origin)?;
 
             let doc_key_hash = T::Hashing::hash_of(&(&app_id, &document_id));
-
             ensure!(!<KPDocumentDataByIdHash<T>>::contains_key(&doc_key_hash), Error::<T>::DocumentAlreadyExisted);
+
+            let product_key_hash = T::Hashing::hash_of(&(&app_id, &product_id));
+            ensure!(<KPDocumentProductIndexByIdHash<T>>::contains_key(&product_key_hash), Error::<T>::ProductNotFound);
 
             let cart_id = document_power_data.cart_id.clone();
 
@@ -936,8 +939,10 @@ decl_module! {
             let who = ensure_signed(origin)?;
 
             let doc_key_hash = T::Hashing::hash_of(&(&app_id, &document_id));
-
             ensure!(!<KPDocumentDataByIdHash<T>>::contains_key(&doc_key_hash), Error::<T>::DocumentAlreadyExisted);
+
+            let product_key_hash = T::Hashing::hash_of(&(&app_id, &product_id));
+            ensure!(<KPDocumentProductIndexByIdHash<T>>::contains_key(&product_key_hash), Error::<T>::ProductNotFound);
 
             let cart_id = document_power_data.cart_id.clone();
 
