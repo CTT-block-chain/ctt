@@ -11,6 +11,6 @@ sp_api::decl_runtime_apis! {
     pub trait KpApi<AccountId> where AccountId: Codec {
         fn total_power() -> PowerSize;
         fn account_power(account: AccountId) -> PowerSize;
-        fn commodity_power(app_id: Vec<u8>, cart_id: Vec<u8>) -> PowerSize;
+        fn commodity_power(app_id: u32, cart_id: Vec<u8>) -> PowerSize;
     }
 }

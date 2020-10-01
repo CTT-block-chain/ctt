@@ -232,7 +232,7 @@ type KPDocumentDataOf<T> =
 
 #[derive(Encode, Decode, Clone, Default, RuntimeDebug)]
 pub struct KPDocumentData<AccountId, Hash> {
-    app_id: Vec<u8>,
+    app_id: u32,
     document_id: Vec<u8>,
     model_id: Vec<u8>,
     product_id: Vec<u8>,
@@ -271,7 +271,7 @@ type KPCommentDataOf<T> =
 
 #[derive(Encode, Decode, Clone, Default, RuntimeDebug)]
 pub struct KPCommentData<AccountId, Hash> {
-    app_id: Vec<u8>,
+    app_id: u32,
     document_id: Vec<u8>,
     comment_id: Vec<u8>,
     comment_hash: Hash,
@@ -284,7 +284,7 @@ pub struct KPCommentData<AccountId, Hash> {
 type KPModelDataOf<T> = KPModelData<<T as system::Trait>::AccountId, <T as system::Trait>::Hash>;
 #[derive(Encode, Decode, Clone, Default, RuntimeDebug)]
 pub struct KPModelData<AccountId, Hash> {
-    app_id: Vec<u8>,
+    app_id: u32,
     model_id: Vec<u8>,
     expert_id: Vec<u8>,
     status: ModelStatus,
@@ -492,6 +492,10 @@ decl_storage! {
         // Trusted application server account
         AuthServers get(fn auth_servers) config() : Vec<T::AccountId>;
 
+        // App id ranges according type string
+        AppIdRange get(fn app_id_range) config():
+            map hasher(twox_64_concat) Vec<u8> => u32;
+
         // (AppId, ModelId) -> KPModelData
         KPModelDataByIdHash get(fn kp_model_data_by_idhash):
             map hasher(twox_64_concat) T::Hash => KPModelDataOf<T>;
@@ -550,31 +554,31 @@ decl_storage! {
         // global power compute related parameters:
         // AppId -> single document's max comment count
         CommentMaxInfoPerDocMap get(fn comment_max_info_per_doc_map):
-            map hasher(twox_64_concat) Vec<u8> => CommentMaxRecord;
+            map hasher(twox_64_concat) u32 => CommentMaxRecord;
 
         // AppId -> single account's max comment count
         CommentMaxInfoPerAccountMap get(fn comment_max_info_per_account_map):
-            map hasher(twox_64_concat) Vec<u8> => CommentMaxRecord;
+            map hasher(twox_64_concat) u32 => CommentMaxRecord;
 
         // AppId -> single account's max goods_price
         MaxGoodsPricePerAccountMap get(fn max_goods_price_per_account_map):
-            map hasher(twox_64_concat) Vec<u8> => PowerSize;
+            map hasher(twox_64_concat) u32 => PowerSize;
 
         // AppId -> document publish params max
         DocumentPublishMaxParams get(fn document_publish_max_params):
-            map hasher(twox_64_concat) Vec<u8> => KPProductPublishRateMax;
+            map hasher(twox_64_concat) u32 => KPProductPublishRateMax;
 
         DocumentIdentifyMaxParams get(fn document_identify_max_params):
-            map hasher(twox_64_concat) Vec<u8> => KPProductIdentifyRateMax;
+            map hasher(twox_64_concat) u32 => KPProductIdentifyRateMax;
 
         DocumentTryMaxParams get(fn document_try_max_params):
-            map hasher(twox_64_concat) Vec<u8> => KPProductTryRateMax;
+            map hasher(twox_64_concat) u32 => KPProductTryRateMax;
 
         DocumentChooseMaxParams get(fn document_choose_max_params):
-            map hasher(twox_64_concat) Vec<u8> => KPProductChooseDataMax;
+            map hasher(twox_64_concat) u32 => KPProductChooseDataMax;
 
         DocumentModelCreateMaxParams get(fn document_model_create_max_params):
-            map hasher(twox_64_concat) Vec<u8> => KPModelCreateDataMax;
+            map hasher(twox_64_concat) u32 => KPModelCreateDataMax;
 
         CommodityTypeSets get(fn commodity_type_sets): Vec<CommodityTypeData>;
 
@@ -588,11 +592,11 @@ decl_storage! {
 
         // app id => u32
         AppModelTotalConfig get(fn app_model_total_config):
-            map hasher(twox_64_concat) Vec<u8> => u32;
+            map hasher(twox_64_concat) u32 => u32;
 
         // app id => u32
         AppModelCount get(fn app_model_count):
-            map hasher(twox_64_concat) Vec<u8> => u32;
+            map hasher(twox_64_concat) u32 => u32;
 
         // model year incoming double map, main key is year (u32), sub key is hash of AppId & ModelId
         ModelYearIncome get(fn model_year_income):
@@ -621,6 +625,7 @@ decl_event!(
         AppModelTotal(u32),
         ModelYearIncome(AccountId),
         PowerSlashed(AccountId),
+        AppAdded(u32),
     }
 );
 
@@ -643,6 +648,8 @@ decl_error! {
         CommentNotFound,
         DocumentNotFound,
         ProductNotFound,
+        AppTypeInvalid,
+        ReturnRateInvalid,
     }
 }
 
@@ -702,7 +709,7 @@ decl_module! {
 
         #[weight = 0]
         pub fn create_model(origin,
-            app_id: Vec<u8>,
+            app_id: u32,
             model_id: Vec<u8>,
             expert_id: Vec<u8>,
             commodity_name: Vec<u8>,
@@ -720,7 +727,7 @@ decl_module! {
 
             // TODO: verify 2 signature
 
-            let key = T::Hashing::hash_of(&(&app_id, &model_id));
+            let key = T::Hashing::hash_of(&(app_id, &model_id));
             ensure!(!<KPModelDataByIdHash<T>>::contains_key(&key), Error::<T>::ModelAlreadyExisted);
 
             print(commodity_type);
@@ -728,8 +735,8 @@ decl_module! {
             // check if valid commodity_type
             ensure!(CommodityTypeMap::contains_key(commodity_type),  Error::<T>::ModelTypeInvalid);
 
-            let count = <AppModelCount>::get(&app_id);
-            ensure!(count < <AppModelTotalConfig>::get(&app_id), Error::<T>::ModelOverSizeLimit);
+            let count = <AppModelCount>::get(app_id);
+            ensure!(count < <AppModelTotalConfig>::get(app_id), Error::<T>::ModelOverSizeLimit);
 
             print("checking deposit");
             // deposit
@@ -739,7 +746,7 @@ decl_module! {
             <KPModelDepositMap<T>>::insert(&key, value);
 
             let model = KPModelData {
-                app_id: app_id.clone(),
+                app_id,
                 model_id,
                 expert_id,
                 status: ModelStatus::ENABLED,
@@ -751,9 +758,9 @@ decl_module! {
             };
 
             <KPModelDataByIdHash<T>>::insert(&key, &model);
-            <AppModelCount>::insert(&app_id, count + 1);
+            <AppModelCount>::insert(app_id, count + 1);
 
-            let type_key = T::Hashing::hash_of(&(&app_id, commodity_type));
+            let type_key = T::Hashing::hash_of(&(app_id, commodity_type));
             let should_transfer = !<ModelFirstTypeBenefitRecord<T>>::contains_key(&type_key);
             T::Membership::set_model_creator(&key, &(Self::convert_account(&model.owner)), &who, should_transfer);
             if should_transfer {
@@ -774,7 +781,7 @@ decl_module! {
             )-> dispatch::DispatchResult {
             let who = ensure_signed(origin)?;
 
-            let key = T::Hashing::hash_of(&(&app_id, &model_id));
+            let key = T::Hashing::hash_of(&(app_id, &model_id));
             ensure!(<KPModelDataByIdHash<T>>::contains_key(&key), Error::<T>::ModelNotFound);
 
             <KPModelDataByIdHash<T>>::mutate(&key, |model| {
@@ -789,7 +796,7 @@ decl_module! {
 
         #[weight = 0]
         pub fn create_product_publish_document(origin,
-            app_id: Vec<u8>,
+            app_id: u32,
             document_id: Vec<u8>,
             model_id: Vec<u8>,
             product_id: Vec<u8>,
@@ -811,7 +818,7 @@ decl_module! {
             doc_key_buf.append(&mut(document_id.clone()));
             let doc_key = H160::from(doc_key_buf);*/
 
-            let doc_key_hash = T::Hashing::hash_of(&(&app_id, &document_id));
+            let doc_key_hash = T::Hashing::hash_of(&(app_id, &document_id));
 
             ensure!(!<KPDocumentDataByIdHash<T>>::contains_key(&doc_key_hash), Error::<T>::DocumentAlreadyExisted);
 
@@ -819,11 +826,11 @@ decl_module! {
 
             // Validation checks:
             // check if product_id already existed
-            let product_key_hash = T::Hashing::hash_of(&(&app_id, &product_id));
+            let product_key_hash = T::Hashing::hash_of(&(app_id, &product_id));
             ensure!(!<KPDocumentProductIndexByIdHash<T>>::contains_key(&product_key_hash), Error::<T>::ProductAlreadyExisted);
 
             // check if model exist
-            let model_key = T::Hashing::hash_of(&(&app_id, &model_id));
+            let model_key = T::Hashing::hash_of(&(app_id, &model_id));
             ensure!(<KPModelDataByIdHash<T>>::contains_key(&model_key), Error::<T>::ModelNotFound);
 
             // TODO: 2 sign verification
@@ -842,7 +849,7 @@ decl_module! {
                 sender: who.clone(),
                 owner: app_user_account.clone(),
                 document_type: DocumentType::ProductPublish,
-                app_id: app_id.clone(),
+                app_id,
                 document_id: document_id.clone(),
                 model_id,
                 product_id: product_id.clone(),
@@ -865,7 +872,7 @@ decl_module! {
 
         #[weight = 0]
         pub fn create_product_identify_document(origin,
-            app_id: Vec<u8>,
+            app_id: u32,
             document_id: Vec<u8>,
             model_id: Vec<u8>,
             product_id: Vec<u8>,
@@ -881,10 +888,10 @@ decl_module! {
 
             let who = ensure_signed(origin)?;
 
-            let doc_key_hash = T::Hashing::hash_of(&(&app_id, &document_id));
+            let doc_key_hash = T::Hashing::hash_of(&(app_id, &document_id));
             ensure!(!<KPDocumentDataByIdHash<T>>::contains_key(&doc_key_hash), Error::<T>::DocumentAlreadyExisted);
 
-            let product_key_hash = T::Hashing::hash_of(&(&app_id, &product_id));
+            let product_key_hash = T::Hashing::hash_of(&(app_id, &product_id));
             ensure!(<KPDocumentProductIndexByIdHash<T>>::contains_key(&product_key_hash), Error::<T>::ProductNotFound);
 
             let cart_id = document_power_data.cart_id.clone();
@@ -894,7 +901,7 @@ decl_module! {
                 sender: who.clone(),
                 owner: app_user_account.clone(),
                 document_type: DocumentType::ProductIdentify,
-                app_id: app_id.clone(),
+                app_id,
                 document_id: document_id.clone(),
                 model_id,
                 product_id,
@@ -910,7 +917,7 @@ decl_module! {
             Self::process_account_power(&doc);
 
             // create cartid -> product identify document id record
-            let key = T::Hashing::hash_of(&(&app_id, &cart_id));
+            let key = T::Hashing::hash_of(&(app_id, &cart_id));
             <KPCartProductIdentifyIndexByIdHash<T>>::insert(&key, &document_id);
 
             // create document record
@@ -922,7 +929,7 @@ decl_module! {
 
         #[weight = 0]
         pub fn create_product_try_document(origin,
-            app_id: Vec<u8>,
+            app_id: u32,
             document_id: Vec<u8>,
             model_id: Vec<u8>,
             product_id: Vec<u8>,
@@ -938,10 +945,10 @@ decl_module! {
 
             let who = ensure_signed(origin)?;
 
-            let doc_key_hash = T::Hashing::hash_of(&(&app_id, &document_id));
+            let doc_key_hash = T::Hashing::hash_of(&(app_id, &document_id));
             ensure!(!<KPDocumentDataByIdHash<T>>::contains_key(&doc_key_hash), Error::<T>::DocumentAlreadyExisted);
 
-            let product_key_hash = T::Hashing::hash_of(&(&app_id, &product_id));
+            let product_key_hash = T::Hashing::hash_of(&(app_id, &product_id));
             ensure!(<KPDocumentProductIndexByIdHash<T>>::contains_key(&product_key_hash), Error::<T>::ProductNotFound);
 
             let cart_id = document_power_data.cart_id.clone();
@@ -951,7 +958,7 @@ decl_module! {
                 sender: who.clone(),
                 owner: app_user_account.clone(),
                 document_type: DocumentType::ProductTry,
-                app_id: app_id.clone(),
+                app_id,
                 document_id: document_id.clone(),
                 model_id,
                 product_id,
@@ -967,7 +974,7 @@ decl_module! {
             Self::process_account_power(&doc);
 
             // create cartid -> product identify document id record
-            let key = T::Hashing::hash_of(&(&app_id, &cart_id));
+            let key = T::Hashing::hash_of(&(app_id, &cart_id));
             <KPCartProductTryIndexByIdHash<T>>::insert(&key, &document_id);
 
             // create document record
@@ -979,7 +986,7 @@ decl_module! {
 
         #[weight = 0]
         pub fn create_comment(origin,
-            app_id: Vec<u8>,
+            app_id: u32,
             comment_id: Vec<u8>,
             document_id: Vec<u8>,
 
@@ -1000,15 +1007,15 @@ decl_module! {
             // TODO: check platform & expert member role
 
             // make sure this comment not exist
-            let key = T::Hashing::hash_of(&(&app_id, &comment_id));
+            let key = T::Hashing::hash_of(&(app_id, &comment_id));
             ensure!(!<KPCommentDataByIdHash<T>>::contains_key(&key), Error::<T>::CommentAlreadyExisted);
 
-            let doc_key_hash = T::Hashing::hash_of(&(&app_id, &document_id));
+            let doc_key_hash = T::Hashing::hash_of(&(app_id, &document_id));
 
             let comment = KPCommentData {
                 sender: who.clone(),
                 owner: app_user_account.clone(),
-                app_id: app_id.clone(),
+                app_id,
                 document_id: document_id.clone(),
                 comment_id: comment_id.clone(),
                 comment_fee,
@@ -1060,7 +1067,7 @@ decl_module! {
         }
 
         #[weight = 0]
-        pub fn set_app_model_total(origin, app_id: Vec<u8>, total: u32) -> dispatch::DispatchResult {
+        pub fn set_app_model_total(origin, app_id: u32, total: u32) -> dispatch::DispatchResult {
             ensure_root(origin)?;
 
             <AppModelTotalConfig>::insert(app_id, total);
@@ -1070,12 +1077,12 @@ decl_module! {
         }
 
         #[weight = 0]
-        pub fn set_model_year_income(origin, year: u32, app_id: Vec<u8>, model_id: Vec<u8>, income: u64) -> dispatch::DispatchResult {
+        pub fn set_model_year_income(origin, year: u32, app_id: u32, model_id: Vec<u8>, income: u64) -> dispatch::DispatchResult {
             let who = ensure_signed(origin)?;
             // check if who is app admin
-            ensure!(T::Membership::is_app_admin(&who, &app_id), Error::<T>::NotAppAdmin);
+            ensure!(T::Membership::is_app_admin(&who, app_id), Error::<T>::NotAppAdmin);
 
-            let subkey = T::Hashing::hash_of(&(&app_id, &model_id));
+            let subkey = T::Hashing::hash_of(&(app_id, &model_id));
 
             // check if it is existed already
             ensure!(!<ModelYearIncome<T>>::contains_key(year, &subkey), Error::<T>::ModelYearIncomeAlreadyExisted);
@@ -1094,7 +1101,7 @@ decl_module! {
 
         #[weight = 0]
         pub fn create_product_choose_document(origin,
-            app_id: Vec<u8>,
+            app_id: u32,
             document_id: Vec<u8>,
             model_id: Vec<u8>,
             product_id: Vec<u8>,
@@ -1110,7 +1117,7 @@ decl_module! {
 
             let who = ensure_signed(origin)?;
 
-            let doc_key_hash = T::Hashing::hash_of(&(&app_id, &document_id));
+            let doc_key_hash = T::Hashing::hash_of(&(app_id, &document_id));
 
             ensure!(!<KPDocumentDataByIdHash<T>>::contains_key(&doc_key_hash), Error::<T>::DocumentAlreadyExisted);
 
@@ -1119,7 +1126,7 @@ decl_module! {
                 sender: who.clone(),
                 owner: app_user_account.clone(),
                 document_type: DocumentType::ProductChoose,
-                app_id: app_id.clone(),
+                app_id,
                 document_id: document_id.clone(),
                 model_id,
                 product_id,
@@ -1140,7 +1147,7 @@ decl_module! {
 
         #[weight = 0]
         pub fn create_model_create_document(origin,
-            app_id: Vec<u8>,
+            app_id: u32,
             document_id: Vec<u8>,
             model_id: Vec<u8>,
             product_id: Vec<u8>,
@@ -1156,11 +1163,11 @@ decl_module! {
 
             let who = ensure_signed(origin)?;
 
-            let doc_key_hash = T::Hashing::hash_of(&(&app_id, &document_id));
+            let doc_key_hash = T::Hashing::hash_of(&(app_id, &document_id));
 
             ensure!(!<KPDocumentDataByIdHash<T>>::contains_key(&doc_key_hash), Error::<T>::DocumentAlreadyExisted);
 
-            let model_key = T::Hashing::hash_of(&(&app_id, &model_id));
+            let model_key = T::Hashing::hash_of(&(app_id, &model_id));
             ensure!(<KPModelDataByIdHash<T>>::contains_key(&model_key), Error::<T>::ModelNotFound);
 
             // create doc
@@ -1168,7 +1175,7 @@ decl_module! {
                 sender: who.clone(),
                 owner: app_user_account.clone(),
                 document_type: DocumentType::ModelCreate,
-                app_id: app_id.clone(),
+                app_id,
                 document_id: document_id.clone(),
                 model_id,
                 product_id,
@@ -1189,38 +1196,55 @@ decl_module! {
 
         #[weight = 0]
         pub fn democracy_slash_commodity_power(origin,
-            app_id: Vec<u8>,
+            app_id: u32,
             cart_id: Vec<u8>,
             comment_id: Vec<u8>,
-
-            app_user_account: AuthAccountId,
-            app_user_sign: sr25519::Signature,
-
-            auth_server: AuthAccountId,
-            auth_sign: sr25519::Signature) -> dispatch::DispatchResult {
+            reporter_account: T::AccountId
+            ) -> dispatch::DispatchResult {
 
             ensure_root(origin)?;
 
             // read out comment to get related document owner
-            let comment_key = T::Hashing::hash_of(&(&app_id, &comment_id));
+            let comment_key = T::Hashing::hash_of(&(app_id, &comment_id));
             ensure!(<KPCommentDataByIdHash<T>>::contains_key(&comment_key), Error::<T>::CommentNotFound);
             let comment = <KPCommentDataByIdHash<T>>::get(&comment_key);
 
-            let doc_key = T::Hashing::hash_of(&(&app_id, &comment.document_id));
+            let doc_key = T::Hashing::hash_of(&(app_id, &comment.document_id));
             ensure!(!<KPDocumentDataByIdHash<T>>::contains_key(&doc_key), Error::<T>::DocumentNotFound);
             let doc = <KPDocumentDataByIdHash<T>>::get(&doc_key);
 
             // perform slash
-            let key_hash = T::Hashing::hash_of(&(&app_id, &cart_id));
+            let key_hash = T::Hashing::hash_of(&(app_id, &cart_id));
             let owner_account = Self::convert_account(&doc.owner);
             Self::slash_power(&key_hash, &owner_account);
 
-            // TODO: send benefit to app_user_account
+            // TODO: send benefit to reporter_account
 
             Self::deposit_event(RawEvent::PowerSlashed(owner_account));
             Ok(())
         }
 
+        #[weight = 0]
+        pub fn democracy_add_app(origin, app_type: Vec<u8>, app_name: Vec<u8>,
+            app_key: T::AccountId, app_admin_key: T::AccountId, return_rate: u32) -> dispatch::DispatchResult {
+            ensure_root(origin)?;
+            // check app_type
+            ensure!(<AppIdRange>::contains_key(&app_type), Error::<T>::AppTypeInvalid);
+            // check return_rate
+            ensure!(return_rate > 0 && return_rate < 10000, Error::<T>::ReturnRateInvalid);
+            // generate app_id
+            let app_id = <AppIdRange>::get(&app_type) + 1;
+            // set admin and idenetity key
+            T::Membership::config_app_admin(&app_admin_key, app_id);
+            T::Membership::config_app_key(&app_key, app_id);
+            T::Membership::config_app_setting(app_id, return_rate, app_name);
+
+            // update app_id range store
+            <AppIdRange>::insert(&app_type, app_id);
+
+            Self::deposit_event(RawEvent::AppAdded(app_id));
+            Ok(())
+        }
     }
 }
 
@@ -1248,18 +1272,18 @@ impl<T: Trait> Module<T> {
         }
     }
 
-    pub fn kp_commodity_power(app_id: Vec<u8>, cart_id: Vec<u8>) -> PowerSize {
-        let key = T::Hashing::hash_of(&(&app_id, &cart_id));
+    pub fn kp_commodity_power(app_id: u32, cart_id: Vec<u8>) -> PowerSize {
+        let key = T::Hashing::hash_of(&(app_id, &cart_id));
         <KPPurchasePowerByIdHash<T>>::get(&key)
     }
 
-    pub fn kp_document_power(app_id: Vec<u8>, document_id: Vec<u8>) -> DocumentPower {
-        let key = T::Hashing::hash_of(&(&app_id, &document_id));
+    pub fn kp_document_power(app_id: u32, document_id: Vec<u8>) -> DocumentPower {
+        let key = T::Hashing::hash_of(&(app_id, &document_id));
         <KPDocumentPowerByIdHash<T>>::get(&key)
     }
 
-    pub fn kp_account_attend_power(app_id: Vec<u8>, account: T::AccountId) -> PowerSize {
-        let key = T::Hashing::hash_of(&(&account, &app_id));
+    pub fn kp_account_attend_power(app_id: u32, account: T::AccountId) -> PowerSize {
+        let key = T::Hashing::hash_of(&(&account, app_id));
         <AccountAttendPowerMap<T>>::get(&key)
     }
 
@@ -1462,17 +1486,17 @@ impl<T: Trait> Module<T> {
         let initial_judge_power;
         match &doc.document_data {
             DocumentSpecificData::ProductPublish(data) => {
-                let params_max = <DocumentPublishMaxParams>::get(&doc.app_id);
+                let params_max = <DocumentPublishMaxParams>::get(doc.app_id);
                 let para_issue_rate_p =
                     Self::update_max(data.para_issue_rate, params_max.para_issue_rate, |v| {
-                        <DocumentPublishMaxParams>::mutate(&doc.app_id, |max| {
+                        <DocumentPublishMaxParams>::mutate(doc.app_id, |max| {
                             max.para_issue_rate = v;
                         })
                     });
 
                 let self_issue_rate_p =
                     Self::update_max(data.self_issue_rate, params_max.self_issue_rate, |v| {
-                        <DocumentPublishMaxParams>::mutate(&doc.app_id, |max| {
+                        <DocumentPublishMaxParams>::mutate(doc.app_id, |max| {
                             max.self_issue_rate = v;
                         })
                     });
@@ -1490,16 +1514,16 @@ impl<T: Trait> Module<T> {
                 );
             }
             DocumentSpecificData::ProductIdentify(data) => {
-                let params_max = <DocumentIdentifyMaxParams>::get(&doc.app_id);
+                let params_max = <DocumentIdentifyMaxParams>::get(doc.app_id);
                 let ident_rate_p = Self::update_max(data.ident_rate, params_max.ident_rate, |v| {
-                    <DocumentIdentifyMaxParams>::mutate(&doc.app_id, |max| {
+                    <DocumentIdentifyMaxParams>::mutate(doc.app_id, |max| {
                         max.ident_rate = v;
                     })
                 });
 
                 let ident_consistence_p =
                     Self::update_max(data.ident_consistence, params_max.ident_consistence, |v| {
-                        <DocumentIdentifyMaxParams>::mutate(&doc.app_id, |max| {
+                        <DocumentIdentifyMaxParams>::mutate(doc.app_id, |max| {
                             max.ident_consistence = v;
                         })
                     });
@@ -1514,16 +1538,16 @@ impl<T: Trait> Module<T> {
                 );
             }
             DocumentSpecificData::ProductTry(data) => {
-                let params_max = <DocumentTryMaxParams>::get(&doc.app_id);
+                let params_max = <DocumentTryMaxParams>::get(doc.app_id);
                 let offset_rate_p =
                     Self::update_max(data.offset_rate, params_max.offset_rate, |v| {
-                        <DocumentTryMaxParams>::mutate(&doc.app_id, |max| {
+                        <DocumentTryMaxParams>::mutate(doc.app_id, |max| {
                             max.offset_rate = v;
                         })
                     });
 
                 let true_rate_p = Self::update_max(data.true_rate, params_max.true_rate, |v| {
-                    <DocumentTryMaxParams>::mutate(&doc.app_id, |max| {
+                    <DocumentTryMaxParams>::mutate(doc.app_id, |max| {
                         max.true_rate = v;
                     })
                 });
@@ -1537,15 +1561,15 @@ impl<T: Trait> Module<T> {
                 );
             }
             DocumentSpecificData::ProductChoose(data) => {
-                let params_max = <DocumentChooseMaxParams>::get(&doc.app_id);
+                let params_max = <DocumentChooseMaxParams>::get(doc.app_id);
                 let sell_count_p = Self::update_max(data.sell_count, params_max.sell_count, |v| {
-                    <DocumentChooseMaxParams>::mutate(&doc.app_id, |max| {
+                    <DocumentChooseMaxParams>::mutate(doc.app_id, |max| {
                         max.sell_count = v;
                     })
                 });
 
                 let try_count_p = Self::update_max(data.try_count, params_max.try_count, |v| {
-                    <DocumentChooseMaxParams>::mutate(&doc.app_id, |max| {
+                    <DocumentChooseMaxParams>::mutate(doc.app_id, |max| {
                         max.try_count = v;
                     })
                 });
@@ -1559,17 +1583,17 @@ impl<T: Trait> Module<T> {
                 );
             }
             DocumentSpecificData::ModelCreate(data) => {
-                let params_max = <DocumentModelCreateMaxParams>::get(&doc.app_id);
+                let params_max = <DocumentModelCreateMaxParams>::get(doc.app_id);
                 let producer_count_p =
                     Self::update_max(data.producer_count, params_max.producer_count, |v| {
-                        <DocumentModelCreateMaxParams>::mutate(&doc.app_id, |max| {
+                        <DocumentModelCreateMaxParams>::mutate(doc.app_id, |max| {
                             max.producer_count = v;
                         })
                     });
 
                 let product_count_p =
                     Self::update_max(data.product_count, params_max.product_count, |v| {
-                        <DocumentModelCreateMaxParams>::mutate(&doc.app_id, |max| {
+                        <DocumentModelCreateMaxParams>::mutate(doc.app_id, |max| {
                             max.product_count = v;
                         })
                     });
@@ -1587,7 +1611,7 @@ impl<T: Trait> Module<T> {
 
         if content_power > 0 {
             // update content power, here document power is not exist
-            let key = T::Hashing::hash_of(&(&doc.app_id, &doc.document_id));
+            let key = T::Hashing::hash_of(&(doc.app_id, &doc.document_id));
             <KPDocumentPowerByIdHash<T>>::insert(
                 &key,
                 &DocumentPower {
@@ -1603,12 +1627,12 @@ impl<T: Trait> Module<T> {
         // target compute
         let account_comment_power: PowerSize;
         let doc_comment_power: PowerSize;
-        let doc_key_hash = T::Hashing::hash_of(&(&comment.app_id, &comment.document_id));
+        let doc_key_hash = T::Hashing::hash_of(&(comment.app_id, &comment.document_id));
 
         // read out document
         let mut doc = Self::kp_document_data_by_idhash(&doc_key_hash);
 
-        let comment_account_key = T::Hashing::hash_of(&(&comment.app_id, &comment.owner));
+        let comment_account_key = T::Hashing::hash_of(&(comment.app_id, &comment.owner));
         let mut account = Self::kp_comment_account_record_map(&comment_account_key);
 
         account.count += 1;
@@ -1621,8 +1645,7 @@ impl<T: Trait> Module<T> {
             account.positive_count += 1;
         }
 
-        let mut account_comment_max =
-            Self::comment_max_info_per_account_map(comment.app_id.clone());
+        let mut account_comment_max = Self::comment_max_info_per_account_map(comment.app_id);
 
         let account_comment_unit_fee = account.fees / account.count;
         let is_account_max_updated = Self::update_comment_max(
@@ -1679,7 +1702,7 @@ impl<T: Trait> Module<T> {
         );
 
         // read out document based max record
-        let mut doc_comment_max = Self::comment_max_info_per_doc_map(comment.app_id.clone());
+        let mut doc_comment_max = Self::comment_max_info_per_doc_map(comment.app_id);
         let doc_comment_unit_fee = doc.comment_total_fee / doc.comment_count;
         let is_doc_max_updated = Self::update_comment_max(
             &mut doc_comment_max,
@@ -1707,7 +1730,7 @@ impl<T: Trait> Module<T> {
         let mut is_need_update_platform_comment = false;
         let owner = Self::convert_account(&comment.owner);
         if doc.expert_trend == CommentTrend::Empty
-            && T::Membership::is_expert(&owner, &doc.app_id, &doc.model_id)
+            && T::Membership::is_expert(&owner, doc.app_id, &doc.model_id)
         {
             doc.expert_trend = comment.comment_trend.into();
             platform_comment_power =
@@ -1715,7 +1738,7 @@ impl<T: Trait> Module<T> {
             is_need_update_platform_comment = true;
         }
         if doc.platform_trend == CommentTrend::Empty
-            && T::Membership::is_platform(&owner, &doc.app_id)
+            && T::Membership::is_platform(&owner, doc.app_id)
         {
             doc.platform_trend = comment.comment_trend.into();
             platform_comment_power =
@@ -1734,20 +1757,20 @@ impl<T: Trait> Module<T> {
 
         // update account max if changed
         if is_account_max_updated {
-            <CommentMaxInfoPerAccountMap>::insert(comment.app_id.clone(), account_comment_max);
+            <CommentMaxInfoPerAccountMap>::insert(comment.app_id, account_comment_max);
         }
 
         // update doc comment max if changed
         if is_doc_max_updated {
-            <CommentMaxInfoPerDocMap>::insert(comment.app_id.clone(), doc_comment_max);
+            <CommentMaxInfoPerDocMap>::insert(comment.app_id, doc_comment_max);
         }
 
         // update account attend power store
-        let key = T::Hashing::hash_of(&(&Self::convert_account(&comment.owner), &comment.app_id));
+        let key = T::Hashing::hash_of(&(&Self::convert_account(&comment.owner), comment.app_id));
         <AccountAttendPowerMap<T>>::insert(&key, account_comment_power);
 
         // update document attend power store
-        let key = T::Hashing::hash_of(&(&comment.app_id, &comment.document_id));
+        let key = T::Hashing::hash_of(&(comment.app_id, &comment.document_id));
         <KPDocumentPowerByIdHash<T>>::mutate(&key, |pow_record| {
             pow_record.attend = doc_comment_power;
             if is_need_update_platform_comment {
@@ -1770,13 +1793,13 @@ impl<T: Trait> Module<T> {
 
         match &doc.document_data {
             DocumentSpecificData::ProductIdentify(data) => {
-                let key = T::Hashing::hash_of(&(&doc.app_id, &data.cart_id));
+                let key = T::Hashing::hash_of(&(doc.app_id, &data.cart_id));
                 document_id = Self::kp_cart_product_try_index_by_idhash(&key);
                 //couple_document_weight = T::TopWeightDocumentTry::get() as PowerSize;
                 cart_id = data.cart_id.clone();
             }
             DocumentSpecificData::ProductTry(data) => {
-                let key = T::Hashing::hash_of(&(&doc.app_id, &data.cart_id));
+                let key = T::Hashing::hash_of(&(doc.app_id, &data.cart_id));
                 document_id = Self::kp_cart_product_identify_index_by_idhash(&key);
                 //couple_document_weight = T::TopWeightDocumentIdentify::get() as PowerSize;
                 cart_id = data.cart_id.clone();
@@ -1787,33 +1810,33 @@ impl<T: Trait> Module<T> {
         // if get valid document id, means there is cart_id matched document power to consider
         if document_id.len() > 0 {
             // read coupled power data
-            let key = T::Hashing::hash_of(&(&doc.app_id, &document_id));
+            let key = T::Hashing::hash_of(&(doc.app_id, &document_id));
             couple_document_power = Self::kp_document_power_by_idhash(&key);
 
             power += couple_document_power.total();
         }
 
         // self document power
-        let key = T::Hashing::hash_of(&(&doc.app_id, &doc.document_id));
+        let key = T::Hashing::hash_of(&(doc.app_id, &doc.document_id));
         let self_doc_power = Self::kp_document_power_by_idhash(&key);
 
         power += self_doc_power.total();
 
         // read product publish power
-        let product_key_hash = T::Hashing::hash_of(&(&doc.app_id, &doc.product_id));
+        let product_key_hash = T::Hashing::hash_of(&(doc.app_id, &doc.product_id));
         let product_document_id = Self::kp_document_product_index_by_idhash(&product_key_hash);
-        let key = T::Hashing::hash_of(&(&doc.app_id, &product_document_id));
+        let key = T::Hashing::hash_of(&(doc.app_id, &product_document_id));
         let product_publish_power = Self::kp_document_power_by_idhash(&key);
         power += product_publish_power.total();
 
         // read document owner action power
-        let key = T::Hashing::hash_of(&(&Self::convert_account(&doc.owner), &doc.app_id));
+        let key = T::Hashing::hash_of(&(&Self::convert_account(&doc.owner), doc.app_id));
         power += Self::account_attend_power_map(&key);
 
         // TODO: read document owner eocnomic power
 
         // now we got new computed power, check if need to update
-        let power_key_hash = T::Hashing::hash_of(&(&doc.app_id, &cart_id));
+        let power_key_hash = T::Hashing::hash_of(&(doc.app_id, &cart_id));
         let last_power = Self::kp_purchase_power_by_idhash(&power_key_hash);
         let increased_power = power - last_power;
 

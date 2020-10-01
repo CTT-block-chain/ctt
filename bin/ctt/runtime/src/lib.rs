@@ -1200,22 +1200,22 @@ impl_runtime_apis! {
             Kp::kp_auth_account_power(account)
         }
 
-        fn commodity_power(app_id: Vec<u8>, cart_id: Vec<u8>) -> PowerSize {
+        fn commodity_power(app_id: u32, cart_id: Vec<u8>) -> PowerSize {
             Kp::kp_commodity_power(app_id, cart_id)
         }
     }
 
     impl members_runtime_api::MembersApi<Block, AccountId> for Runtime {
-        fn is_platform_expert(account: AccountId, app_id: Vec<u8>) -> bool {
-            Members::is_platform_expert(&account, &app_id)
+        fn is_platform_expert(account: AccountId, app_id: u32) -> bool {
+            Members::is_platform_expert(&account, app_id)
         }
 
-        fn is_model_expert(account: AccountId, app_id: Vec<u8>, model_id: Vec<u8>) -> bool {
-            Members::is_model_expert(&account, &app_id, &model_id)
+        fn is_model_expert(account: AccountId, app_id: u32, model_id: Vec<u8>) -> bool {
+            Members::is_model_expert(&account, app_id, &model_id)
         }
 
-        fn is_model_creator(account: AccountId, app_id: Vec<u8>, model_id: Vec<u8>) -> bool {
-            Members::is_model_creator(&account, &app_id, &model_id)
+        fn is_model_creator(account: AccountId, app_id: u32, model_id: Vec<u8>) -> bool {
+            Members::is_model_creator(&account, app_id, &model_id)
         }
     }
 

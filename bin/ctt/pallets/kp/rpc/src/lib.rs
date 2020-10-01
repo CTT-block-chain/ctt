@@ -17,7 +17,7 @@ use std::sync::Arc;
 #[serde(rename_all = "camelCase")]
 #[serde(deny_unknown_fields)]
 pub struct QueryCommodityPowerParams {
-    app_id: Bytes,
+    app_id: u32,
     cart_id: Bytes,
 }
 
@@ -124,7 +124,7 @@ where
 
         let QueryCommodityPowerParams { app_id, cart_id } = query;
 
-        let runtime_api_result = api.commodity_power(&at, app_id.to_vec(), cart_id.to_vec());
+        let runtime_api_result = api.commodity_power(&at, app_id, cart_id.to_vec());
         runtime_api_result.map_err(|e| RpcError {
             code: ErrorCode::ServerError(9876), // No real reason for this value
             message: "Something wrong".into(),

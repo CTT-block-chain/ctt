@@ -17,14 +17,14 @@ use std::sync::Arc;
 #[serde(rename_all = "camelCase")]
 #[serde(deny_unknown_fields)]
 pub struct QueryPlatformExpertParams {
-    app_id: Bytes,
+    app_id: u32,
 }
 
 #[derive(Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 #[serde(deny_unknown_fields)]
 pub struct QueryModelExpertParams {
-    app_id: Bytes,
+    app_id: u32,
     model_id: Bytes,
 }
 
@@ -111,7 +111,7 @@ where
 
         let QueryPlatformExpertParams { app_id } = query;
 
-        let runtime_api_result = api.is_platform_expert(&at, account, app_id.to_vec());
+        let runtime_api_result = api.is_platform_expert(&at, account, app_id);
         runtime_api_result.map_err(|e| RpcError {
             code: ErrorCode::ServerError(9876), // No real reason for this value
             message: "Something wrong".into(),
@@ -133,7 +133,7 @@ where
         let QueryModelExpertParams { app_id, model_id } = query;
 
         let runtime_api_result =
-            api.is_model_expert(&at, account, app_id.to_vec(), model_id.to_vec());
+            api.is_model_expert(&at, account, app_id, model_id.to_vec());
         runtime_api_result.map_err(|e| RpcError {
             code: ErrorCode::ServerError(9876), // No real reason for this value
             message: "Something wrong".into(),
@@ -155,7 +155,7 @@ where
         let QueryModelExpertParams { app_id, model_id } = query;
 
         let runtime_api_result =
-            api.is_model_creator(&at, account, app_id.to_vec(), model_id.to_vec());
+            api.is_model_creator(&at, account, app_id, model_id.to_vec());
         runtime_api_result.map_err(|e| RpcError {
             code: ErrorCode::ServerError(9876), // No real reason for this value
             message: "Something wrong".into(),

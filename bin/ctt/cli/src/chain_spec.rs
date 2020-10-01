@@ -26,7 +26,7 @@ use node_runtime::{
     wasm_binary_unwrap, AuthorityDiscoveryConfig, BabeConfig, BalancesConfig, ContractsConfig,
     CouncilConfig, DemocracyConfig, ElectionsConfig, GrandpaConfig, ImOnlineConfig, IndicesConfig,
     KpConfig, SessionConfig, SessionKeys, SocietyConfig, StakerStatus, StakingConfig, SudoConfig,
-    SystemConfig, TechnicalCommitteeConfig, Treasury, TreasuryFin, TreasuryMod, TreasuryTech,
+    SystemConfig, TechnicalCommitteeConfig, TreasuryFin, TreasuryMod, TreasuryTech,
 };
 use pallet_im_online::sr25519::AuthorityId as ImOnlineId;
 use sc_chain_spec::ChainSpecExtension;
@@ -380,7 +380,24 @@ pub fn testnet_genesis(
             max_members: 999,
         }),
         pallet_vesting: Some(Default::default()),
-        kp: Some(KpConfig { auth_servers }),
+        kp: Some(KpConfig {
+            auth_servers,
+            app_id_range: vec!(
+                (b"commodity_general".to_vec(), 100010001), // JianFa app
+                (b"commodity_vertical".to_vec(), 100020000), // Empty
+                (b"commodity_special".to_vec(), 100300000), // Empty
+
+                (b"service_education".to_vec(), 200010000), // Empty
+                (b"service_health".to_vec(), 200020000), // Empty
+                (b"service_finance".to_vec(), 200030000), // Empty
+                (b"service_medicine".to_vec(), 200040000), // Empty
+
+                (b"governance_legal".to_vec(), 300010000), // Empty
+                (b"governance_rules".to_vec(), 300020000), // Empty
+
+                (b"misc".to_vec(), 400010000), // Empty
+            )
+        }),
     }
 }
 

@@ -4,7 +4,7 @@
 //! tradeoffs when using map sets.
 
 use frame_support::{
-    codec::Decode,
+    codec::{Decode, Encode},
     decl_error, decl_event, decl_module, decl_storage,
     dispatch::DispatchResult,
     ensure,
@@ -13,7 +13,7 @@ use frame_support::{
 use frame_system::{self as system, ensure_root, ensure_signed};
 use primitives::{AccountSet, AuthAccountId, Membership};
 use sp_core::sr25519;
-use sp_runtime::traits::Hash;
+use sp_runtime::{traits::Hash, RuntimeDebug};
 use sp_std::collections::btree_set::BTreeSet;
 use sp_std::prelude::*;
 
@@ -22,6 +22,12 @@ mod tests;
 
 type BalanceOf<T> =
     <<T as Trait>::Currency as Currency<<T as frame_system::Trait>::AccountId>>::Balance;
+
+#[derive(Encode, Decode, Clone, Default, RuntimeDebug)]
+pub struct AppData {
+    name: Vec<u8>,
+    return_rate: u32,
+}
 
 pub trait Trait: system::Trait {
     type Event: From<Event<Self>> + Into<<Self as system::Trait>::Event>;
@@ -58,11 +64,23 @@ decl_storage! {
 
         // app level admin members key is app_id
         AppAdmins get(fn app_admins):
-            map hasher(twox_64_concat) Vec<u8> => T::AccountId;
+            map hasher(twox_64_concat) u32 => T::AccountId;
+
+        // App ID => App Key
+        AppKeys get(fn app_keys):
+            map hasher(twox_64_concat) u32 => T::AccountId;
+
+        // App Key => App ID
+        KeyApps get(fn key_apps):
+            map hasher(twox_64_concat) T::AccountId => u32;
+
+        // AppId => AppData
+        AppDataMap get(fn app_data_map):
+            map hasher(twox_64_concat) u32 => AppData;
 
         // app level platform comment experts, key is app_id, managed by app_admins
         AppPlatformExpertMembers get(fn app_platform_expert_members):
-            map hasher(twox_64_concat) Vec<u8> => Vec<T::AccountId>;
+            map hasher(twox_64_concat) u32 => Vec<T::AccountId>;
 
         // The set of model creators. Stored as a map, key is app_id & model id
         ModelCreators get(fn model_creators):
@@ -148,11 +166,11 @@ decl_module! {
         }
 
         #[weight = 0]
-        pub fn add_investor_member(origin, app_id: Vec<u8>, new_member: T::AccountId) -> DispatchResult {
+        pub fn add_investor_member(origin, app_id: u32, new_member: T::AccountId) -> DispatchResult {
             let who = ensure_signed(origin)?;
 
             // check if who is app admin
-            ensure!(Self::is_app_admin(&who, &app_id), Error::<T>::NotAppAdmin);
+            ensure!(Self::is_app_admin(&who, app_id), Error::<T>::NotAppAdmin);
 
             let mut members = InvestorMembers::<T>::get();
             //ensure!(members.len() < MAX_MEMBERS, Error::<T>::MembershipLimitReached);
@@ -176,11 +194,11 @@ decl_module! {
 
         /// Removes a member.
         #[weight = 0]
-        pub fn remove_investor_member(origin, app_id: Vec<u8>, old_member: T::AccountId) -> DispatchResult {
+        pub fn remove_investor_member(origin, app_id: u32, old_member: T::AccountId) -> DispatchResult {
             let who = ensure_signed(origin)?;
 
             // check if who is app admin
-            ensure!(Self::is_app_admin(&who, &app_id), Error::<T>::NotAppAdmin);
+            ensure!(Self::is_app_admin(&who, app_id), Error::<T>::NotAppAdmin);
 
             let mut members = InvestorMembers::<T>::get();
 
@@ -244,22 +262,22 @@ decl_module! {
         }
 
         #[weight = 0]
-        pub fn set_app_admin(origin, app_id: Vec<u8>, admin: T::AccountId) -> DispatchResult {
+        pub fn set_app_admin(origin, app_id: u32, admin: T::AccountId) -> DispatchResult {
             let _who = ensure_root(origin)?;
 
-            <AppAdmins<T>>::insert(&app_id, admin.clone());
+            Self::config_app_admin(&admin, app_id);
             Self::deposit_event(RawEvent::AppAdminSet(admin));
             Ok(())
         }
 
         #[weight = 0]
-        pub fn add_app_platform_expert_member(origin, app_id: Vec<u8>, new_member: T::AccountId) -> DispatchResult {
+        pub fn add_app_platform_expert_member(origin, app_id: u32, new_member: T::AccountId) -> DispatchResult {
             let who = ensure_signed(origin)?;
 
             // check if origin is app_id's admin
-            ensure!(<AppAdmins<T>>::get(&app_id) == who,  Error::<T>::NotAppAdmin);
+            ensure!(<AppAdmins<T>>::get(app_id) == who,  Error::<T>::NotAppAdmin);
 
-            let mut members = <AppPlatformExpertMembers<T>>::get(&app_id);
+            let mut members = <AppPlatformExpertMembers<T>>::get(app_id);
 
             match members.binary_search(&new_member) {
                 // If the search succeeds, the caller is already a member, so just return
@@ -268,7 +286,7 @@ decl_module! {
                 // they should be inserted
                 Err(index) => {
                     members.insert(index, new_member.clone());
-                    <AppPlatformExpertMembers<T>>::insert(&app_id, members);
+                    <AppPlatformExpertMembers<T>>::insert(app_id, members);
                     Self::deposit_event(RawEvent::MemberAdded(new_member));
                     Ok(())
                 }
@@ -276,19 +294,19 @@ decl_module! {
         }
 
         #[weight = 0]
-        pub fn remove_app_platform_expert_member(origin, app_id: Vec<u8>, old_member: T::AccountId) -> DispatchResult {
+        pub fn remove_app_platform_expert_member(origin, app_id: u32, old_member: T::AccountId) -> DispatchResult {
             let who = ensure_signed(origin)?;
 
             // check if origin is app_id's admin
-            ensure!(<AppAdmins<T>>::get(&app_id) == who,  Error::<T>::NotAppAdmin);
+            ensure!(<AppAdmins<T>>::get(app_id) == who,  Error::<T>::NotAppAdmin);
 
-            let mut members = <AppPlatformExpertMembers<T>>::get(&app_id);
+            let mut members = <AppPlatformExpertMembers<T>>::get(app_id);
 
             match members.binary_search(&old_member) {
                 // If the search succeeds, the caller is already a member, so just return
                 Ok(index) => {
                     members.remove(index);
-                    <AppPlatformExpertMembers<T>>::insert(&app_id, members);
+                    <AppPlatformExpertMembers<T>>::insert(app_id, members);
                     Self::deposit_event(RawEvent::MemberRemoved(old_member));
                     Ok(())
                 },
@@ -298,12 +316,12 @@ decl_module! {
         }
 
         #[weight = 0]
-        pub fn add_expert_member(origin, app_id: Vec<u8>, model_id: Vec<u8>, kpt_profit_rate: u32, model_creator: AuthAccountId, model_creator_sign: sr25519::Signature) -> DispatchResult {
+        pub fn add_expert_member(origin, app_id: u32, model_id: Vec<u8>, kpt_profit_rate: u32, model_creator: AuthAccountId, model_creator_sign: sr25519::Signature) -> DispatchResult {
             let new_member = ensure_signed(origin)?;
 
             // TODO: verify model_sign
 
-            let key = T::Hashing::hash_of(&(&app_id, &model_id));
+            let key = T::Hashing::hash_of(&(app_id, &model_id));
 
             let mut members = <ExpertMembers<T>>::get(&key);
 
@@ -317,7 +335,7 @@ decl_module! {
                     <ExpertMembers<T>>::insert(&key, members);
 
                     // update profit rate store
-                    let profit_key = T::Hashing::hash_of(&(&app_id, &model_id, &new_member));
+                    let profit_key = T::Hashing::hash_of(&(app_id, &model_id, &new_member));
                     <ExpertMemberProfitRate<T>>::insert(&profit_key, kpt_profit_rate);
 
                     Self::deposit_event(RawEvent::MemberAdded(new_member));
@@ -328,7 +346,7 @@ decl_module! {
 
         #[weight = 0]
         pub fn remove_expert_member(origin,
-            old_member: T::AccountId, app_id: Vec<u8>, model_id: Vec<u8>,
+            old_member: T::AccountId, app_id: u32, model_id: Vec<u8>,
             app_user_account: AuthAccountId,
             app_user_sign: sr25519::Signature,
 
@@ -341,7 +359,7 @@ decl_module! {
             // TODO: verify 2 sign
 
             // check the creator authority
-            let key = T::Hashing::hash_of(&(&app_id, &model_id));
+            let key = T::Hashing::hash_of(&(app_id, &model_id));
             let creator = <ModelCreators<T>>::get(&key);
             ensure!(creator == Self::convert_account(&app_user_account), Error::<T>::NotModelCreator);
 
@@ -361,11 +379,11 @@ decl_module! {
         }
 
         #[weight = 0]
-        pub fn air_drop_new_user_benefit(origin, app_id: Vec<u8>, user_id: Vec<u8>,
+        pub fn air_drop_new_user_benefit(origin, app_id: u32, user_id: Vec<u8>,
             receiver: <T as frame_system::Trait>::AccountId, amount: BalanceOf<T>) -> DispatchResult {
 
             let who = ensure_signed(origin)?;
-            let key = T::Hashing::hash_of(&(&app_id, &user_id));
+            let key = T::Hashing::hash_of(&(app_id, &user_id));
 
             ensure!(!<NewAccountBenefitRecords<T>>::contains_key(&key), Error::<T>::BenefitAlreadyDropped);
 
@@ -391,7 +409,7 @@ impl<T: Trait> Module<T> {
         T::AccountId::decode(&mut &tmp[..]).unwrap_or_default()
     }
 
-    pub fn is_platform_expert(who: &T::AccountId, app_id: &Vec<u8>) -> bool {
+    pub fn is_platform_expert(who: &T::AccountId, app_id: u32) -> bool {
         let members = <AppPlatformExpertMembers<T>>::get(app_id);
         match members.binary_search(who) {
             Ok(_) => true,
@@ -399,7 +417,7 @@ impl<T: Trait> Module<T> {
         }
     }
 
-    pub fn is_model_expert(who: &T::AccountId, app_id: &Vec<u8>, model_id: &Vec<u8>) -> bool {
+    pub fn is_model_expert(who: &T::AccountId, app_id: u32, model_id: &Vec<u8>) -> bool {
         let key = T::Hashing::hash_of(&(app_id, model_id));
         let members = <ExpertMembers<T>>::get(&key);
         match members.binary_search(who) {
@@ -424,12 +442,12 @@ impl<T: Trait> Module<T> {
         }
     }
 
-    pub fn is_model_creator(who: &T::AccountId, app_id: &Vec<u8>, model_id: &Vec<u8>) -> bool {
+    pub fn is_model_creator(who: &T::AccountId, app_id: u32, model_id: &Vec<u8>) -> bool {
         let key = T::Hashing::hash_of(&(app_id, model_id));
         <ModelCreators<T>>::contains_key(&key) && <ModelCreators<T>>::get(&key) == *who
     }
 
-    pub fn is_app_admin(who: &T::AccountId, app_id: &Vec<u8>) -> bool {
+    pub fn is_app_admin(who: &T::AccountId, app_id: u32) -> bool {
         <AppAdmins<T>>::get(app_id) == *who
     }
 }
@@ -443,15 +461,34 @@ impl<T: Trait> AccountSet for Module<T> {
 }
 
 impl<T: Trait> Membership<T::AccountId, T::Hash> for Module<T> {
-    fn is_platform(who: &T::AccountId, app_id: &Vec<u8>) -> bool {
+    fn is_platform(who: &T::AccountId, app_id: u32) -> bool {
         Self::is_platform_expert(who, app_id)
     }
-    fn is_expert(who: &T::AccountId, app_id: &Vec<u8>, model_id: &Vec<u8>) -> bool {
+    fn is_expert(who: &T::AccountId, app_id: u32, model_id: &Vec<u8>) -> bool {
         Self::is_model_expert(who, app_id, model_id)
     }
 
-    fn is_app_admin(who: &T::AccountId, app_id: &Vec<u8>) -> bool {
+    fn is_app_admin(who: &T::AccountId, app_id: u32) -> bool {
         <AppAdmins<T>>::contains_key(app_id) && <AppAdmins<T>>::get(app_id) == *who
+    }
+
+    fn config_app_admin(who: &T::AccountId, app_id: u32) {
+        <AppAdmins<T>>::insert(app_id, who);
+    }
+
+    fn config_app_key(who: &T::AccountId, app_id: u32) {
+        <AppKeys<T>>::insert(app_id, who);
+        <KeyApps<T>>::insert(&who, app_id);
+    }
+
+    fn config_app_setting(app_id: u32, rate: u32, name: Vec<u8>) {
+        <AppDataMap>::insert(
+            app_id,
+            &AppData {
+                return_rate: rate,
+                name,
+            },
+        );
     }
 
     fn is_investor(who: &T::AccountId) -> bool {

@@ -18,7 +18,7 @@ fn kp_account_power() {
             sr25519::Pair::from_string(&format!("//{}", "Bob"), None).expect("valid seed");
         let tom_signer_pair =
             sr25519::Pair::from_string(&format!("//{}", "Tom"), None).expect("valid seed");
-        let app_id = "app01";
+        let app_id: u32 = 100;
         let model_id = "m01";
         let document_id = "d01";
         let product_id = "p01";
@@ -88,7 +88,7 @@ fn kp_account_power() {
             * FLOAT_COMPUTE_PRECISION as f64) as PowerSize;
 
         let mut doc_power = KpModule::kp_document_power(
-            app_id.as_bytes().to_vec(),
+            app_id,
             document_id.as_bytes().to_vec(),
         );
         assert!(expect_doc_power == doc_power.content);
@@ -121,7 +121,7 @@ fn kp_account_power() {
             * FLOAT_COMPUTE_PRECISION as f64) as PowerSize;
 
         doc_power =
-            KpModule::kp_document_power(app_id.as_bytes().to_vec(), "d02".as_bytes().to_vec());
+            KpModule::kp_document_power(app_id, "d02".as_bytes().to_vec());
         assert!(expect_doc_power == doc_power.content);
 
         // step 4 create product identify document
@@ -154,7 +154,7 @@ fn kp_account_power() {
             * FLOAT_COMPUTE_PRECISION as f64) as PowerSize;
 
         doc_power = KpModule::kp_document_power(
-            app_id.as_bytes().to_vec(),
+            app_id,
             product_identify_document_id.as_bytes().to_vec(),
         );
         assert!(expect_doc_power == doc_power.content);
@@ -205,7 +205,7 @@ fn kp_account_power() {
 }
 
 fn create_product_publish(
-    app_id: &str,
+    app_id: u32,
     document_id: &str,
     model_id: &str,
     product_id: &str,
@@ -217,7 +217,7 @@ fn create_product_publish(
     let test_signer_pair =
         sr25519::Pair::from_string(&format!("//{}", "Alice"), None).expect("valid seed");
 
-    let app_id_vec = app_id.as_bytes().to_vec();
+    let app_id_vec = app_id;
     let model_id_vec = model_id.as_bytes().to_vec();
     let product_id_vec = product_id.as_bytes().to_vec();
     let document_id_vec = document_id.as_bytes().to_vec();
@@ -244,7 +244,7 @@ fn create_product_publish(
 }
 
 fn create_product_identify(
-    app_id: &str,
+    app_id: u32,
     document_id: &str,
     model_id: &str,
     product_id: &str,
@@ -258,7 +258,7 @@ fn create_product_identify(
     let test_signer_pair =
         sr25519::Pair::from_string(&format!("//{}", "Alice"), None).expect("valid seed");
 
-    let app_id_vec = app_id.as_bytes().to_vec();
+    let app_id_vec = app_id;
     let model_id_vec = model_id.as_bytes().to_vec();
     let product_id_vec = product_id.as_bytes().to_vec();
     let document_id_vec = document_id.as_bytes().to_vec();
@@ -288,7 +288,7 @@ fn create_product_identify(
 }
 
 fn create_product_try(
-    app_id: &str,
+    app_id: u32,
     document_id: &str,
     model_id: &str,
     product_id: &str,
@@ -302,7 +302,7 @@ fn create_product_try(
     let test_signer_pair =
         sr25519::Pair::from_string(&format!("//{}", "Alice"), None).expect("valid seed");
 
-    let app_id_vec = app_id.as_bytes().to_vec();
+    let app_id_vec = app_id;
     let model_id_vec = model_id.as_bytes().to_vec();
     let product_id_vec = product_id.as_bytes().to_vec();
     let document_id_vec = document_id.as_bytes().to_vec();
@@ -333,7 +333,7 @@ fn create_product_try(
 
 fn create_comment(
     owner_seed: &str,
-    app_id: &str,
+    app_id: u32,
     document_id: &str,
     comment_id: &str,
     comment_fee: PowerSize,
@@ -344,7 +344,7 @@ fn create_comment(
     let test_signer_pair =
         sr25519::Pair::from_string(&format!("//{}", owner_seed), None).expect("valid seed");
 
-    let app_id_vec = app_id.as_bytes().to_vec();
+    let app_id_vec = app_id;
     let comment_id_vec = comment_id.as_bytes().to_vec();
     let document_id_vec = document_id.as_bytes().to_vec();
 
@@ -367,7 +367,7 @@ fn create_comment(
 }
 
 fn create_model(
-    app_id: &str,
+    app_id: u32,
     model_id: &str,
     expert_id: &str,
     commodity_name: &str,
@@ -378,14 +378,14 @@ fn create_model(
     let test_signer_pair =
         sr25519::Pair::from_string(&format!("//{}", "Alice"), None).expect("valid seed");
 
-    let app_id_vec = app_id.as_bytes().to_vec();
+    let app_id_vec = app_id;
     let model_id_vec = model_id.as_bytes().to_vec();
     let expert_id_vec = expert_id.as_bytes().to_vec();
     let commodity_name_vec = commodity_name.as_bytes().to_vec();
     let commodity_type_vec = commodity_type.as_bytes().to_vec();
 
     let mut buf = vec![];
-    buf.append(&mut (app_id_vec.clone()));
+    //buf.append(&mut (app_id_vec.clone()));
     buf.append(&mut (model_id_vec.clone()));
 
     let test_signature = test_signer_pair.sign(&buf);
