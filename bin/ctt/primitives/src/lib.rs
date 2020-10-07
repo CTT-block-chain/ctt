@@ -126,4 +126,5 @@ pub trait Membership<AccountId, Hash> {
     fn config_app_admin(who: &AccountId, app_id: u32);
     fn config_app_key(who: &AccountId, app_id: u32);
     fn config_app_setting(app_id: u32, rate: u32, name: Vec<u8>);
+    fn is_valid_app(app_id: u32) -> bool;
 }

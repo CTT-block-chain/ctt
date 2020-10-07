@@ -319,6 +319,21 @@ impl PartialOrd for CommodityTypeData {
     }
 }
 
+#[derive(Encode, Decode, Clone, RuntimeDebug)]
+pub struct AppFinancedData<T: Trait> {
+    amount: BalanceOf<T>,
+    exchange_rate: BalanceOf<T>,
+}
+
+impl<T: Trait> Default for AppFinancedData<T> {
+    fn default() -> Self {
+        AppFinancedData::<T> {
+            amount: 0.into(),
+            exchange_rate: 0.into(),
+        }
+    }
+}
+
 /*
 type KnowledgePowerDataOf<T> = KnowledgePowerData<<T as system::Trait>::AccountId>;
 
@@ -604,6 +619,10 @@ decl_storage! {
 
         AppYearIncomeTotal get(fn app_year_income_total):
             map hasher(twox_64_concat) u32 => u64;
+
+        // App financed record
+        AppFinancedRecord get(fn app_financed_record):
+            map hasher(twox_64_concat) u32 => AppFinancedData<T>;
     }
 }
 
@@ -626,6 +645,7 @@ decl_event!(
         ModelYearIncome(AccountId),
         PowerSlashed(AccountId),
         AppAdded(u32),
+        AppFinanced(u32),
     }
 );
 
@@ -650,6 +670,8 @@ decl_error! {
         ProductNotFound,
         AppTypeInvalid,
         ReturnRateInvalid,
+        AppIdInvalid,
+        AppAlreadyFinanced,
     }
 }
 
@@ -1243,6 +1265,28 @@ decl_module! {
             <AppIdRange>::insert(&app_type, app_id);
 
             Self::deposit_event(RawEvent::AppAdded(app_id));
+            Ok(())
+        }
+
+        #[weight = 0]
+        pub fn democracy_app_financed(origin, app_id: u32, kpt_amount: BalanceOf<T>, exchange_rate: BalanceOf<T>) -> dispatch::DispatchResult {
+            ensure_root(origin)?;
+
+            ensure!(T::Membership::is_valid_app(app_id),Error::<T>::AppIdInvalid);
+
+            // TODO: exchange_rate min max configuration
+
+            // Do we permit multi-financed records?
+            ensure!(!<AppFinancedRecord<T>>::contains_key(app_id), Error::<T>::AppAlreadyFinanced);
+
+            <AppFinancedRecord<T>>::insert(app_id, AppFinancedData::<T> {
+                amount: kpt_amount,
+                exchange_rate,
+            });
+
+            // TODO: start exchange process
+
+            Self::deposit_event(RawEvent::AppFinanced(app_id));
             Ok(())
         }
     }

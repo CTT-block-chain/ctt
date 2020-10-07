@@ -491,6 +491,10 @@ impl<T: Trait> Membership<T::AccountId, T::Hash> for Module<T> {
         );
     }
 
+    fn is_valid_app(app_id: u32) -> bool {
+        <AppDataMap>::contains_key(app_id)
+    }
+
     fn is_investor(who: &T::AccountId) -> bool {
         Self::is_investor(who)
     }
