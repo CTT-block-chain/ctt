@@ -1327,6 +1327,11 @@ impl<T: Trait> Module<T> {
         <KPPurchasePowerByIdHash<T>>::get(&key)
     }
 
+    pub fn kp_is_commodity_power_exist(app_id: u32, cart_id: Vec<u8>) -> bool {
+        let key = T::Hashing::hash_of(&(app_id, &cart_id));
+        <KPPurchasePowerByIdHash<T>>::contains_key(&key)
+    }
+
     pub fn kp_document_power(app_id: u32, document_id: Vec<u8>) -> DocumentPower {
         let key = T::Hashing::hash_of(&(app_id, &document_id));
         <KPDocumentPowerByIdHash<T>>::get(&key)

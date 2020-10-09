@@ -1205,6 +1205,10 @@ impl_runtime_apis! {
         fn commodity_power(app_id: u32, cart_id: Vec<u8>) -> PowerSize {
             Kp::kp_commodity_power(app_id, cart_id)
         }
+
+        fn is_commodity_power_exist(app_id: u32, cart_id: Vec<u8>) -> bool {
+            Kp::kp_is_commodity_power_exist(app_id, cart_id)
+        }
     }
 
     impl members_runtime_api::MembersApi<Block, AccountId> for Runtime {
