@@ -497,6 +497,9 @@ pub trait Trait: system::Trait {
     type CMPowerAccountAttend: Get<u8>;
 
     type ModelCreateDeposit: Get<BalanceOf<Self>>;
+
+    /// App financed purpose minimal exchange rate, aka 1 RMB exchange how many KPT
+    type KptExchangeMinRate: Get<BalanceOf<Self>>;
 }
 
 // This pallet's storage items.
@@ -672,6 +675,7 @@ decl_error! {
         ReturnRateInvalid,
         AppIdInvalid,
         AppAlreadyFinanced,
+        AppFinancedExchangeRateTooLow,
     }
 }
 
@@ -728,6 +732,7 @@ decl_module! {
         const CMPowerAccountAttend: u8 = T::CMPowerAccountAttend::get();
 
         const ModelCreateDeposit: BalanceOf<T> = T::ModelCreateDeposit::get();
+        const KptExchangeMinRate: BalanceOf<T> = T::KptExchangeMinRate::get();
 
         #[weight = 0]
         pub fn create_model(origin,
@@ -1272,9 +1277,10 @@ decl_module! {
         pub fn democracy_app_financed(origin, app_id: u32, kpt_amount: BalanceOf<T>, exchange_rate: BalanceOf<T>) -> dispatch::DispatchResult {
             ensure_root(origin)?;
 
-            ensure!(T::Membership::is_valid_app(app_id),Error::<T>::AppIdInvalid);
+            ensure!(T::Membership::is_valid_app(app_id), Error::<T>::AppIdInvalid);
 
             // TODO: exchange_rate min max configuration
+            ensure!(exchange_rate >= T::KptExchangeMinRate::get(), Error::<T>::AppFinancedExchangeRateTooLow);
 
             // Do we permit multi-financed records?
             ensure!(!<AppFinancedRecord<T>>::contains_key(app_id), Error::<T>::AppAlreadyFinanced);

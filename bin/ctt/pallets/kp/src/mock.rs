@@ -149,6 +149,7 @@ impl Trait for Test {
     type CommentCMPowerWeightPositive = ();
     type CMPowerAccountAttend = ();
     type ModelCreateDeposit = ();
+    type KptExchangeMinRate = ();
     type Slash = ();
 }
 

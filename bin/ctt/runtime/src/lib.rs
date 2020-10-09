@@ -1062,6 +1062,7 @@ parameter_types! {
     pub const CommentCMPowerWeightPositive: u8 = 5;
 
     pub const ModelCreateDeposit: Balance = 100 * DOLLARS;
+    pub const KptExchangeMinRate: Balance = 10 * DOLLARS;
 }
 
 impl kp::Trait for Runtime {
@@ -1102,6 +1103,7 @@ impl kp::Trait for Runtime {
     type CommentCMPowerWeightPositive = CommentCMPowerWeightPositive;
     type CMPowerAccountAttend = CMPowerAccountAttend;
     type ModelCreateDeposit = ModelCreateDeposit;
+    type KptExchangeMinRate = KptExchangeMinRate;
 }
 
 construct_runtime!(
