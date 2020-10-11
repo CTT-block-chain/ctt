@@ -676,6 +676,8 @@ decl_error! {
         AppIdInvalid,
         AppAlreadyFinanced,
         AppFinancedExchangeRateTooLow,
+        DocumentIdentifyAlreadyExisted,
+        DocumentTryAlreadyExisted,
     }
 }
 
@@ -923,6 +925,9 @@ decl_module! {
 
             let cart_id = document_power_data.cart_id.clone();
 
+            let key = T::Hashing::hash_of(&(app_id, &cart_id));
+            ensure!(!<KPCartProductIdentifyIndexByIdHash<T>>::contains_key(&key), Error::<T>::DocumentIdentifyAlreadyExisted);
+
             // create doc
             let doc = KPDocumentData {
                 sender: who.clone(),
@@ -944,7 +949,7 @@ decl_module! {
             Self::process_account_power(&doc);
 
             // create cartid -> product identify document id record
-            let key = T::Hashing::hash_of(&(app_id, &cart_id));
+
             <KPCartProductIdentifyIndexByIdHash<T>>::insert(&key, &document_id);
 
             // create document record
@@ -979,6 +984,8 @@ decl_module! {
             ensure!(<KPDocumentProductIndexByIdHash<T>>::contains_key(&product_key_hash), Error::<T>::ProductNotFound);
 
             let cart_id = document_power_data.cart_id.clone();
+            let key = T::Hashing::hash_of(&(app_id, &cart_id));
+            ensure!(!<KPCartProductTryIndexByIdHash<T>>::contains_key(&key), Error::<T>::DocumentTryAlreadyExisted);
 
             // create doc
             let doc = KPDocumentData {
@@ -1001,7 +1008,7 @@ decl_module! {
             Self::process_account_power(&doc);
 
             // create cartid -> product identify document id record
-            let key = T::Hashing::hash_of(&(app_id, &cart_id));
+
             <KPCartProductTryIndexByIdHash<T>>::insert(&key, &document_id);
 
             // create document record
@@ -1664,18 +1671,16 @@ impl<T: Trait> Module<T> {
             }
         }
 
-        if content_power > 0 {
-            // update content power, here document power is not exist
-            let key = T::Hashing::hash_of(&(doc.app_id, &doc.document_id));
-            <KPDocumentPowerByIdHash<T>>::insert(
-                &key,
-                &DocumentPower {
-                    attend: 0,
-                    content: content_power,
-                    judge: initial_judge_power,
-                },
-            );
-        }
+        // update content power, here document power is not exist
+        let key = T::Hashing::hash_of(&(doc.app_id, &doc.document_id));
+        <KPDocumentPowerByIdHash<T>>::insert(
+            &key,
+            &DocumentPower {
+                attend: 0,
+                content: content_power,
+                judge: initial_judge_power,
+            },
+        );
     }
 
     fn process_comment_power(comment: &KPCommentData<T::AccountId, T::Hash>) {

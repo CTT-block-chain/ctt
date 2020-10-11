@@ -87,10 +87,7 @@ fn kp_account_power() {
             / RATIO_DIV
             * FLOAT_COMPUTE_PRECISION as f64) as PowerSize;
 
-        let mut doc_power = KpModule::kp_document_power(
-            app_id,
-            document_id.as_bytes().to_vec(),
-        );
+        let mut doc_power = KpModule::kp_document_power(app_id, document_id.as_bytes().to_vec());
         assert!(expect_doc_power == doc_power.content);
         let product_publish_power = doc_power;
 
@@ -120,8 +117,7 @@ fn kp_account_power() {
             / RATIO_DIV
             * FLOAT_COMPUTE_PRECISION as f64) as PowerSize;
 
-        doc_power =
-            KpModule::kp_document_power(app_id, "d02".as_bytes().to_vec());
+        doc_power = KpModule::kp_document_power(app_id, "d02".as_bytes().to_vec());
         assert!(expect_doc_power == doc_power.content);
 
         // step 4 create product identify document
@@ -153,10 +149,8 @@ fn kp_account_power() {
             / RATIO_DIV
             * FLOAT_COMPUTE_PRECISION as f64) as PowerSize;
 
-        doc_power = KpModule::kp_document_power(
-            app_id,
-            product_identify_document_id.as_bytes().to_vec(),
-        );
+        doc_power =
+            KpModule::kp_document_power(app_id, product_identify_document_id.as_bytes().to_vec());
         assert!(expect_doc_power == doc_power.content);
         // this doc power also be doc creator account power now
         let account_power = KpModule::kp_auth_account_power(alice_signer_pair.public().into());
