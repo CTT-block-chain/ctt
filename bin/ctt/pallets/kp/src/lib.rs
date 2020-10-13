@@ -1048,7 +1048,7 @@ decl_module! {
 
             let comment = KPCommentData {
                 sender: who.clone(),
-                owner: app_user_account.clone(),
+                owner: who.clone(),
                 app_id,
                 document_id: document_id.clone(),
                 comment_id: comment_id.clone(),
