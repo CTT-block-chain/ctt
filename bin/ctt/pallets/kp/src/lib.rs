@@ -1048,7 +1048,7 @@ decl_module! {
 
             let comment = KPCommentData {
                 sender: who.clone(),
-                owner: who.clone(),
+                owner: app_user_account.clone(),
                 app_id,
                 document_id: document_id.clone(),
                 comment_id: comment_id.clone(),
@@ -1692,7 +1692,7 @@ impl<T: Trait> Module<T> {
         // read out document
         let mut doc = Self::kp_document_data_by_idhash(&doc_key_hash);
 
-        let comment_account_key = T::Hashing::hash_of(&(comment.app_id, &comment.owner));
+        let comment_account_key = T::Hashing::hash_of(&(comment.app_id, &comment.sender));
         let mut account = Self::kp_comment_account_record_map(&comment_account_key);
 
         account.count += 1;
@@ -1788,9 +1788,8 @@ impl<T: Trait> Module<T> {
         // chcek if owner's membership
         let mut platform_comment_power: PowerSize = 0;
         let mut is_need_update_platform_comment = false;
-        let owner = Self::convert_account(&comment.owner);
         if doc.expert_trend == CommentTrend::Empty
-            && T::Membership::is_expert(&owner, doc.app_id, &doc.model_id)
+            && T::Membership::is_expert(&comment.sender, doc.app_id, &doc.model_id)
         {
             doc.expert_trend = comment.comment_trend.into();
             platform_comment_power =
@@ -1798,7 +1797,7 @@ impl<T: Trait> Module<T> {
             is_need_update_platform_comment = true;
         }
         if doc.platform_trend == CommentTrend::Empty
-            && T::Membership::is_platform(&owner, doc.app_id)
+            && T::Membership::is_platform(&comment.sender, doc.app_id)
         {
             doc.platform_trend = comment.comment_trend.into();
             platform_comment_power =
@@ -1826,7 +1825,7 @@ impl<T: Trait> Module<T> {
         }
 
         // update account attend power store
-        let key = T::Hashing::hash_of(&(&Self::convert_account(&comment.owner), comment.app_id));
+        let key = T::Hashing::hash_of(&(&comment.sender, comment.app_id));
         <AccountAttendPowerMap<T>>::insert(&key, account_comment_power);
 
         // update document attend power store
