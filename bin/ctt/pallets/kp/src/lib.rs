@@ -10,7 +10,8 @@ use frame_support::{
 #[macro_use]
 extern crate sp_std;
 
-use sp_std::cmp::Ordering;
+use sp_std::cmp::*;
+use sp_std::ops::Add;
 use sp_std::prelude::*;
 
 /// Knowledge power pallet  with necessary imports
@@ -254,6 +255,30 @@ pub struct DocumentPower {
     attend: PowerSize,
     content: PowerSize,
     judge: PowerSize,
+}
+
+impl Add for DocumentPower {
+    type Output = Self;
+
+    fn add(self, other: Self) -> Self {
+        Self {
+            attend: self.attend + other.attend,
+            content: self.content + other.content,
+            judge: self.judge + other.judge,
+        }
+    }
+}
+
+impl<'a, 'b> Add<&'b DocumentPower> for &'a DocumentPower {
+    type Output = DocumentPower;
+
+    fn add(self, other: &'b DocumentPower) -> DocumentPower {
+        DocumentPower {
+            attend: self.attend + other.attend,
+            content: self.content + other.content,
+            judge: self.judge + other.judge,
+        }
+    }
 }
 
 pub trait PowerSum {
@@ -534,6 +559,10 @@ decl_storage! {
         KPPurchasePowerByIdHash get(fn kp_purchase_power_by_idhash):
             map hasher(twox_64_concat) T::Hash => PowerSize;
 
+        // (AppId, DocumentId) -> PowerSize misc document power map (currently for product choose and model create)
+        KPMiscDocumentPowerByIdHash get(fn kp_misc_document_power_by_idhash):
+            map hasher(twox_64_concat) T::Hash => PowerSize;
+
         // (AppId, DocumentId) -> KPDocumentData
         KPDocumentDataByIdHash get(fn kp_document_data_by_idhash):
             map hasher(twox_64_concat) T::Hash => KPDocumentDataOf<T>;
@@ -564,6 +593,10 @@ decl_storage! {
         // miner power table
         MinerPowerByAccount get(fn miner_power_by_account):
             map hasher(blake2_128_concat) T::AccountId => PowerSize;
+
+        // miner documents power (accumulation) (app_id account_id) -> DocumentPower
+        MinerDocumentsAccumulationPower get(fn miner_documents_accumulation_power):
+            map hasher(twox_64_concat) T::Hash => DocumentPower;
 
         // account attend power (AccountId, AppId) -> PowerSize
         AccountAttendPowerMap get(fn account_attend_power_map):
@@ -888,6 +921,7 @@ decl_module! {
             };
 
             Self::process_document_content_power(&doc);
+            Self::process_commodity_power(&doc);
 
             // create document record
             <KPDocumentDataByIdHash<T>>::insert(&doc_key_hash, &doc);
@@ -944,13 +978,10 @@ decl_module! {
 
             // process content power
             Self::process_document_content_power(&doc);
-
-            // compute account, document based power
-            Self::process_account_power(&doc);
+            Self::process_commodity_power(&doc);
 
             // create cartid -> product identify document id record
-
-            <KPCartProductIdentifyIndexByIdHash<T>>::insert(&key, &document_id);
+           <KPCartProductIdentifyIndexByIdHash<T>>::insert(&key, &document_id);
 
             // create document record
             <KPDocumentDataByIdHash<T>>::insert(&doc_key_hash, &doc);
@@ -1003,9 +1034,7 @@ decl_module! {
 
             // process content power
             Self::process_document_content_power(&doc);
-
-            // compute account, document based power
-            Self::process_account_power(&doc);
+            Self::process_commodity_power(&doc);
 
             // create cartid -> product identify document id record
 
@@ -1061,10 +1090,7 @@ decl_module! {
 
             // read out related document, trigger account power update
             let doc = Self::kp_document_data_by_idhash(&doc_key_hash);
-            match doc.document_type {
-                DocumentType::ProductIdentify | DocumentType::ProductTry => Self::process_account_power(&doc),
-                _ => (),
-            }
+            Self::process_commodity_power(&doc);
 
             // create comment record
             <KPCommentDataByIdHash<T>>::insert(&key, &comment);
@@ -1171,6 +1197,7 @@ decl_module! {
 
             // process content power
             Self::process_document_content_power(&doc);
+            Self::process_commodity_power(&doc);
 
             // create document record
             <KPDocumentDataByIdHash<T>>::insert(&doc_key_hash, &doc);
@@ -1220,6 +1247,7 @@ decl_module! {
 
             // process content power
             Self::process_document_content_power(&doc);
+            Self::process_commodity_power(&doc);
 
             // create document record
             <KPDocumentDataByIdHash<T>>::insert(&doc_key_hash, &doc);
@@ -1543,6 +1571,111 @@ impl<T: Trait> Module<T> {
         }
     }
 
+    fn insert_document_power(
+        doc: &KPDocumentData<T::AccountId, T::Hash>,
+        content_power: PowerSize,
+        judge_power: PowerSize,
+    ) {
+        let key = T::Hashing::hash_of(&(doc.app_id, &doc.document_id));
+        let power = DocumentPower {
+            attend: 0,
+            content: content_power,
+            judge: judge_power,
+        };
+
+        <KPDocumentPowerByIdHash<T>>::insert(&key, &power);
+        Self::add_accumulation_document_power(&power, doc);
+    }
+
+    fn update_document_power(
+        doc: &KPDocumentData<T::AccountId, T::Hash>,
+        attend_power: PowerSize,
+        judge_power: PowerSize,
+    ) {
+        // read out original first
+        let key = T::Hashing::hash_of(&(doc.app_id, &doc.document_id));
+        let mut org_power = <KPDocumentPowerByIdHash<T>>::get(&key);
+        let mut is_need_accumulation = false;
+
+        match &doc.document_data {
+            DocumentSpecificData::ProductIdentify(_data) => {
+                is_need_accumulation = true;
+            }
+            DocumentSpecificData::ProductTry(_data) => {
+                is_need_accumulation = true;
+            }
+            _ => {}
+        }
+
+        if is_need_accumulation {
+            let accumulation_key = T::Hashing::hash_of(&(doc.app_id, &doc.owner));
+            let mut accumulation_power =
+                <MinerDocumentsAccumulationPower<T>>::get(&accumulation_key);
+            // params only > 0 means valid
+            if attend_power > 0 {
+                accumulation_power.attend = min(0, accumulation_power.attend - org_power.attend);
+                accumulation_power.attend += attend_power;
+            }
+
+            if judge_power > 0 {
+                accumulation_power.judge = min(0, accumulation_power.judge - org_power.judge);
+                accumulation_power.judge += judge_power;
+            }
+            <MinerDocumentsAccumulationPower<T>>::insert(&accumulation_key, accumulation_power);
+        }
+
+        if attend_power > 0 {
+            org_power.attend = attend_power;
+        }
+
+        if judge_power > 0 {
+            org_power.judge = judge_power;
+        }
+
+        // update store
+        <KPDocumentPowerByIdHash<T>>::insert(&key, org_power);
+    }
+
+    // only for identify and try doc
+    fn add_accumulation_document_power(
+        new_power: &DocumentPower,
+        doc: &KPDocumentData<T::AccountId, T::Hash>,
+    ) {
+        // check if cart_id matched another doc exist
+        let is_need_add_publish: bool;
+        match &doc.document_data {
+            DocumentSpecificData::ProductIdentify(data) => {
+                // check if exist product try
+                let key = T::Hashing::hash_of(&(doc.app_id, &data.cart_id));
+                is_need_add_publish = !<KPCartProductTryIndexByIdHash<T>>::contains_key(&key);
+            }
+            DocumentSpecificData::ProductTry(data) => {
+                let key = T::Hashing::hash_of(&(doc.app_id, &data.cart_id));
+                is_need_add_publish = !<KPCartProductIdentifyIndexByIdHash<T>>::contains_key(&key);
+            }
+            _ => return,
+        }
+
+        let mut publish_power = DocumentPower {
+            attend: 0,
+            content: 0,
+            judge: 0,
+        };
+
+        if is_need_add_publish {
+            // add doc matched publish power
+            let publish_doc_key = T::Hashing::hash_of(&(doc.app_id, &doc.product_id));
+            let publish_doc_id = <KPDocumentProductIndexByIdHash<T>>::get(&publish_doc_key);
+            // read out publish document power
+            let publish_power_key = T::Hashing::hash_of(&(doc.app_id, &publish_doc_id));
+            publish_power = <KPDocumentPowerByIdHash<T>>::get(&publish_power_key);
+        }
+
+        let key = T::Hashing::hash_of(&(doc.app_id, &doc.owner));
+        let current = <MinerDocumentsAccumulationPower<T>>::get(&key);
+        <MinerDocumentsAccumulationPower<T>>::insert(&key, &current + &new_power + publish_power);
+    }
+
     fn process_document_content_power(doc: &KPDocumentData<T::AccountId, T::Hash>) {
         let content_power;
         let initial_judge_power;
@@ -1574,6 +1707,7 @@ impl<T: Trait> Module<T> {
                     T::TopWeightProductPublish::get() as PowerSize,
                     T::DocumentPowerWeightJudge::get(),
                 );
+                Self::insert_document_power(&doc, content_power, initial_judge_power);
             }
             DocumentSpecificData::ProductIdentify(data) => {
                 let params_max = <DocumentIdentifyMaxParams>::get(doc.app_id);
@@ -1598,6 +1732,7 @@ impl<T: Trait> Module<T> {
                     T::TopWeightDocumentIdentify::get() as PowerSize,
                     T::DocumentPowerWeightJudge::get(),
                 );
+                Self::insert_document_power(&doc, content_power, initial_judge_power);
             }
             DocumentSpecificData::ProductTry(data) => {
                 let params_max = <DocumentTryMaxParams>::get(doc.app_id);
@@ -1621,6 +1756,7 @@ impl<T: Trait> Module<T> {
                     T::TopWeightDocumentTry::get() as PowerSize,
                     T::DocumentPowerWeightJudge::get(),
                 );
+                Self::insert_document_power(&doc, content_power, initial_judge_power);
             }
             DocumentSpecificData::ProductChoose(data) => {
                 let params_max = <DocumentChooseMaxParams>::get(doc.app_id);
@@ -1643,6 +1779,7 @@ impl<T: Trait> Module<T> {
                     100 as PowerSize,
                     T::DocumentCMPowerWeightJudge::get(),
                 );
+                Self::insert_document_power(&doc, content_power, initial_judge_power);
             }
             DocumentSpecificData::ModelCreate(data) => {
                 let params_max = <DocumentModelCreateMaxParams>::get(doc.app_id);
@@ -1668,19 +1805,9 @@ impl<T: Trait> Module<T> {
                     100 as PowerSize,
                     T::DocumentCMPowerWeightJudge::get(),
                 );
+                Self::insert_document_power(&doc, content_power, initial_judge_power);
             }
         }
-
-        // update content power, here document power is not exist
-        let key = T::Hashing::hash_of(&(doc.app_id, &doc.document_id));
-        <KPDocumentPowerByIdHash<T>>::insert(
-            &key,
-            &DocumentPower {
-                attend: 0,
-                content: content_power,
-                judge: initial_judge_power,
-            },
-        );
     }
 
     fn process_comment_power(comment: &KPCommentData<T::AccountId, T::Hash>) {
@@ -1787,14 +1914,12 @@ impl<T: Trait> Module<T> {
 
         // chcek if owner's membership
         let mut platform_comment_power: PowerSize = 0;
-        let mut is_need_update_platform_comment = false;
         if doc.expert_trend == CommentTrend::Empty
             && T::Membership::is_expert(&comment.sender, doc.app_id, &doc.model_id)
         {
             doc.expert_trend = comment.comment_trend.into();
             platform_comment_power =
                 (Self::compute_doc_trend_power(&doc) * FLOAT_COMPUTE_PRECISION as f64) as PowerSize;
-            is_need_update_platform_comment = true;
         }
         if doc.platform_trend == CommentTrend::Empty
             && T::Membership::is_platform(&comment.sender, doc.app_id)
@@ -1802,7 +1927,6 @@ impl<T: Trait> Module<T> {
             doc.platform_trend = comment.comment_trend.into();
             platform_comment_power =
                 (Self::compute_doc_trend_power(&doc) * FLOAT_COMPUTE_PRECISION as f64) as PowerSize;
-            is_need_update_platform_comment = true;
         }
 
         // below are write actions
@@ -1826,67 +1950,43 @@ impl<T: Trait> Module<T> {
 
         // update account attend power store
         let key = T::Hashing::hash_of(&(&comment.sender, comment.app_id));
+        // is sender a miner? (miner power exist)
+        if <MinerPowerByAccount<T>>::contains_key(&comment.sender) {
+            let org_miner_power = <MinerPowerByAccount<T>>::get(&comment.sender);
+            let org_attend_power = <AccountAttendPowerMap<T>>::get(&key);
+            if account_comment_power > org_attend_power {
+                <MinerPowerByAccount<T>>::insert(
+                    &comment.sender,
+                    org_miner_power + account_comment_power - org_attend_power,
+                );
+            }
+        }
+
         <AccountAttendPowerMap<T>>::insert(&key, account_comment_power);
 
         // update document attend power store
-        let key = T::Hashing::hash_of(&(comment.app_id, &comment.document_id));
-        <KPDocumentPowerByIdHash<T>>::mutate(&key, |pow_record| {
-            pow_record.attend = doc_comment_power;
-            if is_need_update_platform_comment {
-                pow_record.judge = platform_comment_power;
-            }
-        });
+        Self::update_document_power(&doc, doc_comment_power, platform_comment_power);
     }
 
     // triggered when:
-    // 1. product identify was created
-    // 2. product identify was commented
-    // 3. product try was created
-    // 4. product try was commented
-    fn process_account_power(doc: &KPDocumentData<T::AccountId, T::Hash>) {
-        let mut document_id: Vec<u8> = vec![];
-        let couple_document_power: DocumentPower;
-        //let couple_document_weight: PowerSize;
+    // 1. doc identify/try/choose/model was created
+    // 2. any document was commented, doc param is comment target
+    fn process_commodity_power(doc: &KPDocumentData<T::AccountId, T::Hash>) {
         let mut power: PowerSize = 0;
-        let mut cart_id: Vec<u8> = vec![];
+        let mut is_need_update_account_power = false;
 
         match &doc.document_data {
-            DocumentSpecificData::ProductIdentify(data) => {
-                let key = T::Hashing::hash_of(&(doc.app_id, &data.cart_id));
-                document_id = Self::kp_cart_product_try_index_by_idhash(&key);
-                //couple_document_weight = T::TopWeightDocumentTry::get() as PowerSize;
-                cart_id = data.cart_id.clone();
+            DocumentSpecificData::ProductIdentify(_data) => {
+                is_need_update_account_power = true;
             }
-            DocumentSpecificData::ProductTry(data) => {
-                let key = T::Hashing::hash_of(&(doc.app_id, &data.cart_id));
-                document_id = Self::kp_cart_product_identify_index_by_idhash(&key);
-                //couple_document_weight = T::TopWeightDocumentIdentify::get() as PowerSize;
-                cart_id = data.cart_id.clone();
+            DocumentSpecificData::ProductTry(_data) => {
+                is_need_update_account_power = true;
             }
+            // ignore publish doc
+            DocumentSpecificData::ProductPublish(_data) => return,
+            // left is product choose and model create doc, only update commodity power
             _ => {}
         }
-
-        // if get valid document id, means there is cart_id matched document power to consider
-        if document_id.len() > 0 {
-            // read coupled power data
-            let key = T::Hashing::hash_of(&(doc.app_id, &document_id));
-            couple_document_power = Self::kp_document_power_by_idhash(&key);
-
-            power += couple_document_power.total();
-        }
-
-        // self document power
-        let key = T::Hashing::hash_of(&(doc.app_id, &doc.document_id));
-        let self_doc_power = Self::kp_document_power_by_idhash(&key);
-
-        power += self_doc_power.total();
-
-        // read product publish power
-        let product_key_hash = T::Hashing::hash_of(&(doc.app_id, &doc.product_id));
-        let product_document_id = Self::kp_document_product_index_by_idhash(&product_key_hash);
-        let key = T::Hashing::hash_of(&(doc.app_id, &product_document_id));
-        let product_publish_power = Self::kp_document_power_by_idhash(&key);
-        power += product_publish_power.total();
 
         // read document owner action power
         let key = T::Hashing::hash_of(&(&Self::convert_account(&doc.owner), doc.app_id));
@@ -1895,18 +1995,19 @@ impl<T: Trait> Module<T> {
         // TODO: read document owner eocnomic power
 
         // now we got new computed power, check if need to update
-        let power_key_hash = T::Hashing::hash_of(&(doc.app_id, &cart_id));
-        let last_power = Self::kp_purchase_power_by_idhash(&power_key_hash);
-        let increased_power = power - last_power;
-
-        if increased_power > 0 {
+        if is_need_update_account_power {
+            let power_key_hash = T::Hashing::hash_of(&(doc.app_id, &doc.owner));
+            let doc_power = <MinerDocumentsAccumulationPower<T>>::get(&power_key_hash);
             // need update
-            <MinerPowerByAccount<T>>::mutate(Self::convert_account(&doc.owner), |pow| {
-                *pow += increased_power;
-            });
-
-            // update last power
-            <KPPurchasePowerByIdHash<T>>::insert(&power_key_hash, power);
+            <MinerPowerByAccount<T>>::insert(
+                Self::convert_account(&doc.owner),
+                power + doc_power.total(),
+            );
+        } else {
+            // for product choose and model create
+            let power_key_hash = T::Hashing::hash_of(&(doc.app_id, &doc.document_id));
+            let doc_power = <KPDocumentPowerByIdHash<T>>::get(&power_key_hash);
+            <KPMiscDocumentPowerByIdHash<T>>::insert(&power_key_hash, power + doc_power.total());
         }
     }
 

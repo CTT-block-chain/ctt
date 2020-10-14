@@ -1,4 +1,5 @@
 use frame_support::{assert_err, assert_ok, dispatch};
+use frame_system::RawOrigin;
 use sp_core::H256;
 use sp_io::hashing::blake2_256;
 
@@ -19,6 +20,7 @@ fn kp_account_power() {
         let tom_signer_pair =
             sr25519::Pair::from_string(&format!("//{}", "Tom"), None).expect("valid seed");
         let app_id: u32 = 100;
+        let model_type_id: u32 = 1001;
         let model_id = "m01";
         let document_id = "d01";
         let product_id = "p01";
@@ -39,14 +41,24 @@ fn kp_account_power() {
             Error::<Test>::ModelNotFound
         );
 
+        // create model type
+        assert_ok!(create_model_type(model_type_id, "abc".as_bytes().to_vec()));
+        // set model size limit
+        assert_ok!(set_model_size_limit(app_id, 100));
+
         // step 1: create product model
         assert_ok!(create_model(
-            app_id, model_id, "e01", "name", "type", "hash"
+            app_id,
+            model_id,
+            "e01",
+            "name",
+            model_type_id,
+            "hash"
         ));
 
         // step 1_1: create repeat model should fail
         assert_err!(
-            create_model(app_id, model_id, "e01", "name", "type", "hash"),
+            create_model(app_id, model_id, "e01", "name", model_type_id, "hash"),
             Error::<Test>::ModelAlreadyExisted
         );
 
@@ -160,6 +172,7 @@ fn kp_account_power() {
         let comment_fee: PowerSize = 100; // 1yuan
         let comment_id = "c01";
         assert_ok!(create_comment(
+            Origin::signed(1),
             "Alice",
             app_id,
             product_identify_document_id,
@@ -169,7 +182,10 @@ fn kp_account_power() {
             0
         ));
 
+        let comment_account_power = KpModule::kp_account_power(1);
+
         assert_ok!(create_comment(
+            Origin::signed(1),
             "Bob",
             app_id,
             product_identify_document_id,
@@ -180,6 +196,7 @@ fn kp_account_power() {
         ));
 
         assert_ok!(create_comment(
+            Origin::signed(1),
             "Tom",
             app_id,
             product_identify_document_id,
@@ -326,6 +343,7 @@ fn create_product_try(
 }
 
 fn create_comment(
+    sender: Origin,
     owner_seed: &str,
     app_id: u32,
     document_id: &str,
@@ -346,7 +364,7 @@ fn create_comment(
     let test_signature = test_signer_pair.sign("abc".as_bytes());
 
     KpModule::create_comment(
-        Origin::signed(1),
+        sender,
         app_id_vec,
         comment_id_vec,
         document_id_vec,
@@ -360,12 +378,20 @@ fn create_comment(
     )
 }
 
+fn create_model_type(type_id: u32, type_desc: Vec<u8>) -> dispatch::DispatchResult {
+    KpModule::create_commodity_type(RawOrigin::Root.into(), type_id, type_desc)
+}
+
+fn set_model_size_limit(app_id: u32, model_size: u32) -> dispatch::DispatchResult {
+    KpModule::set_app_model_total(RawOrigin::Root.into(), app_id, model_size)
+}
+
 fn create_model(
     app_id: u32,
     model_id: &str,
     expert_id: &str,
     commodity_name: &str,
-    commodity_type: &str,
+    commodity_type: u32,
     hash_content: &str,
 ) -> dispatch::DispatchResult {
     let test_hash = H256::from_slice(&blake2_256(hash_content.as_bytes()));
@@ -376,7 +402,6 @@ fn create_model(
     let model_id_vec = model_id.as_bytes().to_vec();
     let expert_id_vec = expert_id.as_bytes().to_vec();
     let commodity_name_vec = commodity_name.as_bytes().to_vec();
-    let commodity_type_vec = commodity_type.as_bytes().to_vec();
 
     let mut buf = vec![];
     //buf.append(&mut (app_id_vec.clone()));
@@ -390,7 +415,7 @@ fn create_model(
         model_id_vec,
         expert_id_vec,
         commodity_name_vec,
-        10001,
+        commodity_type,
         test_hash,
         test_signer_pair.public().clone().into(),
         test_signature.clone(),
