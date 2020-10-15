@@ -29,6 +29,21 @@ pub struct AppData {
     return_rate: u32,
 }
 
+#[derive(Encode, Decode, Clone, RuntimeDebug)]
+pub struct StableExchangeData<T: Trait> {
+    receiver: T::AccountId,
+    amount: BalanceOf<T>,
+}
+
+impl<T: Trait> Default for StableExchangeData<T> {
+    fn default() -> Self {
+        StableExchangeData {
+            receiver: T::AccountId::default(),
+            amount: 0.into(),
+        }
+    }
+}
+
 pub trait Trait: system::Trait {
     type Event: From<Event<Self>> + Into<<Self as system::Trait>::Event>;
     type Currency: Currency<Self::AccountId>;
@@ -48,6 +63,7 @@ decl_event!(
         AppAdminSet(AccountId),
         ModleCreatorAdded(AccountId),
         NewUserBenefitDrpped(AccountId, Balance),
+        StableExchanged(AccountId),
     }
 );
 
@@ -97,6 +113,10 @@ decl_storage! {
         // app_id user_id -> u32 record first time user KPT drop
         NewAccountBenefitRecords get(fn new_account_benifit_records):
             map hasher(twox_64_concat) T::Hash => BalanceOf<T>;
+
+        // app_id cash_receipt ->
+        StableExchangeRecords get(fn stable_exchange_records):
+            map hasher(twox_64_concat) T::Hash => StableExchangeData<T>;
     }
 }
 
@@ -110,6 +130,7 @@ decl_error! {
         NotModelCreator,
         BenefitAlreadyDropped,
         NotEnoughFund,
+        StableExchangeReceiptExist,
     }
 }
 
@@ -398,6 +419,27 @@ decl_module! {
             <NewAccountBenefitRecords<T>>::insert(&key, amount);
 
             Self::deposit_event(RawEvent::NewUserBenefitDrpped(receiver, amount));
+            Ok(())
+        }
+
+        #[weight = 0]
+        pub fn stable_exchange(origin, amount: BalanceOf<T>, receiver: T::AccountId, app_id: Vec<u8>, cash_receipt: Vec<u8>) -> DispatchResult {
+            let who = ensure_signed(origin)?;
+
+            let available = T::Currency::free_balance(&who);
+            ensure!(available > amount, Error::<T>::NotEnoughFund);
+
+            let key = T::Hashing::hash_of(&(app_id, &cash_receipt));
+            ensure!(!<StableExchangeRecords<T>>::contains_key(&key), Error::<T>::StableExchangeReceiptExist);
+
+            let _ = T::Currency::transfer(&who, &receiver, amount, KeepAlive);
+
+            <StableExchangeRecords<T>>::insert(&key, StableExchangeData {
+                receiver: receiver.clone(),
+                amount,
+            });
+
+            Self::deposit_event(RawEvent::StableExchanged(receiver));
             Ok(())
         }
     }
