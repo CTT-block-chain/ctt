@@ -423,7 +423,7 @@ decl_module! {
         }
 
         #[weight = 0]
-        pub fn stable_exchange(origin, amount: BalanceOf<T>, receiver: T::AccountId, app_id: Vec<u8>, cash_receipt: Vec<u8>) -> DispatchResult {
+        pub fn stable_exchange(origin, amount: BalanceOf<T>, receiver: T::AccountId, app_id: u32, cash_receipt: Vec<u8>) -> DispatchResult {
             let who = ensure_signed(origin)?;
 
             let available = T::Currency::free_balance(&who);
