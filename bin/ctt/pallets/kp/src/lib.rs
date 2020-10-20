@@ -619,6 +619,10 @@ decl_storage! {
         KPPurchasePowerByIdHash get(fn kp_purchase_power_by_idhash):
             map hasher(twox_64_concat) T::Hash => (DocumentPower, DocumentPower, DocumentPower, PowerSize, PowerSize);
 
+        // Slash commodity power black list (AppId, CartId) -> bool
+        KPPurchaseBlackList get(fn kp_purchase_black_list):
+            map hasher(twox_64_concat) T::Hash => bool;
+
         // (AppId, DocumentId) -> PowerSize misc document power map (currently for product choose and model create)
         KPMiscDocumentPowerByIdHash get(fn kp_misc_document_power_by_idhash):
             map hasher(twox_64_concat) T::Hash => PowerSize;
@@ -1510,6 +1514,8 @@ impl<T: Trait> Module<T> {
                 0,
             ),
         );
+
+        <KPPurchaseBlackList<T>>::insert(key, true);
     }
 
     fn compute_publish_product_content_power(
@@ -1744,25 +1750,32 @@ impl<T: Trait> Module<T> {
         match &doc.document_data {
             DocumentSpecificData::ProductIdentify(data) => {
                 is_need_accumulation = true;
+
                 commodity_key = T::Hashing::hash_of(&(doc.app_id, &data.cart_id));
-                commodity_power = <KPPurchasePowerByIdHash<T>>::get(&commodity_key);
-                commodity_power.1 = DocumentPower {
-                    attend: attend_power,
-                    content: commodity_power.1.content,
-                    judge: judge_power,
-                };
-                <KPPurchasePowerByIdHash<T>>::insert(&commodity_key, commodity_power);
+                let is_slashed = <KPPurchaseBlackList<T>>::contains_key(&commodity_key);
+                if !is_slashed {
+                    commodity_power = <KPPurchasePowerByIdHash<T>>::get(&commodity_key);
+                    commodity_power.1 = DocumentPower {
+                        attend: attend_power,
+                        content: commodity_power.1.content,
+                        judge: judge_power,
+                    };
+                    <KPPurchasePowerByIdHash<T>>::insert(&commodity_key, commodity_power);
+                }
             }
             DocumentSpecificData::ProductTry(data) => {
                 is_need_accumulation = true;
                 commodity_key = T::Hashing::hash_of(&(doc.app_id, &data.cart_id));
-                commodity_power = <KPPurchasePowerByIdHash<T>>::get(&commodity_key);
-                commodity_power.2 = DocumentPower {
-                    attend: attend_power,
-                    content: commodity_power.2.content,
-                    judge: judge_power,
-                };
-                <KPPurchasePowerByIdHash<T>>::insert(&commodity_key, commodity_power);
+                let is_slashed = <KPPurchaseBlackList<T>>::contains_key(&commodity_key);
+                if !is_slashed {
+                    commodity_power = <KPPurchasePowerByIdHash<T>>::get(&commodity_key);
+                    commodity_power.2 = DocumentPower {
+                        attend: attend_power,
+                        content: commodity_power.2.content,
+                        judge: judge_power,
+                    };
+                    <KPPurchasePowerByIdHash<T>>::insert(&commodity_key, commodity_power);
+                }
             }
             _ => {}
         }
@@ -1842,7 +1855,10 @@ impl<T: Trait> Module<T> {
             commodity_power.0 = publish_power.clone();
         }
 
-        <KPPurchasePowerByIdHash<T>>::insert(&commodity_key, commodity_power);
+        let is_slashed = <KPPurchaseBlackList<T>>::contains_key(&commodity_key);
+        if !is_slashed {
+            <KPPurchasePowerByIdHash<T>>::insert(&commodity_key, commodity_power);
+        }
 
         let key = T::Hashing::hash_of(&(doc.app_id, &doc.owner));
         let current = <MinerDocumentsAccumulationPower<T>>::get(&key);
@@ -2162,18 +2178,24 @@ impl<T: Trait> Module<T> {
             DocumentSpecificData::ProductIdentify(data) => {
                 is_need_update_account_power = true;
                 commodity_key = T::Hashing::hash_of(&(doc.app_id, &data.cart_id));
-                commodity_power = <KPPurchasePowerByIdHash<T>>::get(&commodity_key);
-                // update commodity power
-                commodity_power.3 = owner_account_power;
-                <KPPurchasePowerByIdHash<T>>::insert(&commodity_key, commodity_power);
+                let is_slashed = <KPPurchaseBlackList<T>>::contains_key(&commodity_key);
+                if !is_slashed {
+                    commodity_power = <KPPurchasePowerByIdHash<T>>::get(&commodity_key);
+                    // update commodity power
+                    commodity_power.3 = owner_account_power;
+                    <KPPurchasePowerByIdHash<T>>::insert(&commodity_key, commodity_power);
+                }
             }
             DocumentSpecificData::ProductTry(data) => {
                 is_need_update_account_power = true;
                 commodity_key = T::Hashing::hash_of(&(doc.app_id, &data.cart_id));
-                commodity_power = <KPPurchasePowerByIdHash<T>>::get(&commodity_key);
-                // update commodity power
-                commodity_power.3 = owner_account_power;
-                <KPPurchasePowerByIdHash<T>>::insert(&commodity_key, commodity_power);
+                let is_slashed = <KPPurchaseBlackList<T>>::contains_key(&commodity_key);
+                if !is_slashed {
+                    commodity_power = <KPPurchasePowerByIdHash<T>>::get(&commodity_key);
+                    // update commodity power
+                    commodity_power.3 = owner_account_power;
+                    <KPPurchasePowerByIdHash<T>>::insert(&commodity_key, commodity_power);
+                }
             }
             // ignore publish doc
             DocumentSpecificData::ProductPublish(_data) => return,
