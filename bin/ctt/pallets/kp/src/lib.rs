@@ -359,6 +359,55 @@ impl<T: Trait> Default for AppFinancedData<T> {
     }
 }
 
+#[derive(Encode, Decode, Default, Clone, Eq, RuntimeDebug)]
+pub struct CommodityLeaderBoardData {
+    cart_id: Vec<u8>,
+    power: PowerSize,
+}
+
+impl PartialEq for CommodityLeaderBoardData {
+    fn eq(&self, other: &Self) -> bool {
+        self.cart_id == other.cart_id
+    }
+}
+
+impl Ord for CommodityLeaderBoardData {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.power.cmp(&other.power)
+    }
+}
+
+impl PartialOrd for CommodityLeaderBoardData {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+#[derive(Encode, Decode, Clone, Eq, Default, RuntimeDebug)]
+pub struct CommentWeightData<T: Trait> {
+    account: T::AccountId,
+    position: u64,
+    cash_cost: PowerSize,
+}
+
+impl<T: Trait> PartialEq for CommentWeightData<T> {
+    fn eq(&self, other: &Self) -> bool {
+        self.account == other.account
+    }
+}
+
+impl<T: Trait> Ord for CommentWeightData<T> {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.position.cmp(&other.position)
+    }
+}
+
+impl<T: Trait> PartialOrd for CommentWeightData<T> {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
 /*
 type KnowledgePowerDataOf<T> = KnowledgePowerData<<T as system::Trait>::AccountId>;
 
@@ -525,6 +574,8 @@ pub trait Trait: system::Trait {
 
     /// App financed purpose minimal exchange rate, aka 1 RMB exchange how many KPT
     type KptExchangeMinRate: Get<BalanceOf<Self>>;
+
+    type AppLeaderBoardInterval: Get<Self::BlockNumber>;
 }
 
 // This pallet's storage items.
@@ -556,8 +607,9 @@ decl_storage! {
             map hasher(twox_64_concat) AuthAccountId => PowerSize;
 
         // (AppId, CartId) -> PowerSize user computed product identify/try power map
+        // (Publish, Identify, Try, OwnerAction, OwnerEconomic)
         KPPurchasePowerByIdHash get(fn kp_purchase_power_by_idhash):
-            map hasher(twox_64_concat) T::Hash => PowerSize;
+            map hasher(twox_64_concat) T::Hash => (DocumentPower, DocumentPower, DocumentPower, PowerSize, PowerSize);
 
         // (AppId, DocumentId) -> PowerSize misc document power map (currently for product choose and model create)
         KPMiscDocumentPowerByIdHash get(fn kp_misc_document_power_by_idhash):
@@ -659,6 +711,22 @@ decl_storage! {
         // App financed record
         AppFinancedRecord get(fn app_financed_record):
             map hasher(twox_64_concat) u32 => AppFinancedData<T>;
+
+        // Model commodity realtime power leader boards (AppId, ModelId) => Set of board data
+        AppModelCommodityLeaderBoards get(fn app_model_commodity_leader_boards):
+            map hasher(twox_64_concat) T::Hash => Vec<CommodityLeaderBoardData>;
+
+        // Leader board history records (AppId, ModelId, BlockNumber) => (Vec<CommodityLeaderBoardData>, Vec<T::AccountId>)
+        AppLeaderBoardRcord get(fn app_leader_board_record):
+            map hasher(twox_64_concat) T::Hash => (Vec<CommodityLeaderBoardData>, Vec<T::AccountId>);
+
+        // Leader board last record (AppId, ModelId) -> BlockNumber
+        AppLeaderBoardLastTime get(fn app_leader_board_last_time):
+            map hasher(twox_64_concat) T::Hash => T::BlockNumber;
+
+        // Document comment order pool (AppId, DocumentId) -> Vec<CommentWeightData>
+        DocumentCommentsAccountPool get(fn document_comments_account_pool):
+            map hasher(twox_64_concat) T::Hash => Vec<CommentWeightData<T>>;
     }
 }
 
@@ -667,6 +735,7 @@ decl_event!(
     pub enum Event<T>
     where
         AccountId = <T as system::Trait>::AccountId,
+        BlockNumber = <T as system::Trait>::BlockNumber,
     {
         /// Just a dummy event.
         /// Event `Something` is declared with a parameter of the type `u32` and `AccountId`
@@ -682,6 +751,7 @@ decl_event!(
         PowerSlashed(AccountId),
         AppAdded(u32),
         AppFinanced(u32),
+        LeaderBoardsCreated(BlockNumber),
     }
 );
 
@@ -1330,6 +1400,17 @@ decl_module! {
             Self::deposit_event(RawEvent::AppFinanced(app_id));
             Ok(())
         }
+
+        #[weight = 0]
+        pub fn create_power_leader_board(origin, app_id: u32, model_id: Vec<u8>) -> dispatch::DispatchResult {
+            ensure_root(origin)?;
+
+            let current_block = <system::Module<T>>::block_number();
+
+
+            Self::deposit_event(RawEvent::LeaderBoardsCreated(current_block));
+            Ok(())
+        }
     }
 }
 
@@ -1359,7 +1440,7 @@ impl<T: Trait> Module<T> {
 
     pub fn kp_commodity_power(app_id: u32, cart_id: Vec<u8>) -> PowerSize {
         let key = T::Hashing::hash_of(&(app_id, &cart_id));
-        <KPPurchasePowerByIdHash<T>>::get(&key)
+        Self::get_purchase_power(&key)
     }
 
     pub fn kp_is_commodity_power_exist(app_id: u32, cart_id: Vec<u8>) -> bool {
@@ -1393,6 +1474,30 @@ impl<T: Trait> Module<T> {
     fn convert_account(origin: &AuthAccountId) -> T::AccountId {
         let tmp: [u8; 32] = origin.clone().into();
         T::AccountId::decode(&mut &tmp[..]).unwrap_or_default()
+    }
+
+    fn get_purchase_power(key: &T::Hash) -> PowerSize {
+        let power = <KPPurchasePowerByIdHash<T>>::get(key);
+        power.0.total() + power.1.total() + power.2.total() + power.3 + power.4
+    }
+
+    fn clear_purchase_power(key: &T::Hash) {
+        let empty_power = DocumentPower {
+            attend: 0,
+            content: 0,
+            judge: 0,
+        };
+
+        <KPPurchasePowerByIdHash<T>>::insert(
+            &key,
+            (
+                empty_power.clone(),
+                empty_power.clone(),
+                empty_power.clone(),
+                0,
+                0,
+            ),
+        );
     }
 
     fn compute_publish_product_content_power(
@@ -1571,6 +1676,31 @@ impl<T: Trait> Module<T> {
         }
     }
 
+    fn update_document_comment_pool(
+        new_comment: &KPCommentData<T::AccountId, T::Hash>,
+        doc: &KPDocumentData<T::AccountId, T::Hash>,
+    ) {
+        let key = T::Hashing::hash_of(&(doc.app_id, &doc.document_id));
+        let mut pool = <DocumentCommentsAccountPool<T>>::get(&key);
+
+        let pool_item = CommentWeightData {
+            account: new_comment.sender.clone(),
+            position: doc.comment_count,
+            cash_cost: new_comment.comment_fee,
+        };
+
+        /*match pool.binary_search(&pool_item) {
+            Ok(index) => {
+                // remove old and push to end
+                pool.remove(index);
+            }
+            Err(_index) => {}
+        }*/
+
+        pool.push(pool_item);
+        <DocumentCommentsAccountPool<T>>::insert(&key, pool);
+    }
+
     fn insert_document_power(
         doc: &KPDocumentData<T::AccountId, T::Hash>,
         content_power: PowerSize,
@@ -1643,15 +1773,25 @@ impl<T: Trait> Module<T> {
     ) {
         // check if cart_id matched another doc exist
         let is_need_add_publish: bool;
+        let commodity_key;
+        let mut commodity_power;
+
         match &doc.document_data {
             DocumentSpecificData::ProductIdentify(data) => {
                 // check if exist product try
-                let key = T::Hashing::hash_of(&(doc.app_id, &data.cart_id));
-                is_need_add_publish = !<KPCartProductTryIndexByIdHash<T>>::contains_key(&key);
+                commodity_key = T::Hashing::hash_of(&(doc.app_id, &data.cart_id));
+                is_need_add_publish =
+                    !<KPCartProductTryIndexByIdHash<T>>::contains_key(&commodity_key);
+
+                commodity_power = <KPPurchasePowerByIdHash<T>>::get(&commodity_key);
+                commodity_power.1 = new_power.clone();
             }
             DocumentSpecificData::ProductTry(data) => {
-                let key = T::Hashing::hash_of(&(doc.app_id, &data.cart_id));
-                is_need_add_publish = !<KPCartProductIdentifyIndexByIdHash<T>>::contains_key(&key);
+                commodity_key = T::Hashing::hash_of(&(doc.app_id, &data.cart_id));
+                is_need_add_publish =
+                    !<KPCartProductIdentifyIndexByIdHash<T>>::contains_key(&commodity_key);
+                commodity_power = <KPPurchasePowerByIdHash<T>>::get(&commodity_key);
+                commodity_power.2 = new_power.clone();
             }
             _ => return,
         }
@@ -1669,7 +1809,10 @@ impl<T: Trait> Module<T> {
             // read out publish document power
             let publish_power_key = T::Hashing::hash_of(&(doc.app_id, &publish_doc_id));
             publish_power = <KPDocumentPowerByIdHash<T>>::get(&publish_power_key);
+            commodity_power.0 = publish_power.clone();
         }
+
+        <KPPurchasePowerByIdHash<T>>::insert(&commodity_key, commodity_power);
 
         let key = T::Hashing::hash_of(&(doc.app_id, &doc.owner));
         let current = <MinerDocumentsAccumulationPower<T>>::get(&key);
@@ -1966,6 +2109,8 @@ impl<T: Trait> Module<T> {
 
         // update document attend power store
         Self::update_document_power(&doc, doc_comment_power, platform_comment_power);
+
+        Self::update_document_comment_pool(&comment, &doc);
     }
 
     // triggered when:
@@ -2013,9 +2158,9 @@ impl<T: Trait> Module<T> {
 
     fn slash_power(cart_key: &T::Hash, power_owner: &T::AccountId) {
         // clear cart hash
-        let cart_power = <KPPurchasePowerByIdHash<T>>::get(cart_key);
+        let cart_power = Self::get_purchase_power(cart_key);
         if cart_power > 0 {
-            <KPPurchasePowerByIdHash<T>>::insert(cart_key, 0);
+            Self::clear_purchase_power(cart_key);
             // reduce account power
             <MinerPowerByAccount<T>>::mutate(power_owner, |pow| {
                 if *pow > cart_power {

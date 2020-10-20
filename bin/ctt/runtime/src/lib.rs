@@ -1063,6 +1063,8 @@ parameter_types! {
 
     pub const ModelCreateDeposit: Balance = 100 * DOLLARS;
     pub const KptExchangeMinRate: Balance = 10 * DOLLARS;
+
+    pub const AppLeaderBoardInterval: BlockNumber = 1 * DAYS;
 }
 
 impl kp::Trait for Runtime {
@@ -1104,6 +1106,7 @@ impl kp::Trait for Runtime {
     type CMPowerAccountAttend = CMPowerAccountAttend;
     type ModelCreateDeposit = ModelCreateDeposit;
     type KptExchangeMinRate = KptExchangeMinRate;
+    type AppLeaderBoardInterval = AppLeaderBoardInterval;
 }
 
 construct_runtime!(

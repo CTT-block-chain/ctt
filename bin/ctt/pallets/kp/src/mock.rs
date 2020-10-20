@@ -83,6 +83,8 @@ parameter_types! {
     pub const CommentCMPowerWeightCost: u8 = 20;
     pub const CommentCMPowerWeightPerCost: u8 = 10;
     pub const CommentCMPowerWeightPositive: u8 = 5;
+
+    pub const AppLeaderBoardInterval: u32 = 5;
 }
 impl system::Trait for Test {
     type BaseCallFilter = ();
@@ -151,6 +153,7 @@ impl Trait for Test {
     type ModelCreateDeposit = ();
     type KptExchangeMinRate = ();
     type Slash = ();
+    type AppLeaderBoardInterval = AppLeaderBoardInterval;
 }
 
 impl pallet_balances::Trait for Test {
