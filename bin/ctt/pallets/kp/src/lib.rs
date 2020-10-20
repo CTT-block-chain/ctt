@@ -1726,13 +1726,31 @@ impl<T: Trait> Module<T> {
         let key = T::Hashing::hash_of(&(doc.app_id, &doc.document_id));
         let mut org_power = <KPDocumentPowerByIdHash<T>>::get(&key);
         let mut is_need_accumulation = false;
+        let commodity_key;
+        let mut commodity_power;
 
         match &doc.document_data {
-            DocumentSpecificData::ProductIdentify(_data) => {
+            DocumentSpecificData::ProductIdentify(data) => {
                 is_need_accumulation = true;
+                commodity_key = T::Hashing::hash_of(&(doc.app_id, &data.cart_id));
+                commodity_power = <KPPurchasePowerByIdHash<T>>::get(&commodity_key);
+                commodity_power.1 = DocumentPower {
+                    attend: attend_power,
+                    content: commodity_power.1.content,
+                    judge: judge_power,
+                };
+                <KPPurchasePowerByIdHash<T>>::insert(&commodity_key, commodity_power);
             }
-            DocumentSpecificData::ProductTry(_data) => {
+            DocumentSpecificData::ProductTry(data) => {
                 is_need_accumulation = true;
+                commodity_key = T::Hashing::hash_of(&(doc.app_id, &data.cart_id));
+                commodity_power = <KPPurchasePowerByIdHash<T>>::get(&commodity_key);
+                commodity_power.2 = DocumentPower {
+                    attend: attend_power,
+                    content: commodity_power.2.content,
+                    judge: judge_power,
+                };
+                <KPPurchasePowerByIdHash<T>>::insert(&commodity_key, commodity_power);
             }
             _ => {}
         }
