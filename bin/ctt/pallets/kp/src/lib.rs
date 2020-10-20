@@ -47,6 +47,14 @@ type BalanceOf<T> =
 type NegativeImbalanceOf<T> =
     <<T as Trait>::Currency as Currency<<T as frame_system::Trait>::AccountId>>::NegativeImbalance;
 
+type CommodityPowerSet = (
+    DocumentPower,
+    DocumentPower,
+    DocumentPower,
+    PowerSize,
+    PowerSize,
+);
+
 #[cfg(test)]
 mod mock;
 
@@ -1476,9 +1484,13 @@ impl<T: Trait> Module<T> {
         T::AccountId::decode(&mut &tmp[..]).unwrap_or_default()
     }
 
+    fn compute_commodity_power(power: &CommodityPowerSet) -> PowerSize {
+        power.0.total() + power.1.total() + power.2.total() + power.3 + power.4
+    }
+
     fn get_purchase_power(key: &T::Hash) -> PowerSize {
         let power = <KPPurchasePowerByIdHash<T>>::get(key);
-        power.0.total() + power.1.total() + power.2.total() + power.3 + power.4
+        Self::compute_commodity_power(&power)
     }
 
     fn clear_purchase_power(key: &T::Hash) {
@@ -2137,25 +2149,37 @@ impl<T: Trait> Module<T> {
     fn process_commodity_power(doc: &KPDocumentData<T::AccountId, T::Hash>) {
         let mut power: PowerSize = 0;
         let mut is_need_update_account_power = false;
+        let commodity_key;
+        let mut commodity_power;
+        // read document owner action power
+        let key = T::Hashing::hash_of(&(&Self::convert_account(&doc.owner), doc.app_id));
+        let owner_account_power = Self::account_attend_power_map(&key);
+        power += owner_account_power;
+
+        // TODO: read document owner eocnomic power
 
         match &doc.document_data {
-            DocumentSpecificData::ProductIdentify(_data) => {
+            DocumentSpecificData::ProductIdentify(data) => {
                 is_need_update_account_power = true;
+                commodity_key = T::Hashing::hash_of(&(doc.app_id, &data.cart_id));
+                commodity_power = <KPPurchasePowerByIdHash<T>>::get(&commodity_key);
+                // update commodity power
+                commodity_power.3 = owner_account_power;
+                <KPPurchasePowerByIdHash<T>>::insert(&commodity_key, commodity_power);
             }
-            DocumentSpecificData::ProductTry(_data) => {
+            DocumentSpecificData::ProductTry(data) => {
                 is_need_update_account_power = true;
+                commodity_key = T::Hashing::hash_of(&(doc.app_id, &data.cart_id));
+                commodity_power = <KPPurchasePowerByIdHash<T>>::get(&commodity_key);
+                // update commodity power
+                commodity_power.3 = owner_account_power;
+                <KPPurchasePowerByIdHash<T>>::insert(&commodity_key, commodity_power);
             }
             // ignore publish doc
             DocumentSpecificData::ProductPublish(_data) => return,
             // left is product choose and model create doc, only update commodity power
             _ => {}
         }
-
-        // read document owner action power
-        let key = T::Hashing::hash_of(&(&Self::convert_account(&doc.owner), doc.app_id));
-        power += Self::account_attend_power_map(&key);
-
-        // TODO: read document owner eocnomic power
 
         // now we got new computed power, check if need to update
         if is_need_update_account_power {
