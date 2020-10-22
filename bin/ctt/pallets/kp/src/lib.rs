@@ -392,24 +392,25 @@ impl<T: Trait> Default for AppFinancedData<T> {
 }
 
 #[derive(Encode, Decode, Default, Clone, Eq, RuntimeDebug)]
-pub struct CommodityLeaderBoardData {
+pub struct CommodityLeaderBoardData<T: Trait> {
     cart_id: Vec<u8>,
+    cart_id_hash: T::Hash,
     power: PowerSize,
 }
 
-impl PartialEq for CommodityLeaderBoardData {
+impl<T: Trait> PartialEq for CommodityLeaderBoardData<T> {
     fn eq(&self, other: &Self) -> bool {
         self.power == other.power
     }
 }
 
-impl Ord for CommodityLeaderBoardData {
+impl<T: Trait> Ord for CommodityLeaderBoardData<T> {
     fn cmp(&self, other: &Self) -> Ordering {
         self.power.cmp(&other.power)
     }
 }
 
-impl PartialOrd for CommodityLeaderBoardData {
+impl<T: Trait> PartialOrd for CommodityLeaderBoardData<T> {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         Some(self.cmp(other))
     }
@@ -608,6 +609,8 @@ pub trait Trait: system::Trait {
     type KptExchangeMinRate: Get<BalanceOf<Self>>;
 
     type AppLeaderBoardInterval: Get<Self::BlockNumber>;
+
+    type AppLeaderBoardMaxPos: Get<u32>;
 }
 
 // This pallet's storage items.
@@ -750,16 +753,17 @@ decl_storage! {
 
         // Model commodity realtime power leader boards (AppId, ModelId) => Set of board data
         AppModelCommodityLeaderBoards get(fn app_model_commodity_leader_boards):
-            map hasher(twox_64_concat) T::Hash => Vec<CommodityLeaderBoardData>;
+            map hasher(twox_64_concat) T::Hash => Vec<CommodityLeaderBoardData<T>>;
 
-        // double map for leader board item index, group index is (AppId, ModelId) hasher
-        // sub key is cart_id, value is leader board index(App or Model range)
-        LeaderIndex get(fn leader_index):
-            double_map hasher(twox_64_concat) T::Hash, hasher(twox_64_concat) Vec<u8> => LeaderBoardIndex;
+        // If a commodity(cart id) enter leader board, we use a map set to record it for
+        // fast check if board contains it when doing board update
+        // double map, group key: (AppId, ModelId) hash, sub key: cart_id
+        LeaderBoardCommoditySet get(fn leader_board_commodity_set):
+            double_map hasher(twox_64_concat) T::Hash, hasher(twox_64_concat) Vec<u8> => ();
 
         // Leader board history records (AppId, ModelId, BlockNumber) => (Vec<CommodityLeaderBoardData>, Vec<T::AccountId>)
         AppLeaderBoardRcord get(fn app_leader_board_record):
-            map hasher(twox_64_concat) T::Hash => (Vec<CommodityLeaderBoardData>, Vec<T::AccountId>);
+            map hasher(twox_64_concat) T::Hash => (Vec<CommodityLeaderBoardData<T>>, Vec<T::AccountId>);
 
         // Leader board last record (AppId, ModelId) -> BlockNumber
         AppLeaderBoardLastTime get(fn app_leader_board_last_time):
@@ -1387,16 +1391,13 @@ decl_module! {
             let doc = <KPDocumentDataByIdHash<T>>::get(&doc_key);
 
             // get model id from publish doc
-            let publish_key = T::Hashing::hash_of(&(app_id, &doc.product_id));
-            let publish_doc_id = <KPDocumentProductIndexByIdHash<T>>::get(&publish_key);
-            let publish_doc_key = T::Hashing::hash_of(&(app_id, &publish_doc_id));
-            let publish_doc = <KPDocumentDataByIdHash<T>>::get(&publish_doc_key);
+            let model_id = Self::get_model_id_from_product(app_id, &doc.product_id).unwrap_or_default();
 
             // perform slash
             let key_hash = T::Hashing::hash_of(&(app_id, &cart_id));
             let owner_account = Self::convert_account(&doc.owner);
             Self::slash_power(&key_hash, &owner_account);
-            Self::remove_leader_board_item(app_id, &publish_doc.model_id, &cart_id);
+            Self::remove_leader_board_item(app_id, &model_id, &cart_id);
             // TODO: send benefit to reporter_account
 
             Self::deposit_event(RawEvent::PowerSlashed(owner_account));
@@ -1532,10 +1533,21 @@ impl<T: Trait> Module<T> {
         Self::compute_commodity_power(&power)
     }
 
-    fn update_purchase_power(key: &T::Hash, power_set: &CommodityPowerSet) {
+    fn update_purchase_power(
+        key: &T::Hash,
+        power_set: &CommodityPowerSet,
+        app_id: u32,
+        model_id: &Vec<u8>,
+        cart_id: &Vec<u8>,
+    ) {
         let is_slashed = <KPPurchaseBlackList<T>>::contains_key(key);
         if !is_slashed {
             <KPPurchasePowerByIdHash<T>>::insert(&key, power_set);
+            let power = Self::compute_commodity_power(power_set);
+            // update model board
+            Self::update_realtime_power_leader_boards(app_id, model_id, cart_id, power);
+            // uupdate app board
+            Self::update_realtime_power_leader_boards(app_id, &vec![], cart_id, power);
         }
     }
 
@@ -1558,14 +1570,52 @@ impl<T: Trait> Module<T> {
         <KPPurchaseBlackList<T>>::insert(key, true);
     }
 
-    fn remove_leader_board_item(app_id: u32, model_id: &Vec<u8>, cart_id: &Vec<u8>) {
-        let key = T::Hashing::hash_of(&(app_id, model_id));
-        if <LeaderIndex<T>>::contains_key(&key, cart_id) {
-            let index = <LeaderIndex<T>>::get(&key, cart_id);
-            let mut board = <AppModelCommodityLeaderBoards<T>>::get(&key);
-            board.remove(index.index());
-            <AppModelCommodityLeaderBoards<T>>::insert(&key, board);
+    fn get_leader_item(
+        group_key: &T::Hash,
+        cart_id: &Vec<u8>,
+    ) -> Option<(usize, CommodityLeaderBoardData<T>)> {
+        if !<LeaderBoardCommoditySet<T>>::contains_key(group_key, cart_id) {
+            return None;
+        } else {
+            // go through specified leader board
+            let hash = T::Hashing::hash_of(cart_id);
+            let board = <AppModelCommodityLeaderBoards<T>>::get(group_key);
+            for (pos, item) in board.iter().enumerate() {
+                if item.cart_id_hash == hash {
+                    return Some((pos, item.clone()));
+                }
+            }
         }
+
+        None
+    }
+
+    fn get_model_id_from_product(app_id: u32, product_id: &Vec<u8>) -> Option<Vec<u8>> {
+        // get model id from publish doc
+        let publish_key = T::Hashing::hash_of(&(app_id, &product_id));
+        if !<KPDocumentProductIndexByIdHash<T>>::contains_key(&publish_key) {
+            return None;
+        }
+        let publish_doc_id = <KPDocumentProductIndexByIdHash<T>>::get(&publish_key);
+        let publish_doc_key = T::Hashing::hash_of(&(app_id, &publish_doc_id));
+        if !<KPDocumentDataByIdHash<T>>::contains_key(&publish_doc_key) {
+            return None;
+        }
+        let publish_doc = <KPDocumentDataByIdHash<T>>::get(&publish_doc_key);
+
+        Some(publish_doc.model_id)
+    }
+
+    fn remove_leader_board_item(app_id: u32, model_id: &Vec<u8>, cart_id: &Vec<u8>) -> Option<u32> {
+        let key = T::Hashing::hash_of(&(app_id, model_id));
+
+        let (index, _) = Self::get_leader_item(&key, cart_id)?;
+
+        let mut board = <AppModelCommodityLeaderBoards<T>>::get(&key);
+        board.remove(index);
+        <AppModelCommodityLeaderBoards<T>>::insert(&key, board);
+
+        Some(0)
     }
 
     fn compute_publish_product_content_power(
@@ -1749,54 +1799,53 @@ impl<T: Trait> Module<T> {
         model_id: &Vec<u8>,
         cart_id: &Vec<u8>,
         power: PowerSize,
-    ) {
+    ) -> Option<u32> {
         // get leader board
         let leader_key = T::Hashing::hash_of(&(app_id, model_id));
         let mut board = <AppModelCommodityLeaderBoards<T>>::get(&leader_key);
 
         let board_item = CommodityLeaderBoardData {
+            cart_id_hash: T::Hashing::hash_of(cart_id),
             cart_id: cart_id.clone(),
             power,
         };
 
-        // check leader index double map to make sure this item is already in leader board
-        let item_index = <LeaderIndex<T>>::get(&leader_key, &cart_id);
-        if item_index.exist() {
-            // item already exit, check if power changed, if no change, do nothing
-            if board[item_index.index()] == board_item {
-                print("power no change");
-                return;
+        // check leader set double map to make sure this item is already in leader board
+        match Self::get_leader_item(&leader_key, cart_id) {
+            Some((index, org_item)) => {
+                if org_item == board_item {
+                    // power no change, do nothing
+                } else {
+                    // remove old one, reinsert
+                    board.remove(index);
+                }
             }
-
-            // else changed, increase or decrease, we need to do a new sort insert
-            // remove old one first
-            <LeaderIndex<T>>::remove(&leader_key, &cart_id);
-            board.remove(item_index.index());
+            None => {}
         }
 
         // now we can find the proper position for this new power item
-        match board.binary_search(&board_item) {
-            Ok(mut index) => {
-                // find same power exist, insert to lowest position
-                while index >= 0 {
-                    if board_item > board[index] {
-                        board.insert(index + 1, board_item);
-                        <LeaderIndex<T>>::insert(
-                            &leader_key,
-                            &cart_id,
-                            LeaderBoardIndex::from(index + 1),
-                        );
-                        break;
-                    }
-                    index -= 1;
-                }
+        match board.binary_search_by(|probe| probe.cmp(&board_item).reverse()) {
+            Ok(index) => {
+                // always get the end
+                board.insert(index + 1, board_item);
             }
             Err(index) => {
                 // not found, index is closet position(upper)
                 board.insert(index, board_item);
-                <LeaderIndex<T>>::insert(&leader_key, &cart_id, LeaderBoardIndex::from(index));
             }
         }
+
+        // update leader set
+        <LeaderBoardCommoditySet<T>>::insert(&leader_key, cart_id, ());
+
+        // check if reach board max
+        if T::AppLeaderBoardMaxPos::get() < board.len() as u32 {
+            print("leader board full, drop last one");
+            let removed = board.pop()?;
+            <LeaderBoardCommoditySet<T>>::remove(&leader_key, removed.cart_id);
+        }
+
+        Some(0)
     }
 
     fn update_document_comment_pool(
@@ -1844,7 +1893,7 @@ impl<T: Trait> Module<T> {
         doc: &KPDocumentData<T::AccountId, T::Hash>,
         attend_power: PowerSize,
         judge_power: PowerSize,
-    ) {
+    ) -> Option<u32> {
         // read out original first
         let key = T::Hashing::hash_of(&(doc.app_id, &doc.document_id));
         let mut org_power = <KPDocumentPowerByIdHash<T>>::get(&key);
@@ -1865,7 +1914,16 @@ impl<T: Trait> Module<T> {
                         content: commodity_power.1.content,
                         judge: judge_power,
                     };
-                    Self::update_purchase_power(&commodity_key, &commodity_power);
+
+                    let model_id = Self::get_model_id_from_product(doc.app_id, &doc.product_id)?;
+
+                    Self::update_purchase_power(
+                        &commodity_key,
+                        &commodity_power,
+                        doc.app_id,
+                        &model_id,
+                        &data.cart_id,
+                    );
                 }
             }
             DocumentSpecificData::ProductTry(data) => {
@@ -1879,7 +1937,15 @@ impl<T: Trait> Module<T> {
                         content: commodity_power.2.content,
                         judge: judge_power,
                     };
-                    Self::update_purchase_power(&commodity_key, &commodity_power);
+
+                    let model_id = Self::get_model_id_from_product(doc.app_id, &doc.product_id)?;
+                    Self::update_purchase_power(
+                        &commodity_key,
+                        &commodity_power,
+                        doc.app_id,
+                        &model_id,
+                        &data.cart_id,
+                    );
                 }
             }
             _ => {}
@@ -1912,17 +1978,20 @@ impl<T: Trait> Module<T> {
 
         // update store
         <KPDocumentPowerByIdHash<T>>::insert(&key, org_power);
+
+        Some(0)
     }
 
     // only for identify and try doc
     fn add_accumulation_document_power(
         new_power: &DocumentPower,
         doc: &KPDocumentData<T::AccountId, T::Hash>,
-    ) {
+    ) -> Option<u32> {
         // check if cart_id matched another doc exist
         let is_need_add_publish: bool;
         let commodity_key;
         let mut commodity_power;
+        let cart_id: Vec<u8>;
 
         match &doc.document_data {
             DocumentSpecificData::ProductIdentify(data) => {
@@ -1933,6 +2002,7 @@ impl<T: Trait> Module<T> {
 
                 commodity_power = <KPPurchasePowerByIdHash<T>>::get(&commodity_key);
                 commodity_power.1 = new_power.clone();
+                cart_id = data.cart_id.clone();
             }
             DocumentSpecificData::ProductTry(data) => {
                 commodity_key = T::Hashing::hash_of(&(doc.app_id, &data.cart_id));
@@ -1940,8 +2010,11 @@ impl<T: Trait> Module<T> {
                     !<KPCartProductIdentifyIndexByIdHash<T>>::contains_key(&commodity_key);
                 commodity_power = <KPPurchasePowerByIdHash<T>>::get(&commodity_key);
                 commodity_power.2 = new_power.clone();
+                cart_id = data.cart_id.clone();
             }
-            _ => return,
+            _ => {
+                return None;
+            }
         }
 
         let mut publish_power = DocumentPower {
@@ -1962,12 +2035,21 @@ impl<T: Trait> Module<T> {
 
         let is_slashed = <KPPurchaseBlackList<T>>::contains_key(&commodity_key);
         if !is_slashed {
-            Self::update_purchase_power(&commodity_key, &commodity_power);
+            let model_id = Self::get_model_id_from_product(doc.app_id, &doc.product_id)?;
+            Self::update_purchase_power(
+                &commodity_key,
+                &commodity_power,
+                doc.app_id,
+                &model_id,
+                &cart_id,
+            );
         }
 
         let key = T::Hashing::hash_of(&(doc.app_id, &doc.owner));
         let current = <MinerDocumentsAccumulationPower<T>>::get(&key);
         <MinerDocumentsAccumulationPower<T>>::insert(&key, &current + &new_power + publish_power);
+
+        Some(0)
     }
 
     fn process_document_content_power(doc: &KPDocumentData<T::AccountId, T::Hash>) {
@@ -2267,7 +2349,7 @@ impl<T: Trait> Module<T> {
     // triggered when:
     // 1. doc identify/try/choose/model was created
     // 2. any document was commented, doc param is comment target
-    fn process_commodity_power(doc: &KPDocumentData<T::AccountId, T::Hash>) {
+    fn process_commodity_power(doc: &KPDocumentData<T::AccountId, T::Hash>) -> Option<u32> {
         let mut power: PowerSize = 0;
         let mut is_need_update_account_power = false;
         let commodity_key;
@@ -2288,7 +2370,16 @@ impl<T: Trait> Module<T> {
                     commodity_power = <KPPurchasePowerByIdHash<T>>::get(&commodity_key);
                     // update commodity power
                     commodity_power.3 = owner_account_power;
-                    Self::update_purchase_power(&commodity_key, &commodity_power);
+
+                    let model_id = Self::get_model_id_from_product(doc.app_id, &doc.product_id)?;
+
+                    Self::update_purchase_power(
+                        &commodity_key,
+                        &commodity_power,
+                        doc.app_id,
+                        &model_id,
+                        &data.cart_id,
+                    );
                 }
             }
             DocumentSpecificData::ProductTry(data) => {
@@ -2299,11 +2390,21 @@ impl<T: Trait> Module<T> {
                     commodity_power = <KPPurchasePowerByIdHash<T>>::get(&commodity_key);
                     // update commodity power
                     commodity_power.3 = owner_account_power;
-                    Self::update_purchase_power(&commodity_key, &commodity_power);
+
+                    let model_id = Self::get_model_id_from_product(doc.app_id, &doc.product_id)?;
+                    Self::update_purchase_power(
+                        &commodity_key,
+                        &commodity_power,
+                        doc.app_id,
+                        &model_id,
+                        &data.cart_id,
+                    );
                 }
             }
             // ignore publish doc
-            DocumentSpecificData::ProductPublish(_data) => return,
+            DocumentSpecificData::ProductPublish(_data) => {
+                return None;
+            }
             // left is product choose and model create doc, only update commodity power
             _ => {}
         }
@@ -2323,6 +2424,8 @@ impl<T: Trait> Module<T> {
             let doc_power = <KPDocumentPowerByIdHash<T>>::get(&power_key_hash);
             <KPMiscDocumentPowerByIdHash<T>>::insert(&power_key_hash, power + doc_power.total());
         }
+
+        Some(0)
     }
 
     fn slash_power(cart_key: &T::Hash, power_owner: &T::AccountId) {

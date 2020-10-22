@@ -1065,6 +1065,7 @@ parameter_types! {
     pub const KptExchangeMinRate: Balance = 10 * DOLLARS;
 
     pub const AppLeaderBoardInterval: BlockNumber = 1 * DAYS;
+    pub const AppLeaderBoardMaxPos: u32 = 96;
 }
 
 impl kp::Trait for Runtime {
@@ -1107,6 +1108,7 @@ impl kp::Trait for Runtime {
     type ModelCreateDeposit = ModelCreateDeposit;
     type KptExchangeMinRate = KptExchangeMinRate;
     type AppLeaderBoardInterval = AppLeaderBoardInterval;
+    type AppLeaderBoardMaxPos = AppLeaderBoardMaxPos;
 }
 
 construct_runtime!(
