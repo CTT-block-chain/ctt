@@ -4,7 +4,11 @@
 use frame_support::{
     codec::{Decode, Encode},
     decl_error, decl_event, decl_module, decl_storage, dispatch, ensure,
-    traits::{Currency, Get, LockableCurrency, OnUnbalanced, ReservableCurrency},
+    traits::{Currency, Get, LockableCurrency, OnUnbalanced, Randomness, ReservableCurrency},
+};
+use rand_chacha::{
+    rand_core::{RngCore, SeedableRng},
+    ChaChaRng,
 };
 
 #[macro_use]
@@ -27,7 +31,7 @@ use primitives::{AuthAccountId, Membership, PowerSize};
 use sp_core::sr25519;
 use sp_runtime::{
     print,
-    traits::{Hash, Verify},
+    traits::{Hash, TrailingZeroInput, Verify},
     MultiSignature, RuntimeDebug,
 };
 
@@ -136,6 +140,19 @@ impl From<u8> for DocumentType {
             4 => DocumentType::ModelCreate,
             _ => DocumentType::Unknown,
         };
+    }
+}
+
+#[derive(Encode, Decode, PartialEq, Clone, RuntimeDebug)]
+pub enum ModelDisputeType {
+    NoneIntendNormal = 0,
+    IntendNormal,
+    Serious,
+}
+
+impl Default for ModelDisputeType {
+    fn default() -> Self {
+        ModelDisputeType::NoneIntendNormal
     }
 }
 
@@ -526,6 +543,9 @@ pub trait Trait: system::Trait {
     /// Handler for the unbalanced reduction when slashing a model create deposit.
     type Slash: OnUnbalanced<NegativeImbalanceOf<Self>>;
 
+    /// Something that provides randomness in the runtime.
+    type Randomness: Randomness<Self::Hash>;
+
     /// The overarching event type.
     type Event: From<Event<Self>> + Into<<Self as system::Trait>::Event>;
 
@@ -751,6 +771,14 @@ decl_storage! {
         AppFinancedRecord get(fn app_financed_record):
             map hasher(twox_64_concat) u32 => AppFinancedData<T>;
 
+        // App commodity(cart_id) count AppId -> u32
+        AppCommodityCount get(fn app_commodity_count):
+            map hasher(twox_64_concat) u32 => u32;
+
+        // App model commodity(cart_id) count (AppId, ModelId) -> u32
+        AppModelCommodityCount get(fn app_model_commodity_count):
+            map hasher(twox_64_concat) T::Hash => u32;
+
         // Model commodity realtime power leader boards (AppId, ModelId) => Set of board data
         AppModelCommodityLeaderBoards get(fn app_model_commodity_leader_boards):
             map hasher(twox_64_concat) T::Hash => Vec<CommodityLeaderBoardData<T>>;
@@ -797,6 +825,7 @@ decl_event!(
         AppAdded(u32),
         AppFinanced(u32),
         LeaderBoardsCreated(BlockNumber),
+        ModelDisputed(AccountId),
     }
 );
 
@@ -826,6 +855,7 @@ decl_error! {
         AppFinancedExchangeRateTooLow,
         DocumentIdentifyAlreadyExisted,
         DocumentTryAlreadyExisted,
+        LeaderBoardCreateNotPermit,
     }
 }
 
@@ -1052,7 +1082,7 @@ decl_module! {
         pub fn create_product_identify_document(origin,
             app_id: u32,
             document_id: Vec<u8>,
-            model_id: Vec<u8>,
+            _model_id: Vec<u8>,
             product_id: Vec<u8>,
             content_hash: T::Hash,
 
@@ -1077,6 +1107,9 @@ decl_module! {
             let key = T::Hashing::hash_of(&(app_id, &cart_id));
             ensure!(!<KPCartProductIdentifyIndexByIdHash<T>>::contains_key(&key), Error::<T>::DocumentIdentifyAlreadyExisted);
 
+            let model_id = Self::get_model_id_from_product(app_id, &product_id).unwrap_or_default();
+            let cart_id = document_power_data.cart_id.clone();
+
             // create doc
             let doc = KPDocumentData {
                 sender: who.clone(),
@@ -1096,10 +1129,17 @@ decl_module! {
             Self::process_commodity_power(&doc);
 
             // create cartid -> product identify document id record
-           <KPCartProductIdentifyIndexByIdHash<T>>::insert(&key, &document_id);
+            <KPCartProductIdentifyIndexByIdHash<T>>::insert(&key, &document_id);
 
             // create document record
             <KPDocumentDataByIdHash<T>>::insert(&doc_key_hash, &doc);
+
+            Self::increase_commodity_count(
+                app_id,
+                &doc.model_id,
+                &cart_id,
+                DocumentType::ProductIdentify,
+            );
 
             Self::deposit_event(RawEvent::KnowledgeCreated(who));
             Ok(())
@@ -1109,7 +1149,7 @@ decl_module! {
         pub fn create_product_try_document(origin,
             app_id: u32,
             document_id: Vec<u8>,
-            model_id: Vec<u8>,
+            _model_id: Vec<u8>,
             product_id: Vec<u8>,
             content_hash: T::Hash,
 
@@ -1132,6 +1172,9 @@ decl_module! {
             let cart_id = document_power_data.cart_id.clone();
             let key = T::Hashing::hash_of(&(app_id, &cart_id));
             ensure!(!<KPCartProductTryIndexByIdHash<T>>::contains_key(&key), Error::<T>::DocumentTryAlreadyExisted);
+
+            let model_id = Self::get_model_id_from_product(app_id, &product_id).unwrap_or_default();
+            let cart_id = document_power_data.cart_id.clone();
 
             // create doc
             let doc = KPDocumentData {
@@ -1157,6 +1200,13 @@ decl_module! {
 
             // create document record
             <KPDocumentDataByIdHash<T>>::insert(&doc_key_hash, &doc);
+
+            Self::increase_commodity_count(
+                app_id,
+                &doc.model_id,
+                &cart_id,
+                DocumentType::ProductTry,
+            );
 
             Self::deposit_event(RawEvent::KnowledgeCreated(who));
             Ok(())
@@ -1405,6 +1455,39 @@ decl_module! {
         }
 
         #[weight = 0]
+        pub fn democracy_model_dispute(origin,
+            app_id: u32,
+            model_id: Vec<u8>,
+            dispute_type: ModelDisputeType,
+            comment_id: Vec<u8>,
+            reporter_account: T::AccountId
+            ) -> dispatch::DispatchResult {
+
+            ensure_root(origin)?;
+
+            // get model creator account
+            let key = T::Hashing::hash_of(&(app_id, &model_id));
+            ensure!(<KPModelDataByIdHash<T>>::contains_key(&key), Error::<T>::ModelNotFound);
+
+            let model = <KPModelDataByIdHash<T>>::get(&key);
+            // according dispute type to decide slash
+            let owner_account = Self::convert_account(&model.owner);
+
+            // TODO: according dispute type decide punishment
+            match dispute_type {
+                ModelDisputeType::NoneIntendNormal => {}
+                ModelDisputeType::IntendNormal => {}
+                ModelDisputeType::Serious => {}
+            }
+
+
+            // TODO: send benefit to reporter_account
+
+            Self::deposit_event(RawEvent::ModelDisputed(owner_account));
+            Ok(())
+        }
+
+        #[weight = 0]
         pub fn democracy_add_app(origin, app_type: Vec<u8>, app_name: Vec<u8>,
             app_key: T::AccountId, app_admin_key: T::AccountId, return_rate: u32) -> dispatch::DispatchResult {
             ensure_root(origin)?;
@@ -1454,6 +1537,11 @@ decl_module! {
             ensure_root(origin)?;
 
             let current_block = <system::Module<T>>::block_number();
+            // read out last time block number and check distance
+            let last_key = T::Hashing::hash_of(&(app_id, model_id));
+            let last_block = <AppLeaderBoardLastTime<T>>::get(&last_key);
+            let diff = current_block - last_block;
+            ensure!(diff < T::AppLeaderBoardInterval::get(), Error::<T>::LeaderBoardCreateNotPermit);
 
 
             Self::deposit_event(RawEvent::LeaderBoardsCreated(current_block));
@@ -1846,6 +1934,54 @@ impl<T: Trait> Module<T> {
         }
 
         Some(0)
+    }
+
+    fn increase_commodity_count(
+        app_id: u32,
+        model_id: &Vec<u8>,
+        cart_id: &Vec<u8>,
+        doc_type: DocumentType,
+    ) {
+        match doc_type {
+            DocumentType::ProductTry => {
+                // check if another identify document exist
+                let key = T::Hashing::hash_of(&(app_id, cart_id));
+                if <KPCartProductIdentifyIndexByIdHash<T>>::contains_key(&key) {
+                    return;
+                }
+                <AppCommodityCount>::mutate(app_id, |count| {
+                    *count = *count + 1;
+                });
+                let model_key = T::Hashing::hash_of(&(app_id, model_id));
+                <AppModelCommodityCount<T>>::mutate(&model_key, |count| {
+                    *count = *count + 1;
+                });
+            }
+            DocumentType::ProductIdentify => {
+                let key = T::Hashing::hash_of(&(app_id, cart_id));
+                if <KPCartProductTryIndexByIdHash<T>>::contains_key(&key) {
+                    return;
+                }
+                <AppCommodityCount>::mutate(app_id, |count| {
+                    *count = *count + 1;
+                });
+                let model_key = T::Hashing::hash_of(&(app_id, model_id));
+                <AppModelCommodityCount<T>>::mutate(&model_key, |count| {
+                    *count = *count + 1;
+                });
+            }
+            _ => {}
+        }
+    }
+
+    fn leader_board_lottery(block: T::BlockNumber, app_id: u32, model_id: &Vec<u8>) {
+        let seed = T::Randomness::random(b"ctt_power");
+        // seed needs to be guaranteed to be 32 bytes.
+        let seed = <[u8; 32]>::decode(&mut TrailingZeroInput::new(seed.as_ref()))
+            .expect("input is padded with zeroes; qed");
+        let mut rng = ChaChaRng::from_seed(seed);
+
+        //pick_item(&mut rng, &votes)
     }
 
     fn update_document_comment_pool(
@@ -2448,4 +2584,18 @@ impl<T: Trait> PowerVote<T::AccountId> for Module<T> {
     fn account_power_ratio(account: &T::AccountId) -> f64 {
         Self::kp_account_power_ratio(account)
     }
+}
+
+/// Pick an item at pseudo-random from the slice, given the `rng`. `None` iff the slice is empty.
+fn pick_item<'a, R: RngCore, T>(rng: &mut R, items: &'a [T]) -> Option<&'a T> {
+    if items.is_empty() {
+        None
+    } else {
+        Some(&items[pick_usize(rng, items.len() - 1)])
+    }
+}
+
+/// Pick a new PRN, in the range [0, `max`] (inclusive).
+fn pick_usize<'a, R: RngCore>(rng: &mut R, max: usize) -> usize {
+    (rng.next_u32() % (max as u32 + 1)) as usize
 }

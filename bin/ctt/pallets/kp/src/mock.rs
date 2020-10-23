@@ -1,6 +1,8 @@
 // Creating mock runtime here
 
-use frame_support::{impl_outer_event, impl_outer_origin, parameter_types, weights::Weight};
+use frame_support::{
+    impl_outer_event, impl_outer_origin, parameter_types, traits::TestRandomness, weights::Weight,
+};
 use sp_core::H256;
 use sp_runtime::{
     testing::Header,
@@ -156,6 +158,7 @@ impl Trait for Test {
     type Slash = ();
     type AppLeaderBoardInterval = AppLeaderBoardInterval;
     type AppLeaderBoardMaxPos = AppLeaderBoardMaxPos;
+    type Randomness = TestRandomness;
 }
 
 impl pallet_balances::Trait for Test {

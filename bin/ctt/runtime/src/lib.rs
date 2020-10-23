@@ -1109,6 +1109,7 @@ impl kp::Trait for Runtime {
     type KptExchangeMinRate = KptExchangeMinRate;
     type AppLeaderBoardInterval = AppLeaderBoardInterval;
     type AppLeaderBoardMaxPos = AppLeaderBoardMaxPos;
+    type Randomness = RandomnessCollectiveFlip;
 }
 
 construct_runtime!(

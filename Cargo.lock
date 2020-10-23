@@ -1208,6 +1208,7 @@ dependencies = [
  "pallet-balances",
  "parity-scale-codec",
  "parking_lot 0.10.2",
+ "rand_chacha 0.2.2",
  "serde",
  "sp-core",
  "sp-io",
