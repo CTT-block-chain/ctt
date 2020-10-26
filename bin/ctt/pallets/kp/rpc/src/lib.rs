@@ -3,6 +3,7 @@
 pub use self::gen_client::Client as KpClient;
 use jsonrpc_core::{Error as RpcError, ErrorCode, Result};
 use jsonrpc_derive::rpc;
+use kp::LeaderBoardResult;
 use kp_runtime_api::KpApi as KpRuntimeApi;
 pub use kp_runtime_api::KpApi as KpRuntimeRpcApi;
 use primitives::{AuthAccountId, PowerSize};
@@ -19,6 +20,15 @@ use std::sync::Arc;
 pub struct QueryCommodityPowerParams {
     app_id: u32,
     cart_id: Bytes,
+}
+
+#[derive(Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+#[serde(deny_unknown_fields)]
+pub struct QueryLeaderBoardParams {
+    app_id: u32,
+    model_id: Bytes,
+    block: u32,
 }
 
 #[rpc]
@@ -42,6 +52,13 @@ pub trait KpApi<BlockHash, AccountId> {
         query: QueryCommodityPowerParams,
         at: Option<BlockHash>,
     ) -> Result<bool>;
+
+    #[rpc(name = "kP_leaderBoardResult")]
+    fn leader_board_result(
+        &self,
+        query: QueryLeaderBoardParams,
+        at: Option<BlockHash>,
+    ) -> Result<LeaderBoardResult<AccountId>>;
 }
 
 /// A struct that implements the `KpApi`.
@@ -152,6 +169,30 @@ where
         let QueryCommodityPowerParams { app_id, cart_id } = query;
 
         let runtime_api_result = api.is_commodity_power_exist(&at, app_id, cart_id.to_vec());
+        runtime_api_result.map_err(|e| RpcError {
+            code: ErrorCode::ServerError(9876), // No real reason for this value
+            message: "Something wrong".into(),
+            data: Some(format!("{:?}", e).into()),
+        })
+    }
+
+    fn leader_board_result(
+        &self,
+        query: QueryLeaderBoardParams,
+        at: Option<<Block as BlockT>::Hash>,
+    ) -> Result<LeaderBoardResult<AuthAccountId>> {
+        let api = self.client.runtime_api();
+        let at = BlockId::hash(at.unwrap_or_else(||
+            // If the block hash is not supplied assume the best block.
+            self.client.info().best_hash));
+
+        let QueryLeaderBoardParams {
+            app_id,
+            model_id,
+            block,
+        } = query;
+
+        let runtime_api_result = api.leader_board_result(&at, block, app_id, model_id.to_vec());
         runtime_api_result.map_err(|e| RpcError {
             code: ErrorCode::ServerError(9876), // No real reason for this value
             message: "Something wrong".into(),

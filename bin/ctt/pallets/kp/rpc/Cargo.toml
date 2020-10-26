@@ -20,6 +20,7 @@ sp-core = { version = '2.0.0', default-features = false, path = "../../../../../
 
 kp-runtime-api = { version = "2.0.0", path = "../runtime-api", default-features = false }
 primitives = { package = "ctt-primitives", path = "../../../primitives", default-features = false }
+kp = { version = "2.0.0", path = "../../kp", package = "ctt-pallet-kp", default-features = false }
 
 [features]
 default = ["std"]

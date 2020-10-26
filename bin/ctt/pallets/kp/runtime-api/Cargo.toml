@@ -13,6 +13,7 @@ sp-std = { version = '2.0.0', default-features = false, path = "../../../../../p
 sp-runtime = { version = '2.0.0', default-features = false, path = "../../../../../primitives/runtime" }
 sp-core = { version = '2.0.0', default-features = false, path = "../../../../../primitives/core" }
 primitives = { package = "ctt-primitives", path = "../../../primitives", default-features = false }
+kp = { version = "2.0.0", path = "../../kp", package = "ctt-pallet-kp", default-features = false }
 
 [dev-dependencies]
 serde_json = "1.0.41"

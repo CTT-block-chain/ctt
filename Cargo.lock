@@ -3002,6 +3002,7 @@ dependencies = [
 name = "kp-rpc"
 version = "2.0.0"
 dependencies = [
+ "ctt-pallet-kp",
  "ctt-primitives",
  "jsonrpc-core",
  "jsonrpc-core-client",
@@ -3020,6 +3021,7 @@ dependencies = [
 name = "kp-runtime-api"
 version = "2.0.0"
 dependencies = [
+ "ctt-pallet-kp",
  "ctt-primitives",
  "frame-support",
  "parity-scale-codec",

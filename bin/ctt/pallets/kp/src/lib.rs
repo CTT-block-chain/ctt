@@ -10,6 +10,8 @@ use rand_chacha::{
     rand_core::{RngCore, SeedableRng},
     ChaChaRng,
 };
+#[cfg(feature = "std")]
+use serde::{Deserialize, Serialize};
 
 #[macro_use]
 extern crate sp_std;
@@ -408,11 +410,30 @@ impl<T: Trait> Default for AppFinancedData<T> {
     }
 }
 
+// for RPC query using
+pub type LeaderBoardResult<AccountId> = (Vec<LeaderBoardItem<AccountId>>, Vec<AccountId>);
+
+#[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
+#[derive(Encode, Decode, Default, Clone, PartialEq, Eq, RuntimeDebug)]
+pub struct LeaderBoardItem<AccountId> {
+    cart_id: Vec<u8>,
+    power: PowerSize,
+    owner: AccountId,
+}
+
+/*
+impl<AccountId> PartialEq for LeaderBoardItem<AccountId> {
+    fn eq(&self, other: &Self) -> bool {
+        self.power == other.power
+    }
+}*/
+
 #[derive(Encode, Decode, Default, Clone, Eq, RuntimeDebug)]
 pub struct CommodityLeaderBoardData<T: Trait> {
     cart_id: Vec<u8>,
     cart_id_hash: T::Hash,
     power: PowerSize,
+    owner: T::AccountId,
 }
 
 impl<T: Trait> PartialEq for CommodityLeaderBoardData<T> {
@@ -791,7 +812,7 @@ decl_storage! {
 
         // Leader board history records (AppId, ModelId, BlockNumber) => (Vec<CommodityLeaderBoardData>, Vec<T::AccountId>)
         AppLeaderBoardRcord get(fn app_leader_board_record):
-            map hasher(twox_64_concat) T::Hash => (Vec<CommodityLeaderBoardData<T>>, Vec<T::AccountId>);
+            map hasher(twox_64_concat) T::Hash => LeaderBoardResult<T::AccountId>;
 
         // Leader board last record (AppId, ModelId) -> BlockNumber
         AppLeaderBoardLastTime get(fn app_leader_board_last_time):
@@ -1480,7 +1501,6 @@ decl_module! {
                 ModelDisputeType::Serious => {}
             }
 
-
             // TODO: send benefit to reporter_account
 
             Self::deposit_event(RawEvent::ModelDisputed(owner_account));
@@ -1538,11 +1558,12 @@ decl_module! {
 
             let current_block = <system::Module<T>>::block_number();
             // read out last time block number and check distance
-            let last_key = T::Hashing::hash_of(&(app_id, model_id));
+            let last_key = T::Hashing::hash_of(&(app_id, &model_id));
             let last_block = <AppLeaderBoardLastTime<T>>::get(&last_key);
             let diff = current_block - last_block;
             ensure!(diff < T::AppLeaderBoardInterval::get(), Error::<T>::LeaderBoardCreateNotPermit);
 
+            Self::leader_board_lottery(current_block, app_id, &model_id);
 
             Self::deposit_event(RawEvent::LeaderBoardsCreated(current_block));
             Ok(())
@@ -1598,6 +1619,15 @@ impl<T: Trait> Module<T> {
         CommodityTypeSets::get()
     }
 
+    pub fn leader_board_result(
+        block: u32,
+        app_id: u32,
+        model_id: Vec<u8>,
+    ) -> LeaderBoardResult<T::AccountId> {
+        let lottery_record_key = T::Hashing::hash_of(&(app_id, &model_id, block));
+        <AppLeaderBoardRcord<T>>::get(&lottery_record_key)
+    }
+
     fn is_auth_server(who: &T::AccountId) -> bool {
         <AuthServers<T>>::get().contains(who)
     }
@@ -1627,15 +1657,28 @@ impl<T: Trait> Module<T> {
         app_id: u32,
         model_id: &Vec<u8>,
         cart_id: &Vec<u8>,
+        owner: &T::AccountId,
     ) {
         let is_slashed = <KPPurchaseBlackList<T>>::contains_key(key);
         if !is_slashed {
             <KPPurchasePowerByIdHash<T>>::insert(&key, power_set);
             let power = Self::compute_commodity_power(power_set);
             // update model board
-            Self::update_realtime_power_leader_boards(app_id, model_id, cart_id, power);
+            Self::update_realtime_power_leader_boards(
+                app_id,
+                model_id,
+                cart_id,
+                power,
+                owner.clone(),
+            );
             // uupdate app board
-            Self::update_realtime_power_leader_boards(app_id, &vec![], cart_id, power);
+            Self::update_realtime_power_leader_boards(
+                app_id,
+                &vec![],
+                cart_id,
+                power,
+                owner.clone(),
+            );
         }
     }
 
@@ -1887,6 +1930,7 @@ impl<T: Trait> Module<T> {
         model_id: &Vec<u8>,
         cart_id: &Vec<u8>,
         power: PowerSize,
+        owner: T::AccountId,
     ) -> Option<u32> {
         // get leader board
         let leader_key = T::Hashing::hash_of(&(app_id, model_id));
@@ -1896,6 +1940,7 @@ impl<T: Trait> Module<T> {
             cart_id_hash: T::Hashing::hash_of(cart_id),
             cart_id: cart_id.clone(),
             power,
+            owner,
         };
 
         // check leader set double map to make sure this item is already in leader board
@@ -1982,6 +2027,106 @@ impl<T: Trait> Module<T> {
         let mut rng = ChaChaRng::from_seed(seed);
 
         //pick_item(&mut rng, &votes)
+
+        // get border items
+        let leader_key = T::Hashing::hash_of(&(app_id, model_id));
+        let board: Vec<CommodityLeaderBoardData<T>> =
+            <AppModelCommodityLeaderBoards<T>>::get(&leader_key);
+
+        if board.len() == 0 {
+            print("board empty");
+            return;
+        }
+
+        // get this board(appid, model_id) total items count
+        let total;
+        if model_id.len() == 0 {
+            total = <AppCommodityCount>::get(app_id);
+        } else {
+            let model_key = T::Hashing::hash_of(&(app_id, model_id));
+            total = <AppModelCommodityCount<T>>::get(model_key);
+        }
+
+        if total == 0 {
+            print("total commodity empty");
+            return;
+        }
+
+        // get board items count
+        let count: usize;
+        if total <= 5 {
+            count = total as usize;
+        } else {
+            let board_count_max = T::AppLeaderBoardMaxPos::get();
+            count = min(board_count_max, total * 20 / 100) as usize;
+        }
+
+        // load board leaders
+        let leaders: Vec<CommodityLeaderBoardData<T>> = (&board[..count]).to_vec();
+
+        // hit records
+        let mut records: Vec<T::AccountId> = vec![];
+
+        // get max comment info
+        let max = <CommentMaxInfoPerDocMap>::get(app_id);
+
+        let mut attend_lottery = |doc_id: &Vec<u8>| {
+            let comment_set =
+                <DocumentCommentsAccountPool<T>>::get(&T::Hashing::hash_of(&(app_id, doc_id)));
+            // go through comment set to compute lottery weight
+            for comment_data in comment_set {
+                let weight = (comment_data.cash_cost as f64 / max.max_fee as f64) * 0.98
+                    + (comment_data.position as f64 / max.max_count as f64) * 0.08;
+                print("lottery");
+
+                let weight = (weight * 100.0) as usize;
+                print(weight);
+                // now we start random choose 1 - 100
+                let hit = pick_usize(&mut rng, 100);
+                print(hit);
+                if weight > hit {
+                    print("hit");
+                    // record this hit
+                    records.push(comment_data.account);
+                }
+            }
+        };
+
+        for index in 0..count {
+            let board_item = &leaders[index];
+            // read out comment account set
+            let key = T::Hashing::hash_of(&(app_id, &board_item.cart_id));
+            // check which commodity document exist
+            if <KPCartProductIdentifyIndexByIdHash<T>>::contains_key(&key) {
+                let doc_id = <KPCartProductIdentifyIndexByIdHash<T>>::get(&key);
+                attend_lottery(&doc_id);
+            }
+
+            if <KPCartProductTryIndexByIdHash<T>>::contains_key(&key) {
+                let doc_id = <KPCartProductTryIndexByIdHash<T>>::get(&key);
+                attend_lottery(&doc_id);
+            }
+        }
+
+        print("lottery done");
+        print(records.len());
+
+        // convert leader data to RPC query required
+        let mut leader_rpc_data: Vec<LeaderBoardItem<T::AccountId>> = vec![];
+
+        for item in leaders {
+            leader_rpc_data.push(LeaderBoardItem {
+                cart_id: item.cart_id.clone(),
+                power: item.power,
+                owner: item.owner.clone(),
+            });
+        }
+
+        // write this time record
+        let lottery_last_time_key = T::Hashing::hash_of(&(app_id, model_id));
+        let lottery_record_key = T::Hashing::hash_of(&(app_id, model_id, block));
+        <AppLeaderBoardRcord<T>>::insert(&lottery_record_key, (leader_rpc_data, records));
+        <AppLeaderBoardLastTime<T>>::insert(&lottery_last_time_key, block);
     }
 
     fn update_document_comment_pool(
@@ -2036,6 +2181,7 @@ impl<T: Trait> Module<T> {
         let mut is_need_accumulation = false;
         let commodity_key;
         let mut commodity_power;
+        let commodity_owner = Self::convert_account(&doc.owner);
 
         match &doc.document_data {
             DocumentSpecificData::ProductIdentify(data) => {
@@ -2059,6 +2205,7 @@ impl<T: Trait> Module<T> {
                         doc.app_id,
                         &model_id,
                         &data.cart_id,
+                        &commodity_owner,
                     );
                 }
             }
@@ -2081,6 +2228,7 @@ impl<T: Trait> Module<T> {
                         doc.app_id,
                         &model_id,
                         &data.cart_id,
+                        &commodity_owner,
                     );
                 }
             }
@@ -2178,6 +2326,7 @@ impl<T: Trait> Module<T> {
                 doc.app_id,
                 &model_id,
                 &cart_id,
+                &Self::convert_account(&doc.owner),
             );
         }
 
@@ -2490,8 +2639,9 @@ impl<T: Trait> Module<T> {
         let mut is_need_update_account_power = false;
         let commodity_key;
         let mut commodity_power;
+        let commodity_owner = Self::convert_account(&doc.owner);
         // read document owner action power
-        let key = T::Hashing::hash_of(&(&Self::convert_account(&doc.owner), doc.app_id));
+        let key = T::Hashing::hash_of(&(&commodity_owner, doc.app_id));
         let owner_account_power = Self::account_attend_power_map(&key);
         power += owner_account_power;
 
@@ -2515,6 +2665,7 @@ impl<T: Trait> Module<T> {
                         doc.app_id,
                         &model_id,
                         &data.cart_id,
+                        &commodity_owner,
                     );
                 }
             }
@@ -2534,6 +2685,7 @@ impl<T: Trait> Module<T> {
                         doc.app_id,
                         &model_id,
                         &data.cart_id,
+                        &commodity_owner,
                     );
                 }
             }
@@ -2587,7 +2739,7 @@ impl<T: Trait> PowerVote<T::AccountId> for Module<T> {
 }
 
 /// Pick an item at pseudo-random from the slice, given the `rng`. `None` iff the slice is empty.
-fn pick_item<'a, R: RngCore, T>(rng: &mut R, items: &'a [T]) -> Option<&'a T> {
+fn _pick_item<'a, R: RngCore, T>(rng: &mut R, items: &'a [T]) -> Option<&'a T> {
     if items.is_empty() {
         None
     } else {

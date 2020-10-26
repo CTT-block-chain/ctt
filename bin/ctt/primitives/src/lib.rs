@@ -128,3 +128,6 @@ pub trait Membership<AccountId, Hash> {
     fn config_app_setting(app_id: u32, rate: u32, name: Vec<u8>);
     fn is_valid_app(app_id: u32) -> bool;
 }
+
+// For RPC return data types
+pub struct PowerLeaderData {}

@@ -36,6 +36,7 @@ use frame_support::{
     RuntimeDebug,
 };
 use frame_system::{EnsureOneOf, EnsureRoot};
+use kp::LeaderBoardResult;
 pub use node_primitives::{AccountId, AuthAccountId, PowerSize, Signature};
 use node_primitives::{AccountIndex, Balance, BlockNumber, Hash, Index, Moment};
 use pallet_contracts_rpc_runtime_api::ContractExecResult;
@@ -1214,6 +1215,10 @@ impl_runtime_apis! {
 
         fn is_commodity_power_exist(app_id: u32, cart_id: Vec<u8>) -> bool {
             Kp::kp_is_commodity_power_exist(app_id, cart_id)
+        }
+
+        fn leader_board_result(block: u32, app_id: u32, model_id: Vec<u8>) -> LeaderBoardResult<AccountId> {
+            Kp::leader_board_result(block, app_id, model_id)
         }
     }
 
