@@ -411,7 +411,12 @@ impl<T: Trait> Default for AppFinancedData<T> {
 }
 
 // for RPC query using
-pub type LeaderBoardResult<AccountId> = (Vec<LeaderBoardItem<AccountId>>, Vec<AccountId>);
+#[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
+#[derive(Encode, Decode, Default, Clone, PartialEq, Eq, RuntimeDebug)]
+pub struct LeaderBoardResult<AccountId> {
+    accounts: Vec<AccountId>,
+    board: Vec<LeaderBoardItem<AccountId>>,
+}
 
 #[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
 #[derive(Encode, Decode, Default, Clone, PartialEq, Eq, RuntimeDebug)]
@@ -2125,7 +2130,11 @@ impl<T: Trait> Module<T> {
         // write this time record
         let lottery_last_time_key = T::Hashing::hash_of(&(app_id, model_id));
         let lottery_record_key = T::Hashing::hash_of(&(app_id, model_id, block));
-        <AppLeaderBoardRcord<T>>::insert(&lottery_record_key, (leader_rpc_data, records));
+        let record = LeaderBoardResult {
+            board: leader_rpc_data,
+            accounts: records,
+        };
+        <AppLeaderBoardRcord<T>>::insert(&lottery_record_key, record);
         <AppLeaderBoardLastTime<T>>::insert(&lottery_last_time_key, block);
     }
 
