@@ -850,7 +850,7 @@ decl_event!(
         PowerSlashed(AccountId),
         AppAdded(u32),
         AppFinanced(u32),
-        LeaderBoardsCreated(BlockNumber),
+        LeaderBoardsCreated(BlockNumber, u32, Vec<u8>),
         ModelDisputed(AccountId),
     }
 );
@@ -1570,7 +1570,7 @@ decl_module! {
 
             Self::leader_board_lottery(current_block, app_id, &model_id);
 
-            Self::deposit_event(RawEvent::LeaderBoardsCreated(current_block));
+            Self::deposit_event(RawEvent::LeaderBoardsCreated(current_block, app_id, model_id));
             Ok(())
         }
     }
