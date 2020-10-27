@@ -744,6 +744,13 @@ decl_storage! {
         CommentMaxInfoPerDocMap get(fn comment_max_info_per_doc_map):
             map hasher(twox_64_concat) u32 => CommentMaxRecord;
 
+        // compare base of single document comment max record
+        // this was created when the document was created, and as a compute base
+        // also act as a action power max(will not over it)
+        // (AppId, DocumentId) -> CommentMaxRecord
+        DocumentCommentPowerBase get(fn document_comment_power_base):
+            map hasher(twox_64_concat) T::Hash => CommentMaxRecord;
+
         // AppId -> single account's max comment count
         CommentMaxInfoPerAccountMap get(fn comment_max_info_per_account_map):
             map hasher(twox_64_concat) u32 => CommentMaxRecord;
@@ -1836,12 +1843,12 @@ impl<T: Trait> Module<T> {
         unit_fee: PowerSize,
     ) -> (f64, f64, f64, f64) {
         let mut positive_rate: f64 = 0.0;
-        let count_rate = count as f64 / max.max_count as f64;
-        let cost_rate = fee as f64 / max.max_fee as f64;
-        let unit_cost_rate = unit_fee as f64 / max.max_unit_fee as f64;
+        let count_rate = (count as f64 / max.max_count as f64).min(1.0);
+        let cost_rate = (fee as f64 / max.max_fee as f64).min(1.0);
+        let unit_cost_rate = (unit_fee as f64 / max.max_unit_fee as f64).min(1.0);
 
         if max.max_positive > 0 {
-            positive_rate = positive as f64 / max.max_positive as f64;
+            positive_rate = (positive as f64 / max.max_positive as f64).min(1.0);
         }
 
         (count_rate, cost_rate, unit_cost_rate, positive_rate)
@@ -2346,9 +2353,11 @@ impl<T: Trait> Module<T> {
         Some(0)
     }
 
+    // only invoked when creating document
     fn process_document_content_power(doc: &KPDocumentData<T::AccountId, T::Hash>) {
         let content_power;
         let initial_judge_power;
+
         match &doc.document_data {
             DocumentSpecificData::ProductPublish(data) => {
                 let params_max = <DocumentPublishMaxParams>::get(doc.app_id);
@@ -2570,9 +2579,18 @@ impl<T: Trait> Module<T> {
         );
 
         // compute document attend power
+        // get this document's compare base first
+        let compare_base: CommentMaxRecord;
+        if <DocumentCommentPowerBase<T>>::contains_key(&doc_key_hash) {
+            compare_base = <DocumentCommentPowerBase<T>>::get(&doc_key_hash);
+        } else {
+            // not exist, this is the first comment of this document
+            <DocumentCommentPowerBase<T>>::insert(&doc_key_hash, &doc_comment_max);
+            compare_base = doc_comment_max.clone();
+        }
         doc_comment_power = Self::compute_attend_power(
             Self::compute_comment_action_rate(
-                &doc_comment_max,
+                &compare_base,
                 doc.comment_count,
                 doc.comment_total_fee,
                 doc.comment_positive_count,
