@@ -214,22 +214,26 @@ where
         // convert result
         match runtime_api_result {
             Ok(v) => {
-                let mut converted: LeaderBoardResultRPC<AccountId> = LeaderBoardResultRPC {
+                let mut converted: LeaderBoardResultRPC<AuthAccountId> = LeaderBoardResultRPC {
                     accounts: v.accounts,
                     board: vec![],
                 };
 
                 for item in v.board {
-                    converted.board.push(item.into());
+                    converted.board.push(LeaderBoardItemRPC {
+                        cart_id: item.cart_id.into(),
+                        power: item.power,
+                        owner: item.owner,
+                    });
                 }
                 Ok(converted)
             }
             Err(e) => {
-                RpcError {
+                Err(RpcError {
                     code: ErrorCode::ServerError(9876), // No real reason for this value
                     message: "Something wrong".into(),
                     data: Some(format!("{:?}", e).into()),
-                }
+                })
             }
         }
 

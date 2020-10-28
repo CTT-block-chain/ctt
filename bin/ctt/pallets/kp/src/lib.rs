@@ -414,16 +414,16 @@ impl<T: Trait> Default for AppFinancedData<T> {
 #[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
 #[derive(Encode, Decode, Default, Clone, PartialEq, Eq, RuntimeDebug)]
 pub struct LeaderBoardResult<AccountId> {
-    accounts: Vec<AccountId>,
-    board: Vec<LeaderBoardItem<AccountId>>,
+    pub accounts: Vec<AccountId>,
+    pub board: Vec<LeaderBoardItem<AccountId>>,
 }
 
 #[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
 #[derive(Encode, Decode, Default, Clone, PartialEq, Eq, RuntimeDebug)]
 pub struct LeaderBoardItem<AccountId> {
-    cart_id: Vec<u8>,
-    power: PowerSize,
-    owner: AccountId,
+    pub cart_id: Vec<u8>,
+    pub power: PowerSize,
+    pub owner: AccountId,
 }
 
 /*
