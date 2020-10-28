@@ -1991,6 +1991,9 @@ impl<T: Trait> Module<T> {
             <LeaderBoardCommoditySet<T>>::remove(&leader_key, removed.cart_id);
         }
 
+        // update board
+        <AppModelCommodityLeaderBoards<T>>::insert(&leader_key, &board);
+
         Some(0)
     }
 
