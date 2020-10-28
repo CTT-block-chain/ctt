@@ -1572,9 +1572,11 @@ decl_module! {
             let current_block = <system::Module<T>>::block_number();
             // read out last time block number and check distance
             let last_key = T::Hashing::hash_of(&(app_id, &model_id));
-            let last_block = <AppLeaderBoardLastTime<T>>::get(&last_key);
-            let diff = current_block - last_block;
-            ensure!(diff > T::AppLeaderBoardInterval::get(), Error::<T>::LeaderBoardCreateNotPermit);
+            if <AppLeaderBoardLastTime<T>>::contains_key(&last_key) {
+                let last_block = <AppLeaderBoardLastTime<T>>::get(&last_key);
+                let diff = current_block - last_block;
+                ensure!(diff > T::AppLeaderBoardInterval::get(), Error::<T>::LeaderBoardCreateNotPermit);
+            }
 
             Self::leader_board_lottery(current_block, app_id, &model_id);
 
@@ -1637,8 +1639,13 @@ impl<T: Trait> Module<T> {
         app_id: u32,
         model_id: Vec<u8>,
     ) -> LeaderBoardResult<T::AccountId> {
-        let lottery_record_key = T::Hashing::hash_of(&(app_id, &model_id, block));
+        let lottery_record_key = Self::leader_record_key(app_id, block.into(), &model_id);
         <AppLeaderBoardRcord<T>>::get(&lottery_record_key)
+    }
+
+    fn leader_record_key(app_id: u32, block: T::BlockNumber, model_id: &Vec<u8>) -> T::Hash {
+        let buf: Vec<T::BlockNumber> = vec![app_id.into(), block];
+        T::Hashing::hash_of(&(buf, model_id))
     }
 
     fn is_auth_server(who: &T::AccountId) -> bool {
@@ -2091,7 +2098,7 @@ impl<T: Trait> Module<T> {
                 <DocumentCommentsAccountPool<T>>::get(&T::Hashing::hash_of(&(app_id, doc_id)));
             // go through comment set to compute lottery weight
             for comment_data in comment_set {
-                let weight = (comment_data.cash_cost as f64 / max.max_fee as f64) * 0.98
+                let weight = (comment_data.cash_cost as f64 / max.max_fee as f64) * 0.88
                     + (comment_data.position as f64 / max.max_count as f64) * 0.08;
                 print("lottery");
 
@@ -2140,12 +2147,12 @@ impl<T: Trait> Module<T> {
 
         // write this time record
         let lottery_last_time_key = T::Hashing::hash_of(&(app_id, model_id));
-        let lottery_record_key = T::Hashing::hash_of(&(app_id, model_id, block));
+        let lottery_record_key = Self::leader_record_key(app_id, block, model_id);
         let record = LeaderBoardResult {
             board: leader_rpc_data,
             accounts: records,
         };
-        <AppLeaderBoardRcord<T>>::insert(&lottery_record_key, record);
+        <AppLeaderBoardRcord<T>>::insert(&lottery_record_key, &record);
         <AppLeaderBoardLastTime<T>>::insert(&lottery_last_time_key, block);
     }
 

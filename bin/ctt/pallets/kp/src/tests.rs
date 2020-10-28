@@ -168,19 +168,45 @@ fn kp_account_power() {
         let account_power = KpModule::kp_auth_account_power(alice_signer_pair.public().into());
         assert!(product_publish_power.total() + doc_power.total() == account_power);
 
+        // step 4_2 check leader board exit
+        // trigger leader board record
+        assert_ok!(create_leader_board(app_id, model_id));
+
+        // load leader board
+        let leader_result = KpModule::leader_board_result(0, app_id, model_id.as_bytes().to_vec());
+        assert!(leader_result.board.len() > 0);
+
+        // app range board
+        assert_ok!(create_leader_board(app_id, ""));
+
+        // load leader board
+        let leader_result = KpModule::leader_board_result(0, app_id, vec![]);
+        assert!(leader_result.board.len() > 0);
+
         // step 5 create a normal comment on this document
         let comment_fee: PowerSize = 100; // 1yuan
         let comment_id = "c01";
-        assert_ok!(create_comment(
-            Origin::signed(1),
-            "Alice",
-            app_id,
-            product_identify_document_id,
-            comment_id,
-            comment_fee,
-            "hash",
-            0
-        ));
+
+        for i in 0..3 {
+            let mut comment_id = "co".to_owned();
+            comment_id.push_str(&(i.to_string()));
+
+            assert_ok!(create_comment(
+                Origin::signed(1),
+                "Alice",
+                app_id,
+                product_identify_document_id,
+                &comment_id,
+                comment_fee,
+                "hash",
+                0
+            ));
+        }
+
+        // trigger leader board again to get comment accout
+        assert_ok!(create_leader_board(app_id, model_id));
+        let leader_result = KpModule::leader_board_result(0, app_id, model_id.as_bytes().to_vec());
+        assert!(leader_result.board.len() > 0 && leader_result.accounts.len() > 0);
 
         let comment_account_power = KpModule::kp_account_power(1);
 
@@ -384,6 +410,11 @@ fn create_model_type(type_id: u32, type_desc: Vec<u8>) -> dispatch::DispatchResu
 
 fn set_model_size_limit(app_id: u32, model_size: u32) -> dispatch::DispatchResult {
     KpModule::set_app_model_total(RawOrigin::Root.into(), app_id, model_size)
+}
+
+fn create_leader_board(app_id: u32, model_id: &str) -> dispatch::DispatchResult {
+    let mode_id_vec = model_id.as_bytes().to_vec();
+    KpModule::create_power_leader_board(RawOrigin::Root.into(), app_id, mode_id_vec)
 }
 
 fn create_model(
