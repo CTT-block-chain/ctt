@@ -210,10 +210,33 @@ where
         } = query;
 
         let runtime_api_result = api.leader_board_result(&at, block, app_id, model_id.to_vec());
-        runtime_api_result.map_err(|e| RpcError {
+
+        // convert result
+        match runtime_api_result {
+            Ok(v) => {
+                let mut converted: LeaderBoardResultRPC<AccountId> = LeaderBoardResultRPC {
+                    accounts: v.accounts,
+                    board: vec![],
+                };
+
+                for item in v.board {
+                    converted.board.push(item.into());
+                }
+                Ok(converted)
+            }
+            Err(e) => {
+                RpcError {
+                    code: ErrorCode::ServerError(9876), // No real reason for this value
+                    message: "Something wrong".into(),
+                    data: Some(format!("{:?}", e).into()),
+                }
+            }
+        }
+
+        /*runtime_api_result.map_err(|e| RpcError {
             code: ErrorCode::ServerError(9876), // No real reason for this value
             message: "Something wrong".into(),
             data: Some(format!("{:?}", e).into()),
-        })
+        })*/
     }
 }

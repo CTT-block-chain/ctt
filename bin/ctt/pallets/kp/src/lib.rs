@@ -16,7 +16,6 @@ use serde::{Deserialize, Serialize};
 #[macro_use]
 extern crate sp_std;
 
-use sp_core::Bytes;
 use sp_std::cmp::*;
 use sp_std::ops::Add;
 use sp_std::prelude::*;
