@@ -31,6 +31,23 @@ pub struct QueryLeaderBoardParams {
     block: u32,
 }
 
+#[derive(Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+#[serde(deny_unknown_fields)]
+pub struct LeaderBoardItemRPC<AccountId> {
+    cart_id: Bytes,
+    power: PowerSize,
+    owner: AccountId,
+}
+
+#[derive(Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+#[serde(deny_unknown_fields)]
+pub struct LeaderBoardResultRPC<AccountId> {
+    accounts: Vec<AccountId>,
+    board: Vec<LeaderBoardItemRPC<AccountId>>,
+}
+
 #[rpc]
 pub trait KpApi<BlockHash, AccountId> {
     #[rpc(name = "kP_totalPower")]
@@ -58,7 +75,7 @@ pub trait KpApi<BlockHash, AccountId> {
         &self,
         query: QueryLeaderBoardParams,
         at: Option<BlockHash>,
-    ) -> Result<LeaderBoardResult<AccountId>>;
+    ) -> Result<LeaderBoardResultRPC<AccountId>>;
 }
 
 /// A struct that implements the `KpApi`.
@@ -180,7 +197,7 @@ where
         &self,
         query: QueryLeaderBoardParams,
         at: Option<<Block as BlockT>::Hash>,
-    ) -> Result<LeaderBoardResult<AuthAccountId>> {
+    ) -> Result<LeaderBoardResultRPC<AuthAccountId>> {
         let api = self.client.runtime_api();
         let at = BlockId::hash(at.unwrap_or_else(||
             // If the block hash is not supplied assume the best block.

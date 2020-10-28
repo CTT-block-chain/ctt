@@ -16,6 +16,7 @@ use serde::{Deserialize, Serialize};
 #[macro_use]
 extern crate sp_std;
 
+use sp_core::Bytes;
 use sp_std::cmp::*;
 use sp_std::ops::Add;
 use sp_std::prelude::*;
@@ -1968,6 +1969,7 @@ impl<T: Trait> Module<T> {
             Some((index, org_item)) => {
                 if org_item == board_item {
                     // power no change, do nothing
+                    return Some(0);
                 } else {
                     // remove old one, reinsert
                     board.remove(index);
