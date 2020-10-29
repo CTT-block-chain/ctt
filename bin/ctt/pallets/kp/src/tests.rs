@@ -138,6 +138,7 @@ fn kp_account_power() {
         let ident_consistence: PowerSize = 3427;
         let cart_id = "c01";
         let product_identify_document_id = "pi01";
+        let product_try_document_id = "pt01";
         assert_ok!(create_product_identify(
             app_id,
             product_identify_document_id,
@@ -167,6 +168,18 @@ fn kp_account_power() {
         // this doc power also be doc creator account power now
         let account_power = KpModule::kp_auth_account_power(alice_signer_pair.public().into());
         assert!(product_publish_power.total() + doc_power.total() == account_power);
+
+        assert_ok!(create_product_try(
+            app_id,
+            product_try_document_id,
+            model_id,
+            product_id,
+            "hash",
+            goods_price,
+            ident_rate,
+            ident_consistence,
+            cart_id
+        ));
 
         // step 4_2 check leader board exit
         // trigger leader board record

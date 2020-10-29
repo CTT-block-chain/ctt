@@ -17,6 +17,7 @@ use serde::{Deserialize, Serialize};
 extern crate sp_std;
 
 use sp_std::cmp::*;
+use sp_std::collections::btree_map::BTreeMap;
 use sp_std::ops::Add;
 use sp_std::prelude::*;
 
@@ -1751,6 +1752,14 @@ impl<T: Trait> Module<T> {
         Some(publish_doc.model_id)
     }
 
+    fn get_pub_docid_from_doc(app_id: u32, doc_id: &Vec<u8>) -> Vec<u8> {
+        let doc_key_hash = T::Hashing::hash_of(&(app_id, doc_id));
+        let doc = Self::kp_document_data_by_idhash(&doc_key_hash);
+
+        let product_key_hash = T::Hashing::hash_of(&(app_id, &doc.product_id));
+        <KPDocumentProductIndexByIdHash<T>>::get(&product_key_hash)
+    }
+
     fn remove_leader_board_item(app_id: u32, model_id: &Vec<u8>, cart_id: &Vec<u8>) -> Option<u32> {
         let key = T::Hashing::hash_of(&(app_id, model_id));
 
@@ -2043,6 +2052,7 @@ impl<T: Trait> Module<T> {
         let seed = <[u8; 32]>::decode(&mut TrailingZeroInput::new(seed.as_ref()))
             .expect("input is padded with zeroes; qed");
         let mut rng = ChaChaRng::from_seed(seed);
+        let mut pdc_map: BTreeMap<T::Hash, ()> = BTreeMap::new();
 
         //pick_item(&mut rng, &votes)
 
@@ -2118,11 +2128,24 @@ impl<T: Trait> Module<T> {
             if <KPCartProductIdentifyIndexByIdHash<T>>::contains_key(&key) {
                 let doc_id = <KPCartProductIdentifyIndexByIdHash<T>>::get(&key);
                 attend_lottery(&doc_id);
+                // check publish doc
+                let pub_doc_id = Self::get_pub_docid_from_doc(app_id, &doc_id);
+                let id_hash = T::Hashing::hash_of(&pub_doc_id);
+                if !pdc_map.contains_key(&id_hash) {
+                    attend_lottery(&pub_doc_id);
+                    pdc_map.insert(id_hash, ());
+                }
             }
 
             if <KPCartProductTryIndexByIdHash<T>>::contains_key(&key) {
                 let doc_id = <KPCartProductTryIndexByIdHash<T>>::get(&key);
                 attend_lottery(&doc_id);
+                let pub_doc_id = Self::get_pub_docid_from_doc(app_id, &doc_id);
+                let id_hash = T::Hashing::hash_of(&pub_doc_id);
+                if !pdc_map.contains_key(&id_hash) {
+                    attend_lottery(&pub_doc_id);
+                    pdc_map.insert(id_hash, ());
+                }
             }
         }
 
@@ -2163,14 +2186,6 @@ impl<T: Trait> Module<T> {
             position: doc.comment_count,
             cash_cost: new_comment.comment_fee,
         };
-
-        /*match pool.binary_search(&pool_item) {
-            Ok(index) => {
-                // remove old and push to end
-                pool.remove(index);
-            }
-            Err(_index) => {}
-        }*/
 
         pool.push(pool_item);
         <DocumentCommentsAccountPool<T>>::insert(&key, pool);
