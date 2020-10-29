@@ -2098,13 +2098,16 @@ impl<T: Trait> Module<T> {
         // get max comment info
         let max = <CommentMaxInfoPerDocMap>::get(app_id);
 
-        let mut attend_lottery = |doc_id: &Vec<u8>| {
+        let mut attend_lottery = |doc_id: &Vec<u8>, is_pub: bool| {
             let comment_set =
                 <DocumentCommentsAccountPool<T>>::get(&T::Hashing::hash_of(&(app_id, doc_id)));
             // go through comment set to compute lottery weight
             for comment_data in comment_set {
-                let weight = (comment_data.cash_cost as f64 / max.max_fee as f64) * 0.88
+                let mut weight = (comment_data.cash_cost as f64 / max.max_fee as f64) * 0.88
                     + (comment_data.position as f64 / max.max_count as f64) * 0.08;
+                if is_pub {
+                    weight *= 0.5;
+                }
                 print("lottery");
 
                 let weight = (weight * 100.0) as usize;
@@ -2127,23 +2130,23 @@ impl<T: Trait> Module<T> {
             // check which commodity document exist
             if <KPCartProductIdentifyIndexByIdHash<T>>::contains_key(&key) {
                 let doc_id = <KPCartProductIdentifyIndexByIdHash<T>>::get(&key);
-                attend_lottery(&doc_id);
+                attend_lottery(&doc_id, false);
                 // check publish doc
                 let pub_doc_id = Self::get_pub_docid_from_doc(app_id, &doc_id);
                 let id_hash = T::Hashing::hash_of(&pub_doc_id);
                 if !pdc_map.contains_key(&id_hash) {
-                    attend_lottery(&pub_doc_id);
+                    attend_lottery(&pub_doc_id, true);
                     pdc_map.insert(id_hash, ());
                 }
             }
 
             if <KPCartProductTryIndexByIdHash<T>>::contains_key(&key) {
                 let doc_id = <KPCartProductTryIndexByIdHash<T>>::get(&key);
-                attend_lottery(&doc_id);
+                attend_lottery(&doc_id, false);
                 let pub_doc_id = Self::get_pub_docid_from_doc(app_id, &doc_id);
                 let id_hash = T::Hashing::hash_of(&pub_doc_id);
                 if !pdc_map.contains_key(&id_hash) {
-                    attend_lottery(&pub_doc_id);
+                    attend_lottery(&pub_doc_id, true);
                     pdc_map.insert(id_hash, ());
                 }
             }
