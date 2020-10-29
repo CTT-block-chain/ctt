@@ -236,11 +236,5 @@ where
                 })
             }
         }
-
-        /*runtime_api_result.map_err(|e| RpcError {
-            code: ErrorCode::ServerError(9876), // No real reason for this value
-            message: "Something wrong".into(),
-            data: Some(format!("{:?}", e).into()),
-        })*/
     }
 }

@@ -426,13 +426,6 @@ pub struct LeaderBoardItem<AccountId> {
     pub owner: AccountId,
 }
 
-/*
-impl<AccountId> PartialEq for LeaderBoardItem<AccountId> {
-    fn eq(&self, other: &Self) -> bool {
-        self.power == other.power
-    }
-}*/
-
 #[derive(Encode, Decode, Default, Clone, Eq, RuntimeDebug)]
 pub struct CommodityLeaderBoardData<T: Trait> {
     cart_id: Vec<u8>,
