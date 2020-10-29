@@ -1065,9 +1065,7 @@ parameter_types! {
     pub const ModelCreateDeposit: Balance = 100 * DOLLARS;
     pub const KptExchangeMinRate: Balance = 10 * DOLLARS;
 
-    //pub const AppLeaderBoardInterval: BlockNumber = 1 * DAYS;
-    // TODO: for test only
-    pub const AppLeaderBoardInterval: BlockNumber = 1;
+    pub const AppLeaderBoardInterval: BlockNumber = 1 * DAYS;
     pub const AppLeaderBoardMaxPos: u32 = 96;
 }
 

@@ -1565,11 +1565,12 @@ decl_module! {
             let current_block = <system::Module<T>>::block_number();
             // read out last time block number and check distance
             let last_key = T::Hashing::hash_of(&(app_id, &model_id));
+            /* TODO: disable for test
             if <AppLeaderBoardLastTime<T>>::contains_key(&last_key) {
                 let last_block = <AppLeaderBoardLastTime<T>>::get(&last_key);
                 let diff = current_block - last_block;
                 ensure!(diff > T::AppLeaderBoardInterval::get(), Error::<T>::LeaderBoardCreateNotPermit);
-            }
+            }*/
 
             Self::leader_board_lottery(current_block, app_id, &model_id);
 
