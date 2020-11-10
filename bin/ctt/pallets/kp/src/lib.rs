@@ -2281,12 +2281,26 @@ impl<T: Trait> Module<T> {
                 <MinerDocumentsAccumulationPower<T>>::get(&accumulation_key);
             // params only > 0 means valid
             if attend_power > 0 {
-                accumulation_power.attend = min(0, accumulation_power.attend - org_power.attend);
+                if accumulation_power.attend >= org_power.attend {
+                    accumulation_power.attend -= org_power.attend;
+                } else {
+                    print("should not happend attend");
+                    print(accumulation_power.attend);
+                    print(org_power.attend);
+                }
+                // accumulation_power.attend = min(0, accumulation_power.attend - org_power.attend);
                 accumulation_power.attend += attend_power;
             }
 
             if judge_power > 0 {
-                accumulation_power.judge = min(0, accumulation_power.judge - org_power.judge);
+                if accumulation_power.judge >= org_power.judge {
+                    accumulation_power.judge -= org_power.judge;
+                } else {
+                    print("should not happend judge");
+                    print(accumulation_power.judge);
+                    print(org_power.judge);
+                }
+                // accumulation_power.judge = min(0, accumulation_power.judge - org_power.judge);
                 accumulation_power.judge += judge_power;
             }
             <MinerDocumentsAccumulationPower<T>>::insert(&accumulation_key, accumulation_power);
