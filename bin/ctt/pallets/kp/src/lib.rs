@@ -4,7 +4,10 @@
 use frame_support::{
     codec::{Decode, Encode},
     decl_error, decl_event, decl_module, decl_storage, dispatch, ensure,
-    traits::{Currency, Get, LockableCurrency, OnUnbalanced, Randomness, ReservableCurrency},
+    traits::{
+        Currency, ExistenceRequirement::KeepAlive, Get, LockableCurrency, OnUnbalanced, Randomness,
+        ReservableCurrency,
+    },
 };
 use rand_chacha::{
     rand_core::{RngCore, SeedableRng},
@@ -827,6 +830,10 @@ decl_storage! {
         // Document comment order pool (AppId, DocumentId) -> Vec<CommentWeightData>
         DocumentCommentsAccountPool get(fn document_comments_account_pool):
             map hasher(twox_64_concat) T::Hash => Vec<CommentWeightData<T>>;
+
+        // App redeem record (app_id and cash_transaction_id)
+        AppRedeemRecords get(fn app_redeem_records):
+            map hasher(twox_64_concat) T::Hash => ();
     }
 }
 
@@ -853,6 +860,7 @@ decl_event!(
         AppFinanced(u32),
         LeaderBoardsCreated(BlockNumber, u32, Vec<u8>),
         ModelDisputed(AccountId),
+        AppRedeemed(AccountId),
     }
 );
 
@@ -883,6 +891,7 @@ decl_error! {
         DocumentIdentifyAlreadyExisted,
         DocumentTryAlreadyExisted,
         LeaderBoardCreateNotPermit,
+        AppRedeemTransactionIdRepeat,
     }
 }
 
@@ -1576,6 +1585,34 @@ decl_module! {
             Self::leader_board_lottery(current_block, app_id, &model_id);
 
             Self::deposit_event(RawEvent::LeaderBoardsCreated(current_block, app_id, model_id));
+            Ok(())
+        }
+
+        #[weight = 0]
+        pub fn app_redeem_kpt(
+            origin, app_id: u32,
+            amount: BalanceOf<T>,
+            cash_trsaction_id: Vec<u8>,
+
+            app_user_account: AuthAccountId,
+            app_user_sign: sr25519::Signature,
+
+            auth_server: AuthAccountId,
+            auth_sign: sr25519::Signature) -> dispatch::DispatchResult {
+
+            let who = ensure_signed(origin)?;
+            // TODO: make sure who is app store account
+
+            // TODO: sign verification
+
+            let key = T::Hashing::hash_of(&(app_id, &cash_trsaction_id));
+            ensure!(!<AppRedeemRecords<T>>::contains_key(&key), Error::<T>::AppRedeemTransactionIdRepeat);
+
+            T::Currency::transfer(&Self::convert_account(&app_user_account), &who, amount, KeepAlive)?;
+
+            <AppRedeemRecords<T>>::insert(&key, ());
+
+            Self::deposit_event(RawEvent::AppRedeemed(who));
             Ok(())
         }
     }
