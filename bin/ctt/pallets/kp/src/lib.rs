@@ -4,7 +4,10 @@
 use frame_support::{
     codec::{Decode, Encode},
     decl_error, decl_event, decl_module, decl_storage, dispatch, ensure,
-    traits::{Currency, Get, LockableCurrency, OnUnbalanced, Randomness, ReservableCurrency},
+    traits::{
+        Currency, ExistenceRequirement::KeepAlive, Get, LockableCurrency, OnUnbalanced, Randomness,
+        ReservableCurrency,
+    },
 };
 use rand_chacha::{
     rand_core::{RngCore, SeedableRng},
@@ -853,6 +856,7 @@ decl_event!(
         AppFinanced(u32),
         LeaderBoardsCreated(BlockNumber, u32, Vec<u8>),
         ModelDisputed(AccountId),
+        AppRedeemed(AccountId),
     }
 );
 
@@ -883,6 +887,7 @@ decl_error! {
         DocumentIdentifyAlreadyExisted,
         DocumentTryAlreadyExisted,
         LeaderBoardCreateNotPermit,
+        AppRedeemTransactionIdRepeat,
     }
 }
 
