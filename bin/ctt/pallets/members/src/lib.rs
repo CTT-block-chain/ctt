@@ -33,6 +33,7 @@ pub struct AppData {
 pub struct StableExchangeData<T: Trait> {
     receiver: T::AccountId,
     amount: BalanceOf<T>,
+    redeemed: bool,
 }
 
 impl<T: Trait> Default for StableExchangeData<T> {
@@ -40,6 +41,7 @@ impl<T: Trait> Default for StableExchangeData<T> {
         StableExchangeData {
             receiver: T::AccountId::default(),
             amount: 0.into(),
+            redeemed: false,
         }
     }
 }
@@ -64,6 +66,8 @@ decl_event!(
         ModleCreatorAdded(AccountId),
         NewUserBenefitDrpped(AccountId, Balance),
         StableExchanged(AccountId),
+        AppRedeemAccountSet(AccountId),
+        AppRedeemed(AccountId, AccountId, Balance),
     }
 );
 
@@ -117,6 +121,10 @@ decl_storage! {
         // app_id cash_receipt ->
         StableExchangeRecords get(fn stable_exchange_records):
             map hasher(twox_64_concat) T::Hash => StableExchangeData<T>;
+
+        // app_id stash account(for redeem receiver)
+        AppRedeemAccount get(fn app_redeem_account):
+            map hasher(twox_64_concat) u32 => T::AccountId;
     }
 }
 
@@ -131,6 +139,9 @@ decl_error! {
         BenefitAlreadyDropped,
         NotEnoughFund,
         StableExchangeReceiptExist,
+        StableExchangeReceiptNotFound,
+        StableRedeemRepeat,
+        AppRedeemAcountNotSet,
     }
 }
 
@@ -432,14 +443,54 @@ decl_module! {
             let key = T::Hashing::hash_of(&(app_id, &cash_receipt));
             ensure!(!<StableExchangeRecords<T>>::contains_key(&key), Error::<T>::StableExchangeReceiptExist);
 
-            let _ = T::Currency::transfer(&who, &receiver, amount, KeepAlive);
+            T::Currency::transfer(&who, &receiver, amount, KeepAlive)?;
 
             <StableExchangeRecords<T>>::insert(&key, StableExchangeData {
                 receiver: receiver.clone(),
                 amount,
+                redeemed: false,
             });
 
             Self::deposit_event(RawEvent::StableExchanged(receiver));
+            Ok(())
+        }
+
+        #[weight = 0]
+        pub fn stable_redeem(origin, app_id: u32, cash_receipt: Vec<u8>) -> DispatchResult {
+            let who = ensure_signed(origin)?;
+
+            let key = T::Hashing::hash_of(&(app_id, &cash_receipt));
+            ensure!(<StableExchangeRecords<T>>::contains_key(&key), Error::<T>::StableExchangeReceiptNotFound);
+
+            // read out records
+            let mut record = <StableExchangeRecords<T>>::get(&key);
+            ensure!(!record.redeemed, Error::<T>::StableRedeemRepeat);
+
+            ensure!(<AppRedeemAccount<T>>::contains_key(app_id), Error::<T>::AppRedeemAcountNotSet);
+
+            // read out application store account
+            let receiver = <AppRedeemAccount<T>>::get(app_id);
+
+            T::Currency::transfer(&who, &receiver, record.amount, KeepAlive)?;
+
+            // update record
+            record.redeemed = true;
+            <StableExchangeRecords<T>>::insert(&key, &record);
+
+            Self::deposit_event(RawEvent::AppRedeemed(who, receiver, record.amount));
+            Ok(())
+        }
+
+        #[weight = 0]
+        pub fn set_app_redeem_account(origin, app_id: u32, account: T::AccountId) -> DispatchResult {
+            let who = ensure_signed(origin)?;
+
+            // check if origin is app_id's admin
+            ensure!(<AppAdmins<T>>::get(app_id) == who,  Error::<T>::NotAppAdmin);
+
+            <AppRedeemAccount<T>>::insert(app_id, &account);
+
+            Self::deposit_event(RawEvent::AppRedeemAccountSet(account));
             Ok(())
         }
     }
