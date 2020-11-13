@@ -142,6 +142,7 @@ decl_error! {
         StableExchangeReceiptNotFound,
         StableRedeemRepeat,
         AppRedeemAcountNotSet,
+        StableRedeemAccountNotMatch,
     }
 }
 
@@ -465,7 +466,7 @@ decl_module! {
             // read out records
             let mut record = <StableExchangeRecords<T>>::get(&key);
             ensure!(!record.redeemed, Error::<T>::StableRedeemRepeat);
-
+            ensure!(record.receiver == who, Error::<T>::StableRedeemAccountNotMatch);
             ensure!(<AppRedeemAccount<T>>::contains_key(app_id), Error::<T>::AppRedeemAcountNotSet);
 
             // read out application store account
