@@ -489,9 +489,9 @@ parameter_types! {
     //pub const LaunchPeriod: BlockNumber = 28 * 24 * 60 * MINUTES;
     pub const LaunchPeriod: BlockNumber = 60 * MINUTES;
     //pub const VotingPeriod: BlockNumber = 28 * 24 * 60 * MINUTES;
-    pub const VotingPeriod: BlockNumber = 60 * MINUTES;
+    pub const VotingPeriod: BlockNumber = 2 * 24 * 60 * MINUTES;
     //pub const FastTrackVotingPeriod: BlockNumber = 3 * 24 * 60 * MINUTES;
-    pub const FastTrackVotingPeriod: BlockNumber = 60 * MINUTES;
+    pub const FastTrackVotingPeriod: BlockNumber = 24 * 60 * MINUTES;
     pub const InstantAllowed: bool = true;
     pub const MinimumDeposit: Balance = 100 * DOLLARS;
     //pub const EnactmentPeriod: BlockNumber = 30 * 24 * 60 * MINUTES;

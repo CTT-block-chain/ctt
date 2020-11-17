@@ -239,26 +239,40 @@ pub fn testnet_genesis(
     });
     let num_endowed_accounts = endowed_accounts.len();
 
-    const ENDOWMENT: Balance = 10_000_000 * DOLLARS;
-    const STASH: Balance = 100 * DOLLARS;
+    const INITIAL_VALIDATOR_STAKING: Balance = 5000 * DOLLARS;
+    const INITIAL_APP_ADMIN_BALANCE: Balance = 10_000 * DOLLARS;
 
-    let mut balances: Vec<(AccountId, Balance)> = endowed_accounts
+    // initial staking balance
+    let mut balances: Vec<(AccountId, Balance)> = initial_authorities
         .iter()
-        .cloned()
-        .map(|k| (k, ENDOWMENT))
-        .chain(initial_authorities.iter().map(|x| (x.0.clone(), STASH)))
+        .map(|x| (x.0.clone(), INITIAL_VALIDATOR_STAKING))
         .collect();
 
-    let treasury_balances: Vec<(AccountId, Balance)> = vec![
-        (TreasuryFin::account_id(), 10_000_000 * DOLLARS),
-        (TreasuryTech::account_id(), 10_000_000 * DOLLARS),
-        (TreasuryMod::account_id(), 10_000_000 * DOLLARS),
+    let stash_total = initial_authorities.len() as Balance * INITIAL_VALIDATOR_STAKING;
+
+    let individual_balances: Vec<(AccountId, Balance)> = vec![
+        // fund balances
+        (TreasuryFin::account_id(), 500_000_000 * DOLLARS),
+        (TreasuryTech::account_id(), 99_000_000 * DOLLARS),
+        (TreasuryMod::account_id(), 400_000_000 * DOLLARS),
+        // initial JIANFA app admin balance
+        (
+            // 5GsdH24tsB3NxtiewWVEeqBWFV6kT2JKCEPig7LxjxUJw4Fc
+            hex!["d4ba0cb32eadac107a7f5482ea17e67b7b89cf7d46ace67227edb5d1bfe5de1d"].into(),
+            INITIAL_APP_ADMIN_BALANCE,
+        ),
+        // initial sudo balance
+        (
+            // 5FcBV9rczxcFLYFhxkuYnWHVi8UTt9DMqxhwkps1xeRgX7dP
+            hex!["9cb650c86e586c0c3791df694ac610a0adfaeeacdae856668186bef833dccf59"].into(),
+            1_000_000 * DOLLARS - stash_total - INITIAL_APP_ADMIN_BALANCE,
+        ),
     ];
 
     balances = balances
         .iter()
         .cloned()
-        .chain(treasury_balances.iter().cloned())
+        .chain(individual_balances.iter().cloned())
         .collect();
 
     GenesisConfig {
@@ -285,7 +299,14 @@ pub fn testnet_genesis(
             minimum_validator_count: initial_authorities.len() as u32,
             stakers: initial_authorities
                 .iter()
-                .map(|x| (x.0.clone(), x.1.clone(), STASH, StakerStatus::Validator))
+                .map(|x| {
+                    (
+                        x.0.clone(),
+                        x.1.clone(),
+                        INITIAL_VALIDATOR_STAKING,
+                        StakerStatus::Validator,
+                    )
+                })
                 .collect(),
             invulnerables: initial_authorities.iter().map(|x| x.0.clone()).collect(),
             slash_reward_fraction: Perbill::from_percent(10),
@@ -297,7 +318,7 @@ pub fn testnet_genesis(
                 .iter()
                 .take((num_endowed_accounts + 1) / 2)
                 .cloned()
-                .map(|member| (member, STASH))
+                .map(|member| (member, INITIAL_VALIDATOR_STAKING))
                 .collect(),
         }),
         pallet_collective_Instance1: Some(CouncilConfig::default()),
