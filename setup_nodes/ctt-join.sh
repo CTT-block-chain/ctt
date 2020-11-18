@@ -11,4 +11,5 @@
   --validator \
   --rpc-methods=Unsafe \
   --name "$5" \
+  --telemetry-url 'ws://104.215.0.199:8888/submit 0' \
   --bootnodes /ip4/127.0.0.1/tcp/30333/p2p/12D3KooWRDy99jssWTqK9z5EiaVAsDsAR36fwDyQrYg2TJEmH83X

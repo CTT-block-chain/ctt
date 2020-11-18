@@ -12,4 +12,5 @@
   --ws-external \
   --rpc-external \
   --rpc-cors all \
+  --telemetry-url 'ws://104.215.0.199:8888/submit 0' \
   --name "$5"
