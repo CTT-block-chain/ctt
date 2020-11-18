@@ -8,4 +8,8 @@
   --rpc-port "$4" \
   --validator \
   --rpc-methods=Unsafe \
+  -lruntime=debug \
+  --ws-external \
+  --rpc-external \
+  --rpc-cors all \
   --name "$5"
