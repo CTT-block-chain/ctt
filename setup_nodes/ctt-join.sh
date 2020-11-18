@@ -11,4 +11,4 @@
   --validator \
   --rpc-methods=Unsafe \
   --name "$5" \
-  --bootnodes /ip4/127.0.0.1/tcp/30333/p2p/12D3KooWShtihW3jTpq6WmkHJFuPYD3iKbxPUiA8XbEePPVKA86m
+  --bootnodes /ip4/127.0.0.1/tcp/30333/p2p/12D3KooWT2uQPqzQD5JvBskruUMShJ6qUxfr9TCzGRunsjeMgCJj
