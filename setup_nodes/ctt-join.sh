@@ -2,7 +2,7 @@
 
 # remember to change bootnodes to actually n1
 
-../target/debug/ctt \
+../target/release/ctt \
   --base-path ~/cttdb/n"$1" \
   --chain ./customSpecRaw.json \
   --port "$2" \
