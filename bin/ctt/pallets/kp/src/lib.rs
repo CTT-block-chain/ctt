@@ -2681,18 +2681,6 @@ impl<T: Trait> Module<T> {
 
         // update account attend power store
         let key = T::Hashing::hash_of(&(&comment.sender, comment.app_id));
-        // is sender a miner? (miner power exist)
-        if <MinerPowerByAccount<T>>::contains_key(&comment.sender) {
-            let org_miner_power = <MinerPowerByAccount<T>>::get(&comment.sender);
-            let org_attend_power = <AccountAttendPowerMap<T>>::get(&key);
-            if account_comment_power > org_attend_power {
-                <MinerPowerByAccount<T>>::insert(
-                    &comment.sender,
-                    org_miner_power + account_comment_power - org_attend_power,
-                );
-            }
-        }
-
         <AccountAttendPowerMap<T>>::insert(&key, account_comment_power);
 
         // update document attend power store
@@ -2772,10 +2760,7 @@ impl<T: Trait> Module<T> {
             let power_key_hash = T::Hashing::hash_of(&(doc.app_id, &doc.owner));
             let doc_power = <MinerDocumentsAccumulationPower<T>>::get(&power_key_hash);
             // need update
-            <MinerPowerByAccount<T>>::insert(
-                Self::convert_account(&doc.owner),
-                power + doc_power.total(),
-            );
+            <MinerPowerByAccount<T>>::insert(Self::convert_account(&doc.owner), doc_power.total());
         } else {
             // for product choose and model create
             let power_key_hash = T::Hashing::hash_of(&(doc.app_id, &doc.document_id));
