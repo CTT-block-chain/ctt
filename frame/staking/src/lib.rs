@@ -888,7 +888,7 @@ pub trait Trait: frame_system::Trait + SendTransactionTypes<Call<Self>> {
 
 	/// Weight information for extrinsics in this pallet.
     type WeightInfo: WeightInfo;
-    
+
     /// CTT power vote type
     type PowerVote: PowerVote<Self::AccountId>;
 }
@@ -2192,13 +2192,14 @@ impl<T: Trait> Module<T> {
 	/// internal impl of [`slashable_balance_of`] that returns [`VoteWeight`].
 	fn slashable_balance_of_vote_weight(stash: &T::AccountId) -> VoteWeight {
         // CTT: read out account kp power ratio, multiply with slashable account balance vote
-        let kp_ratio = T::PowerVote::account_power_ratio(stash);
+		let kp_ratio = T::PowerVote::account_power_ratio(stash);
+		let stash_balance = Self::slashable_balance_of(stash);
+		let math_covert: u64 = stash_balance.saturated_into::<u64>();
+		let adjusted = (math_covert as f64 * kp_ratio) as u64;
 
-        let balance_vote = <T::CurrencyToVote as Convert<BalanceOf<T>, VoteWeight>>::convert(
-            Self::slashable_balance_of(stash),
-        );
-
-        (balance_vote as f64 * kp_ratio) as VoteWeight
+        <T::CurrencyToVote as Convert<BalanceOf<T>, VoteWeight>>::convert(
+            adjusted.try_into().unwrap_or(stash_balance),
+        )
     }
 
 	/// Dump the list of validators and nominators into vectors and keep them on-chain.

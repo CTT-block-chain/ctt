@@ -4,10 +4,7 @@
 use frame_support::{
     codec::{Decode, Encode},
     decl_error, decl_event, decl_module, decl_storage, dispatch, ensure,
-    traits::{
-        Currency, ExistenceRequirement::KeepAlive, Get, LockableCurrency, OnUnbalanced, Randomness,
-        ReservableCurrency,
-    },
+    traits::{Currency, Get, LockableCurrency, OnUnbalanced, Randomness, ReservableCurrency},
 };
 use rand_chacha::{
     rand_core::{RngCore, SeedableRng},
@@ -37,7 +34,7 @@ use primitives::{AuthAccountId, Membership, PowerSize};
 use sp_core::sr25519;
 use sp_runtime::{
     print,
-    traits::{Hash, TrailingZeroInput, Verify},
+    traits::{Hash, IntegerSquareRoot, TrailingZeroInput, Verify},
     MultiSignature, RuntimeDebug,
 };
 
@@ -1601,13 +1598,14 @@ impl<T: Trait> Module<T> {
     }
 
     pub fn kp_account_power_ratio(account: &T::AccountId) -> f64 {
-        let account_power = <MinerPowerByAccount<T>>::get(account) as f64;
-        let total_power = Self::kp_total_power();
-        if total_power == 0 {
-            0.0
+        let account_power = <MinerPowerByAccount<T>>::get(account);
+        return if account_power == 0 {
+            0.1
+        } else if account_power <= 100 {
+            account_power as f64 / 100.0
         } else {
-            account_power / total_power as f64
-        }
+            account_power.integer_sqrt() as f64 / 10.0
+        };
     }
 
     pub fn kp_commodity_power(app_id: u32, cart_id: Vec<u8>) -> PowerSize {
