@@ -112,6 +112,7 @@ impl Clone for BenchDb {
 			seed_dir.to_string_lossy(),
 			dir.path().to_string_lossy(),
 		);
+		/* temp disable for unknow compile errors
 		let seed_db_files = std::fs::read_dir(seed_dir)
 			.expect("failed to list file in seed dir")
 			.map(|f_result|
@@ -123,6 +124,7 @@ impl Clone for BenchDb {
 			dir.path(),
 			&fs_extra::dir::CopyOptions::new(),
 		).expect("Copy of seed database is ok");
+		*/
 
 		BenchDb { keyring, directory_guard: Guard(dir), database_type }
 	}
