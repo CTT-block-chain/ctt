@@ -50,27 +50,27 @@ pub struct LeaderBoardResultRPC<AccountId> {
 
 #[rpc]
 pub trait KpApi<BlockHash, AccountId> {
-    #[rpc(name = "kP_totalPower")]
+    #[rpc(name = "kp_totalPower")]
     fn total_power(&self, at: Option<BlockHash>) -> Result<PowerSize>;
 
-    #[rpc(name = "kP_accountPower")]
+    #[rpc(name = "kp_accountPower")]
     fn account_power(&self, account: AccountId, at: Option<BlockHash>) -> Result<PowerSize>;
 
-    #[rpc(name = "kP_commodityPower")]
+    #[rpc(name = "kp_commodityPower")]
     fn commodity_power(
         &self,
         query: QueryCommodityPowerParams,
         at: Option<BlockHash>,
     ) -> Result<PowerSize>;
 
-    #[rpc(name = "kP_isCommodityPowerExist")]
+    #[rpc(name = "kp_isCommodityPowerExist")]
     fn is_commodity_power_exist(
         &self,
         query: QueryCommodityPowerParams,
         at: Option<BlockHash>,
     ) -> Result<bool>;
 
-    #[rpc(name = "kP_leaderBoardResult")]
+    #[rpc(name = "kp_leaderBoardResult")]
     fn leader_board_result(
         &self,
         query: QueryLeaderBoardParams,
