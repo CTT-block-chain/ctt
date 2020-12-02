@@ -998,7 +998,7 @@ decl_module! {
 
             let type_key = T::Hashing::hash_of(&(app_id, commodity_type));
             let should_transfer = !<ModelFirstTypeBenefitRecord<T>>::contains_key(&type_key);
-            T::Membership::set_model_creator(&key, &(Self::convert_account(&model.owner)), &who, should_transfer);
+            T::Membership::set_model_creator(&key, &(Self::convert_account(&model.owner)), should_transfer);
             if should_transfer {
                 <ModelFirstTypeBenefitRecord<T>>::insert(&type_key, true);
             }

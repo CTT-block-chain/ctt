@@ -14,6 +14,7 @@ use frame_system::{self as system, ensure_root, ensure_signed};
 use primitives::{AccountSet, AuthAccountId, Membership};
 use sp_core::sr25519;
 use sp_runtime::{
+    print,
     traits::{AccountIdConversion, Hash},
     ModuleId, RuntimeDebug,
 };
@@ -601,17 +602,13 @@ impl<T: Trait> Membership<T::AccountId, T::Hash> for Module<T> {
         Self::is_developer(who)
     }
 
-    fn set_model_creator(
-        key: &T::Hash,
-        creator: &T::AccountId,
-        _admin: &T::AccountId,
-        is_give_benefit: bool,
-    ) -> () {
+    fn set_model_creator(key: &T::Hash, creator: &T::AccountId, is_give_benefit: bool) -> () {
         // this interface is only available form pallet internal (from kp to member invoking)
         <ModelCreators<T>>::insert(key, creator);
         // give benifit to creator
 
         let treasury_account: T::AccountId = T::ModTreasuryModuleId::get().into_account();
+        print("set_model_creator");
 
         if is_give_benefit {
             let _ = T::Currency::transfer(
