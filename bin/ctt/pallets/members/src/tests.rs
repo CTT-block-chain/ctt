@@ -76,6 +76,7 @@ impl Trait for TestRuntime {
     type Event = TestEvent;
     type Currency = Balances;
     type ModelCreatorCreateBenefit = ();
+    type ModTreasuryModuleId = ();
 }
 
 pub type System = system::Module<TestRuntime>;

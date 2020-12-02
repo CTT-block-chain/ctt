@@ -13,7 +13,10 @@ use frame_support::{
 use frame_system::{self as system, ensure_root, ensure_signed};
 use primitives::{AccountSet, AuthAccountId, Membership};
 use sp_core::sr25519;
-use sp_runtime::{traits::Hash, RuntimeDebug};
+use sp_runtime::{
+    traits::{AccountIdConversion, Hash},
+    ModuleId, RuntimeDebug,
+};
 use sp_std::collections::btree_set::BTreeSet;
 use sp_std::prelude::*;
 
@@ -50,6 +53,7 @@ pub trait Trait: system::Trait {
     type Event: From<Event<Self>> + Into<<Self as system::Trait>::Event>;
     type Currency: Currency<Self::AccountId>;
     type ModelCreatorCreateBenefit: Get<BalanceOf<Self>>;
+    type ModTreasuryModuleId: Get<ModuleId>;
 }
 
 decl_event!(
@@ -600,16 +604,18 @@ impl<T: Trait> Membership<T::AccountId, T::Hash> for Module<T> {
     fn set_model_creator(
         key: &T::Hash,
         creator: &T::AccountId,
-        admin: &T::AccountId,
+        _admin: &T::AccountId,
         is_give_benefit: bool,
     ) -> () {
         // this interface is only available form pallet internal (from kp to member invoking)
         <ModelCreators<T>>::insert(key, creator);
         // give benifit to creator
-        // TODO: should from Treasury
+
+        let treasury_account: T::AccountId = T::ModTreasuryModuleId::get().into_account();
+
         if is_give_benefit {
             let _ = T::Currency::transfer(
-                admin,
+                &treasury_account,
                 creator,
                 T::ModelCreatorCreateBenefit::get(),
                 KeepAlive,

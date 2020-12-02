@@ -175,6 +175,7 @@ impl members::Trait for Test {
     type Event = TestEvent;
     type Currency = Balances;
     type ModelCreatorCreateBenefit = ();
+    type ModTreasuryModuleId = ();
 }
 pub type System = system::Module<Test>;
 pub type Balances = pallet_balances::Module<Test>;
