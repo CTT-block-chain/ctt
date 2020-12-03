@@ -718,7 +718,7 @@ decl_storage! {
         KPCommentDataByIdHash get(fn kp_comment_data_by_idhash):
             map hasher(twox_64_concat) T::Hash => KPCommentDataOf<T>;
 
-        // global total knowledge power
+        // global total knowledge power (only for commodity power)
         TotalPower get(fn total_power): PowerSize;
 
         // miner power table
@@ -1679,8 +1679,28 @@ impl<T: Trait> Module<T> {
     ) {
         let is_slashed = <KPPurchaseBlackList<T>>::contains_key(key);
         if !is_slashed {
-            <KPPurchasePowerByIdHash<T>>::insert(&key, power_set);
             let power = Self::compute_commodity_power(power_set);
+            // read out total power
+            let mut total_power = TotalPower::get();
+
+            // check if this has been added to total power before
+            if <KPPurchasePowerByIdHash<T>>::contains_key(&key) {
+                let org_power_set = <KPPurchasePowerByIdHash<T>>::get(&key);
+                // only add a diff to total power
+                let org_power = Self::compute_commodity_power(&org_power_set);
+
+                if total_power >= org_power {
+                    total_power -= org_power;
+                } else {
+                    print("process total power unexpected");
+                    total_power = 0;
+                }
+            }
+
+            total_power += power;
+            TotalPower::put(total_power);
+            <KPPurchasePowerByIdHash<T>>::insert(&key, power_set);
+
             // update model board
             Self::update_realtime_power_leader_boards(
                 app_id,
@@ -1706,6 +1726,21 @@ impl<T: Trait> Module<T> {
             content: 0,
             judge: 0,
         };
+
+        if <KPPurchasePowerByIdHash<T>>::contains_key(&key) {
+            let org_power_set = <KPPurchasePowerByIdHash<T>>::get(&key);
+            let org_power = Self::compute_commodity_power(&org_power_set);
+            let mut total_power = TotalPower::get();
+            if total_power >= org_power {
+                total_power -= org_power;
+            } else {
+                print("process total power (slash) unexpected");
+                total_power = 0;
+            }
+
+            TotalPower::put(total_power);
+        }
+
         <KPPurchasePowerByIdHash<T>>::insert(
             &key,
             &(
