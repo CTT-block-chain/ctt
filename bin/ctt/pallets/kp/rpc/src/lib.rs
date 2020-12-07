@@ -95,7 +95,7 @@ pub trait KpApi<BlockHash, AccountId, Balance> {
     #[rpc(name = "kp_stakeToVote")]
     fn stake_to_vote(
         &self,
-        params: StakeToVoteParams,
+        params: StakeToVoteParams<AccountId, Balance>,
         at: Option<BlockHash>,
     ) -> Result<StakeToVoteResult<Balance>>;
 }
