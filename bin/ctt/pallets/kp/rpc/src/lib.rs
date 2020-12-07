@@ -20,16 +20,14 @@ use std::sync::Arc;
 #[serde(deny_unknown_fields)]
 pub struct StakeToVoteParams<AccountId, Balance> {
 	account: AccountId,
-	#[compact]
-    stake: Balance,
+    #[compact] stake: Balance,
 }
 
 #[derive(Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 #[serde(deny_unknown_fields)]
 pub struct StakeToVoteResult<Balance> {
-	#[compact]
-	result: Balance,
+	#[compact] result: Balance,
 }
 
 #[derive(Serialize, Deserialize)]
