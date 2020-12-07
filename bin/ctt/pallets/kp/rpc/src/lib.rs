@@ -1,7 +1,7 @@
 //! RPC interface for the kp module.
 
-use codec::{Decode, Encode, Compact};
 pub use self::gen_client::Client as KpClient;
+use codec::{Compact, Decode, Encode};
 use jsonrpc_core::{Error as RpcError, ErrorCode, Result};
 use jsonrpc_derive::rpc;
 use kp::LeaderBoardResult;
@@ -19,7 +19,7 @@ use std::sync::Arc;
 #[serde(rename_all = "camelCase")]
 #[serde(deny_unknown_fields)]
 pub struct StakeToVoteParams<AccountId, Balance> {
-	account: AccountId,
+    account: AccountId,
     stake: Compact<Balance>,
 }
 
@@ -27,7 +27,7 @@ pub struct StakeToVoteParams<AccountId, Balance> {
 #[serde(rename_all = "camelCase")]
 #[serde(deny_unknown_fields)]
 pub struct StakeToVoteResult<Balance> {
-	result: Compact<Balance>,
+    result: Compact<Balance>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -270,27 +270,21 @@ where
         let at = BlockId::hash(at.unwrap_or_else(||
             // If the block hash is not supplied assume the best block.
 			self.client.info().best_hash));
-		
-		let StakeToVoteParams { 
-			account, stake
-		} = params;
 
-		let runtime_api_result = api.stake_to_vote(&at, account, stake);
-		
-		// convert result
+        let StakeToVoteParams { account, stake } = params;
+
+        let runtime_api_result = api.stake_to_vote(&at, account, stake.into());
+
+        // convert result
         match runtime_api_result {
-			Ok(v) => {
-				Ok(StakeToVoteResult {
-					result: v
-				})
-			}
-			Err(e) => {
+            Ok(v) => Ok(StakeToVoteResult { result: v.into() }),
+            Err(e) => {
                 Err(RpcError {
                     code: ErrorCode::ServerError(9876), // No real reason for this value
                     message: "Something wrong".into(),
                     data: Some(format!("{:?}", e).into()),
                 })
             }
-		}
+        }
     }
 }
