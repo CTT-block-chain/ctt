@@ -2,7 +2,7 @@
 #![allow(clippy::too_many_arguments)]
 
 use codec::Codec;
-use kp::LeaderBoardResult;
+use kp::{LeaderBoardResult, StakeToVoteResult};
 use primitives::{Balance, PowerSize};
 use sp_std::prelude::*;
 
@@ -15,6 +15,6 @@ sp_api::decl_runtime_apis! {
         fn commodity_power(app_id: u32, cart_id: Vec<u8>) -> PowerSize;
         fn is_commodity_power_exist(app_id: u32, cart_id: Vec<u8>) -> bool;
         fn leader_board_result(block: u32, app_id: u32, model_id: Vec<u8>) -> LeaderBoardResult<AccountId>;
-        fn stake_to_vote(account: AccountId, stake: Balance) -> Balance;
+        fn stake_to_vote(account: AccountId, stake: Balance) -> StakeToVoteResult<Balance>;
     }
 }

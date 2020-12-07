@@ -10,9 +10,24 @@ use primitives::{AuthAccountId, Balance, PowerSize};
 use serde::{Deserialize, Serialize};
 use sp_api::ProvideRuntimeApi;
 use sp_blockchain::HeaderBackend;
-use sp_core::Bytes;
+use sp_core::Bytes;t
 use sp_runtime::{generic::BlockId, traits::Block as BlockT};
 use std::sync::Arc;
+
+#[derive(Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+#[serde(deny_unknown_fields)]
+pub struct StakeToVoteParams<AccountId, Balance> {
+	account: AccountId,
+    stake: Balance,
+}
+
+#[derive(Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+#[serde(deny_unknown_fields)]
+pub struct StakeToVoteResult<Balance> {
+	result: Balance,
+}
 
 #[derive(Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -80,10 +95,9 @@ pub trait KpApi<BlockHash, AccountId, Balance> {
     #[rpc(name = "kp_stakeToVote")]
     fn stake_to_vote(
         &self,
-        account: AccountId,
-        stake: Balance,
+        params: StakeToVoteParams,
         at: Option<BlockHash>,
-    ) -> Result<Balance>;
+    ) -> Result<StakeToVoteResult<Balance>>;
 }
 
 /// A struct that implements the `KpApi`.
@@ -248,14 +262,17 @@ where
 
     fn stake_to_vote(
         &self,
-        account: AuthAccountId,
-        stake: Balance,
+        params: StakeToVoteParams<AuthAccountId, Balance>,
         at: Option<<Block as BlockT>::Hash>,
-    ) -> Result<Balance> {
+    ) -> Result<StakeToVoteResult<Balance>> {
         let api = self.client.runtime_api();
         let at = BlockId::hash(at.unwrap_or_else(||
             // If the block hash is not supplied assume the best block.
-            self.client.info().best_hash));
+			self.client.info().best_hash));
+		
+		let StakeToVoteParams { 
+			account, stake
+		} = params;
 
         let runtime_api_result = api.stake_to_vote(&at, account, stake);
         runtime_api_result.map_err(|e| RpcError {
