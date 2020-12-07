@@ -1206,7 +1206,7 @@ pub type Executive = frame_executive::Executive<
 >;
 
 impl_runtime_apis! {
-    impl kp_runtime_api::KpApi<Block, AuthAccountId> for Runtime {
+    impl kp_runtime_api::KpApi<Block, AuthAccountId, Balance> for Runtime {
         fn total_power() -> PowerSize {
             Kp::kp_total_power()
         }
@@ -1225,6 +1225,10 @@ impl_runtime_apis! {
 
         fn leader_board_result(block: u32, app_id: u32, model_id: Vec<u8>) -> LeaderBoardResult<AccountId> {
             Kp::leader_board_result(block, app_id, model_id)
+        }
+
+        fn stake_to_vote(account: AuthAccountId, stake: Balance) -> Balance {
+            Kp::kp_staking_to_vote(&account, stake)
         }
     }
 

@@ -18,6 +18,7 @@ use serde::{Deserialize, Serialize};
 
 use sp_std::cmp::*;
 use sp_std::collections::btree_map::BTreeMap;
+use sp_std::convert::{From, TryInto};
 use sp_std::ops::Add;
 use sp_std::prelude::*;
 
@@ -34,7 +35,7 @@ use primitives::{AuthAccountId, Membership, PowerSize};
 use sp_core::sr25519;
 use sp_runtime::{
     print,
-    traits::{Hash, IntegerSquareRoot, TrailingZeroInput, Verify},
+    traits::{Hash, IntegerSquareRoot, SaturatedConversion, Saturating, TrailingZeroInput, Verify},
     MultiSignature, RuntimeDebug,
 };
 
@@ -1606,6 +1607,15 @@ impl<T: Trait> Module<T> {
         } else {
             account_power.integer_sqrt() as f64 / 10.0
         };
+    }
+
+    pub fn kp_staking_to_vote(account: &T::AccountId, stake: BalanceOf<T>) -> BalanceOf<T> {
+        let ratio = Self::kp_account_power_ratio(account);
+
+        let math_covert: u64 = stake.saturated_into::<u64>();
+        let adjusted = (math_covert as f64 * ratio) as u64;
+
+        return adjusted.saturated_into();
     }
 
     pub fn kp_commodity_power(app_id: u32, cart_id: Vec<u8>) -> PowerSize {

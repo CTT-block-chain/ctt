@@ -6,7 +6,7 @@ use jsonrpc_derive::rpc;
 use kp::LeaderBoardResult;
 use kp_runtime_api::KpApi as KpRuntimeApi;
 pub use kp_runtime_api::KpApi as KpRuntimeRpcApi;
-use primitives::{AuthAccountId, PowerSize};
+use primitives::{AuthAccountId, Balance, PowerSize};
 use serde::{Deserialize, Serialize};
 use sp_api::ProvideRuntimeApi;
 use sp_blockchain::HeaderBackend;
@@ -49,7 +49,7 @@ pub struct LeaderBoardResultRPC<AccountId> {
 }
 
 #[rpc]
-pub trait KpApi<BlockHash, AccountId> {
+pub trait KpApi<BlockHash, AccountId, Balance> {
     #[rpc(name = "kp_totalPower")]
     fn total_power(&self, at: Option<BlockHash>) -> Result<PowerSize>;
 
@@ -76,6 +76,14 @@ pub trait KpApi<BlockHash, AccountId> {
         query: QueryLeaderBoardParams,
         at: Option<BlockHash>,
     ) -> Result<LeaderBoardResultRPC<AccountId>>;
+
+    #[rpc(name = "kp_stakeToVote")]
+    fn stake_to_vote(
+        &self,
+        account: AccountId,
+        stake: Balance,
+        at: Option<BlockHash>,
+    ) -> Result<Balance>;
 }
 
 /// A struct that implements the `KpApi`.
@@ -113,13 +121,13 @@ impl From<Error> for i64 {
     }
 }
 
-impl<C, Block> KpApi<<Block as BlockT>::Hash, AuthAccountId> for Kp<C, Block>
+impl<C, Block> KpApi<<Block as BlockT>::Hash, AuthAccountId, Balance> for Kp<C, Block>
 where
     Block: BlockT,
     C: Send + Sync + 'static,
     C: ProvideRuntimeApi<Block>,
     C: HeaderBackend<Block>,
-    C::Api: KpRuntimeRpcApi<Block, AuthAccountId>,
+    C::Api: KpRuntimeRpcApi<Block, AuthAccountId, Balance>,
 {
     fn total_power(&self, at: Option<<Block as BlockT>::Hash>) -> Result<PowerSize> {
         let api = self.client.runtime_api();
@@ -236,5 +244,24 @@ where
                 })
             }
         }
+    }
+
+    fn stake_to_vote(
+        &self,
+        account: AuthAccountId,
+        stake: Balance,
+        at: Option<<Block as BlockT>::Hash>,
+    ) -> Result<Balance> {
+        let api = self.client.runtime_api();
+        let at = BlockId::hash(at.unwrap_or_else(||
+            // If the block hash is not supplied assume the best block.
+            self.client.info().best_hash));
+
+        let runtime_api_result = api.stake_to_vote(&at, account, stake);
+        runtime_api_result.map_err(|e| RpcError {
+            code: ErrorCode::ServerError(9876), // No real reason for this value
+            message: "Something wrong".into(),
+            data: Some(format!("{:?}", e).into()),
+        })
     }
 }
