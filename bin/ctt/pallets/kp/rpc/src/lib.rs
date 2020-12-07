@@ -280,7 +280,7 @@ where
         match runtime_api_result {
 			Ok(v) => {
 				Ok(StakeToVoteResult {
-					balance: v
+					result: v
 				})
 			},
 			Err(e) => {
