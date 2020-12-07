@@ -1,5 +1,6 @@
 //! RPC interface for the kp module.
 
+use codec::Compact;
 pub use self::gen_client::Client as KpClient;
 use jsonrpc_core::{Error as RpcError, ErrorCode, Result};
 use jsonrpc_derive::rpc;
