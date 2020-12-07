@@ -12,22 +12,25 @@ use serde::{Deserialize, Serialize};
 use sp_api::ProvideRuntimeApi;
 use sp_blockchain::HeaderBackend;
 use sp_core::Bytes;
-use sp_runtime::{generic::BlockId, traits::Block as BlockT};
+use sp_runtime::{
+    generic::BlockId,
+    traits::{Block as BlockT, SaturatedConversion},
+};
 use std::sync::Arc;
 
 #[derive(Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 #[serde(deny_unknown_fields)]
-pub struct StakeToVoteParams<AccountId, Balance> {
+pub struct StakeToVoteParams<AccountId> {
     account: AccountId,
-    stake: Compact<Balance>,
+    stake: u64,
 }
 
 #[derive(Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 #[serde(deny_unknown_fields)]
-pub struct StakeToVoteResult<Balance> {
-    result: Compact<Balance>,
+pub struct StakeToVoteResult {
+    result: u64,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -96,9 +99,9 @@ pub trait KpApi<BlockHash, AccountId, Balance> {
     #[rpc(name = "kp_stakeToVote")]
     fn stake_to_vote(
         &self,
-        params: StakeToVoteParams<AccountId, Balance>,
+        params: StakeToVoteParams<AccountId>,
         at: Option<BlockHash>,
-    ) -> Result<StakeToVoteResult<Balance>>;
+    ) -> Result<StakeToVoteResult>;
 }
 
 /// A struct that implements the `KpApi`.
@@ -263,9 +266,9 @@ where
 
     fn stake_to_vote(
         &self,
-        params: StakeToVoteParams<AuthAccountId, Balance>,
+        params: StakeToVoteParams<AuthAccountId>,
         at: Option<<Block as BlockT>::Hash>,
-    ) -> Result<StakeToVoteResult<Balance>> {
+    ) -> Result<StakeToVoteResult> {
         let api = self.client.runtime_api();
         let at = BlockId::hash(at.unwrap_or_else(||
             // If the block hash is not supplied assume the best block.
@@ -273,11 +276,13 @@ where
 
         let StakeToVoteParams { account, stake } = params;
 
-        let runtime_api_result = api.stake_to_vote(&at, account, stake.into());
+        let runtime_api_result = api.stake_to_vote(&at, account, stake.saturated_into());
 
         // convert result
         match runtime_api_result {
-            Ok(v) => Ok(StakeToVoteResult { result: v.into() }),
+            Ok(v) => Ok(StakeToVoteResult {
+                result: v.saturated_into(),
+            }),
             Err(e) => {
                 Err(RpcError {
                     code: ErrorCode::ServerError(9876), // No real reason for this value
