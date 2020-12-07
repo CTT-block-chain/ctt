@@ -7,17 +7,19 @@ use kp::LeaderBoardResult;
 use kp_runtime_api::KpApi as KpRuntimeApi;
 pub use kp_runtime_api::KpApi as KpRuntimeRpcApi;
 use primitives::{AuthAccountId, Balance, PowerSize};
-use serde::{Deserialize, Serialize};
 use sp_api::ProvideRuntimeApi;
 use sp_blockchain::HeaderBackend;
 use sp_core::Bytes;
 use sp_runtime::{
     generic::BlockId,
-    traits::{Block as BlockT, SaturatedConversion},
+    traits::{Block as BlockT, MaybeDisplay, MaybeFromStr, SaturatedConversion},
 };
 use std::sync::Arc;
 
-#[derive(Serialize, Deserialize)]
+#[cfg(feature = "std")]
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
+
+#[cfg_attr(feature = "std", derive(Debug, Serialize, Deserialize))]
 #[serde(rename_all = "camelCase")]
 #[serde(deny_unknown_fields)]
 pub struct StakeToVoteParams<AccountId, Balance> {
@@ -25,7 +27,7 @@ pub struct StakeToVoteParams<AccountId, Balance> {
     stake: Balance,
 }
 
-#[derive(Serialize, Deserialize)]
+#[cfg_attr(feature = "std", derive(Debug, Serialize, Deserialize))]
 #[serde(rename_all = "camelCase")]
 #[serde(deny_unknown_fields)]
 pub struct StakeToVoteResult<Balance> {
