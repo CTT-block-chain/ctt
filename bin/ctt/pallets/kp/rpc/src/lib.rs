@@ -274,7 +274,24 @@ where
 			account, stake
 		} = params;
 
-        let runtime_api_result = api.stake_to_vote(&at, account, stake);
+		let runtime_api_result = api.stake_to_vote(&at, account, stake);
+		
+		// convert result
+        match runtime_api_result {
+			Ok(v) => {
+				Ok(StakeToVoteResult {
+					balance: v
+				})
+			},
+			Err(e) => {
+                Err(RpcError {
+                    code: ErrorCode::ServerError(9876), // No real reason for this value
+                    message: "Something wrong".into(),
+                    data: Some(format!("{:?}", e).into()),
+                })
+            }
+		}
+
         runtime_api_result.map_err(|e| RpcError {
             code: ErrorCode::ServerError(9876), // No real reason for this value
             message: "Something wrong".into(),
