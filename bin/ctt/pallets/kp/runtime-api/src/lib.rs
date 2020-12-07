@@ -3,7 +3,7 @@
 
 use codec::Codec;
 use kp::{LeaderBoardResult};
-use primitives::{Balance, PowerSize};
+use primitives::{PowerSize};
 use sp_std::prelude::*;
 
 // Here we declare the runtime API. It is implemented it the `impl` block in

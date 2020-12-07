@@ -19,6 +19,7 @@ use std::sync::Arc;
 #[serde(deny_unknown_fields)]
 pub struct StakeToVoteParams<AccountId, Balance> {
 	account: AccountId,
+	#[compact]
     stake: Balance,
 }
 
@@ -26,6 +27,7 @@ pub struct StakeToVoteParams<AccountId, Balance> {
 #[serde(rename_all = "camelCase")]
 #[serde(deny_unknown_fields)]
 pub struct StakeToVoteResult<Balance> {
+	#[compact]
 	result: Balance,
 }
 
