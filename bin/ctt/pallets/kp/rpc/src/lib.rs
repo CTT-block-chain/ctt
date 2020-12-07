@@ -1,7 +1,6 @@
 //! RPC interface for the kp module.
 
 pub use self::gen_client::Client as KpClient;
-use codec::{Compact, Decode, Encode};
 use jsonrpc_core::{Error as RpcError, ErrorCode, Result};
 use jsonrpc_derive::rpc;
 use kp::LeaderBoardResult;
@@ -21,16 +20,16 @@ use std::sync::Arc;
 #[derive(Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 #[serde(deny_unknown_fields)]
-pub struct StakeToVoteParams<AccountId> {
+pub struct StakeToVoteParams<AccountId, Balance> {
     account: AccountId,
-    stake: u64,
+    stake: Balance,
 }
 
 #[derive(Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 #[serde(deny_unknown_fields)]
-pub struct StakeToVoteResult {
-    result: u64,
+pub struct StakeToVoteResult<Balance> {
+    result: Balance,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -99,9 +98,9 @@ pub trait KpApi<BlockHash, AccountId, Balance> {
     #[rpc(name = "kp_stakeToVote")]
     fn stake_to_vote(
         &self,
-        params: StakeToVoteParams<AccountId>,
+        params: StakeToVoteParams<AccountId, Balance>,
         at: Option<BlockHash>,
-    ) -> Result<StakeToVoteResult>;
+    ) -> Result<StakeToVoteResult<Balance>>;
 }
 
 /// A struct that implements the `KpApi`.
@@ -266,9 +265,9 @@ where
 
     fn stake_to_vote(
         &self,
-        params: StakeToVoteParams<AuthAccountId>,
+        params: StakeToVoteParams<AuthAccountId, Balance>,
         at: Option<<Block as BlockT>::Hash>,
-    ) -> Result<StakeToVoteResult> {
+    ) -> Result<StakeToVoteResult<Balance>> {
         let api = self.client.runtime_api();
         let at = BlockId::hash(at.unwrap_or_else(||
             // If the block hash is not supplied assume the best block.
@@ -276,7 +275,7 @@ where
 
         let StakeToVoteParams { account, stake } = params;
 
-        let runtime_api_result = api.stake_to_vote(&at, account, stake.saturated_into());
+        let runtime_api_result = api.stake_to_vote(&at, account, stake);
 
         // convert result
         match runtime_api_result {
