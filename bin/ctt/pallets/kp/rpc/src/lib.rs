@@ -10,7 +10,7 @@ use primitives::{AuthAccountId, Balance, PowerSize};
 use serde::{Deserialize, Serialize};
 use sp_api::ProvideRuntimeApi;
 use sp_blockchain::HeaderBackend;
-use sp_core::Bytes;t
+use sp_core::Bytes;
 use sp_runtime::{generic::BlockId, traits::Block as BlockT};
 use std::sync::Arc;
 
