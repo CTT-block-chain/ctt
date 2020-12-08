@@ -18,7 +18,7 @@ use serde::{Deserialize, Serialize};
 
 use sp_std::cmp::*;
 use sp_std::collections::btree_map::BTreeMap;
-use sp_std::convert::{From, TryInto};
+use sp_std::convert::From;
 use sp_std::ops::Add;
 use sp_std::prelude::*;
 
@@ -35,7 +35,7 @@ use primitives::{AuthAccountId, Membership, PowerSize};
 use sp_core::sr25519;
 use sp_runtime::{
     print,
-    traits::{Hash, IntegerSquareRoot, SaturatedConversion, Saturating, TrailingZeroInput, Verify},
+    traits::{Hash, IntegerSquareRoot, SaturatedConversion, TrailingZeroInput, Verify},
     MultiSignature, RuntimeDebug,
 };
 
@@ -1602,10 +1602,10 @@ impl<T: Trait> Module<T> {
         let account_power = <MinerPowerByAccount<T>>::get(account);
         return if account_power == 0 {
             0.1
-        } else if account_power <= 100 {
-            account_power as f64 / 100.0
+        } else if account_power <= FLOAT_COMPUTE_PRECISION {
+            account_power as f64 / (FLOAT_COMPUTE_PRECISION as f64)
         } else {
-            account_power.integer_sqrt() as f64 / 10.0
+            account_power.integer_sqrt() as f64 / 100.0
         };
     }
 
