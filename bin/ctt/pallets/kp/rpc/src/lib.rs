@@ -277,9 +277,7 @@ where
 
         let StakeToVoteParams { account, stake } = params;
         // here we use u64 because serde has problem to serilize u128, so we lose a defined accuracy
-        let mut balance: Balance = stake.saturated_into();
-        balance = balance * 100000000;
-
+        let balance: Balance = stake.saturated_into();
         let runtime_api_result = api.stake_to_vote(&at, account, balance);
 
         // convert result
