@@ -102,7 +102,7 @@ pub trait KpApi<BlockHash, AccountId, Balance> {
         &self,
         params: StakeToVoteParams<AccountId, u64>,
         at: Option<BlockHash>,
-    ) -> Result<StakeToVoteResult<u64>>;
+    ) -> Result<StakeToVoteResult<Balance>>;
 }
 
 /// A struct that implements the `KpApi`.
@@ -269,7 +269,7 @@ where
         &self,
         params: StakeToVoteParams<AuthAccountId, u64>,
         at: Option<<Block as BlockT>::Hash>,
-    ) -> Result<StakeToVoteResult<u64>> {
+    ) -> Result<StakeToVoteResult<Balance>> {
         let api = self.client.runtime_api();
         let at = BlockId::hash(at.unwrap_or_else(||
             // If the block hash is not supplied assume the best block.
@@ -284,9 +284,7 @@ where
 
         // convert result
         match runtime_api_result {
-            Ok(v) => Ok(StakeToVoteResult {
-                result: v.saturated_into(),
-            }),
+            Ok(v) => Ok(StakeToVoteResult { result: v }),
             Err(e) => {
                 Err(RpcError {
                     code: ErrorCode::ServerError(9876), // No real reason for this value
