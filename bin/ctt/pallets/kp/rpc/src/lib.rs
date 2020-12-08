@@ -100,9 +100,9 @@ pub trait KpApi<BlockHash, AccountId, Balance> {
     #[rpc(name = "kp_stakeToVote")]
     fn stake_to_vote(
         &self,
-        params: StakeToVoteParams<AccountId, Balance>,
+        params: StakeToVoteParams<AccountId, u64>,
         at: Option<BlockHash>,
-    ) -> Result<StakeToVoteResult<Balance>>;
+    ) -> Result<StakeToVoteResult<u64>>;
 }
 
 /// A struct that implements the `KpApi`.
@@ -267,17 +267,20 @@ where
 
     fn stake_to_vote(
         &self,
-        params: StakeToVoteParams<AuthAccountId, Balance>,
+        params: StakeToVoteParams<AuthAccountId, u64>,
         at: Option<<Block as BlockT>::Hash>,
-    ) -> Result<StakeToVoteResult<Balance>> {
+    ) -> Result<StakeToVoteResult<u64>> {
         let api = self.client.runtime_api();
         let at = BlockId::hash(at.unwrap_or_else(||
             // If the block hash is not supplied assume the best block.
 			self.client.info().best_hash));
 
         let StakeToVoteParams { account, stake } = params;
+        // here we use u64 because serde has problem to serilize u128, so we lose a defined accuracy
+        let mut balance: Balance = stake.saturated_into();
+        balance = balance * 100000000;
 
-        let runtime_api_result = api.stake_to_vote(&at, account, stake);
+        let runtime_api_result = api.stake_to_vote(&at, account, balance);
 
         // convert result
         match runtime_api_result {
