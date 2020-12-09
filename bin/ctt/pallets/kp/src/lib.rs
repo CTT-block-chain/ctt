@@ -412,6 +412,18 @@ impl<T: Trait> Default for AppFinancedData<T> {
     }
 }
 
+#[derive(Encode, Decode, Clone, Default, RuntimeDebug)]
+pub struct AccountStatistics {
+    create_commodity_num: u32,
+    slash_commodity_num: u32,
+    slash_kp_total: u64,
+    comment_num: u32,
+    comment_cost_total: u64,
+    comment_cost_max: u64,
+    comment_positive_trend_num: u32,
+    comment_negative_trend_num: u32,
+}
+
 // for RPC query using
 #[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
 #[derive(Encode, Decode, Default, Clone, PartialEq, Eq, RuntimeDebug)]
@@ -828,6 +840,10 @@ decl_storage! {
         // Document comment order pool (AppId, DocumentId) -> Vec<CommentWeightData>
         DocumentCommentsAccountPool get(fn document_comments_account_pool):
             map hasher(twox_64_concat) T::Hash => Vec<CommentWeightData<T>>;
+
+        // Account action statistics
+        AccountStatisticsMap get(fn account_statistics_map):
+            map hasher(twox_64_concat) T::AccountId => AccountStatistics;
     }
 }
 
@@ -1170,6 +1186,7 @@ decl_module! {
                 &doc.model_id,
                 &cart_id,
                 DocumentType::ProductIdentify,
+                &Self::convert_account(&doc.owner),
             );
 
             Self::deposit_event(RawEvent::KnowledgeCreated(who));
@@ -1237,6 +1254,7 @@ decl_module! {
                 &doc.model_id,
                 &cart_id,
                 DocumentType::ProductTry,
+                &Self::convert_account(&doc.owner),
             );
 
             Self::deposit_event(RawEvent::KnowledgeCreated(who));
@@ -2061,7 +2079,21 @@ impl<T: Trait> Module<T> {
         model_id: &Vec<u8>,
         cart_id: &Vec<u8>,
         doc_type: DocumentType,
+        owner_id: &T::AccountId,
     ) {
+        let update_store = || {
+            <AppCommodityCount>::mutate(app_id, |count| {
+                *count = *count + 1;
+            });
+            let model_key = T::Hashing::hash_of(&(app_id, model_id));
+            <AppModelCommodityCount<T>>::mutate(&model_key, |count| {
+                *count = *count + 1;
+            });
+            <AccountStatisticsMap<T>>::mutate(owner_id, |info| {
+                info.create_commodity_num += 1;
+            });
+        };
+
         match doc_type {
             DocumentType::ProductTry => {
                 // check if another identify document exist
@@ -2069,26 +2101,14 @@ impl<T: Trait> Module<T> {
                 if <KPCartProductIdentifyIndexByIdHash<T>>::contains_key(&key) {
                     return;
                 }
-                <AppCommodityCount>::mutate(app_id, |count| {
-                    *count = *count + 1;
-                });
-                let model_key = T::Hashing::hash_of(&(app_id, model_id));
-                <AppModelCommodityCount<T>>::mutate(&model_key, |count| {
-                    *count = *count + 1;
-                });
+                update_store();
             }
             DocumentType::ProductIdentify => {
                 let key = T::Hashing::hash_of(&(app_id, cart_id));
                 if <KPCartProductTryIndexByIdHash<T>>::contains_key(&key) {
                     return;
                 }
-                <AppCommodityCount>::mutate(app_id, |count| {
-                    *count = *count + 1;
-                });
-                let model_key = T::Hashing::hash_of(&(app_id, model_id));
-                <AppModelCommodityCount<T>>::mutate(&model_key, |count| {
-                    *count = *count + 1;
-                });
+                update_store();
             }
             _ => {}
         }
@@ -2730,6 +2750,22 @@ impl<T: Trait> Module<T> {
         Self::update_document_power(&doc, doc_comment_power, platform_comment_power);
 
         Self::update_document_comment_pool(&comment, &doc);
+
+        // update account statistics
+        <AccountStatisticsMap<T>>::mutate(&comment.sender, |info| {
+            info.comment_num += 1;
+            info.comment_cost_total += comment.comment_fee;
+
+            if comment.comment_trend == 0 {
+                info.comment_positive_trend_num += 1;
+            } else {
+                info.comment_negative_trend_num += 1;
+            }
+
+            if comment.comment_fee > info.comment_cost_max {
+                info.comment_cost_max = comment.comment_fee;
+            }
+        });
     }
 
     // triggered when:
@@ -2825,6 +2861,12 @@ impl<T: Trait> Module<T> {
                 } else {
                     *pow = 0
                 }
+            });
+
+            // update account statistics
+            <AccountStatisticsMap<T>>::mutate(power_owner, |info| {
+                info.slash_commodity_num += 1;
+                info.slash_kp_total += cart_power;
             });
         }
     }

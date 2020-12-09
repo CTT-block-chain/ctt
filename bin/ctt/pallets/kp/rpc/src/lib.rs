@@ -12,12 +12,12 @@ use sp_blockchain::HeaderBackend;
 use sp_core::Bytes;
 use sp_runtime::{
     generic::BlockId,
-    traits::{Block as BlockT, MaybeDisplay, MaybeFromStr, SaturatedConversion},
+    traits::{Block as BlockT, SaturatedConversion},
 };
 use std::sync::Arc;
 
 #[cfg(feature = "std")]
-use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use serde::{Deserialize, Serialize};
 
 #[cfg_attr(feature = "std", derive(Debug, Serialize, Deserialize))]
 #[serde(rename_all = "camelCase")]
