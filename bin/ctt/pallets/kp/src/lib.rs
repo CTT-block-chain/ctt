@@ -844,6 +844,14 @@ decl_storage! {
         // Account action statistics
         AccountStatisticsMap get(fn account_statistics_map):
             map hasher(twox_64_concat) T::AccountId => AccountStatistics;
+
+        // Account Created Commodity Set (double map appid(cartid))
+        AccountCommoditySet get(fn account_commodity_set):
+            double_map hasher(twox_64_concat) T::AccountId, hasher(twox_64_concat) u32 => Vec<Vec<u8>>;
+
+        // Account Created Document Set (double map appid(doc id))
+        AccountDocumentSet get(fn account_document_set):
+            double_map hasher(twox_64_concat) T::AccountId, hasher(twox_64_concat) u32 => Vec<Vec<u8>>;
     }
 }
 
@@ -2593,6 +2601,13 @@ impl<T: Trait> Module<T> {
                 Self::insert_document_power(&doc, content_power, initial_judge_power);
             }
         }
+
+        // update account document store record
+        let owner_account = Self::convert_account(&doc.owner);
+        let mut owner_doc_ids = <AccountDocumentSet<T>>::get(&owner_account, doc.app_id);
+        owner_doc_ids.push(doc.document_id.clone());
+
+        <AccountDocumentSet<T>>::insert(&owner_account, doc.app_id, owner_doc_ids);
     }
 
     fn process_comment_power(comment: &KPCommentData<T::AccountId, T::Hash>) {

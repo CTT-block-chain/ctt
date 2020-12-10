@@ -3,7 +3,6 @@
 pub use self::gen_client::Client as KpClient;
 use jsonrpc_core::{Error as RpcError, ErrorCode, Result};
 use jsonrpc_derive::rpc;
-use kp::LeaderBoardResult;
 use kp_runtime_api::KpApi as KpRuntimeApi;
 pub use kp_runtime_api::KpApi as KpRuntimeRpcApi;
 use primitives::{AuthAccountId, Balance, PowerSize};
