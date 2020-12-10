@@ -2100,6 +2100,12 @@ impl<T: Trait> Module<T> {
             <AccountStatisticsMap<T>>::mutate(owner_id, |info| {
                 info.create_commodity_num += 1;
             });
+
+            // update account commodity store record
+            let mut owner_cart_ids = <AccountCommoditySet<T>>::get(&owner_id, app_id);
+            owner_cart_ids.push(cart_id.clone());
+
+            <AccountCommoditySet<T>>::insert(&owner_id, app_id, owner_cart_ids);
         };
 
         match doc_type {
