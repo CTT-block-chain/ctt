@@ -36,7 +36,7 @@ use frame_support::{
     RuntimeDebug,
 };
 use frame_system::{EnsureOneOf, EnsureRoot};
-use kp::LeaderBoardResult;
+use kp::{DocumentPowerInfo, LeaderBoardResult};
 pub use node_primitives::{AccountId, AuthAccountId, PowerSize, Signature};
 use node_primitives::{AccountIndex, Balance, BlockNumber, Hash, Index, Moment};
 use pallet_contracts_rpc_runtime_api::ContractExecResult;
@@ -1219,7 +1219,7 @@ impl_runtime_apis! {
             Kp::kp_commodity_power(app_id, cart_id)
         }
 
-        fn document_power(app_id: u32, doc_id: Vec<u8>) -> PowerSize {
+        fn document_power(app_id: u32, doc_id: Vec<u8>) -> DocumentPowerInfo {
             Kp::kp_document_power(app_id, doc_id)
         }
 

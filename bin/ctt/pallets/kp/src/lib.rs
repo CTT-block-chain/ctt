@@ -147,6 +147,19 @@ impl From<u8> for DocumentType {
     }
 }
 
+impl From<DocumentType> for u8 {
+    fn from(orig: DocumentType) -> Self {
+        return match orig {
+            DocumentType::ProductPublish => 0,
+            DocumentType::ProductIdentify => 1,
+            DocumentType::ProductTry => 2,
+            DocumentType::ProductChoose => 3,
+            DocumentType::ModelCreate => 4,
+            _ => 5,
+        };
+    }
+}
+
 #[derive(Encode, Decode, PartialEq, Clone, RuntimeDebug)]
 pub enum ModelDisputeType {
     NoneIntendNormal = 0,
@@ -300,6 +313,13 @@ pub struct KPDocumentData<AccountId, Hash> {
     comment_positive_count: PowerSize,
     expert_trend: CommentTrend,
     platform_trend: CommentTrend,
+}
+
+// for RPC query using
+#[derive(Encode, Decode, Clone, PartialEq, RuntimeDebug)]
+pub struct DocumentPowerInfo {
+    pub doc_type: DocumentType,
+    pub power: PowerSize,
 }
 
 // power store
@@ -1654,9 +1674,14 @@ impl<T: Trait> Module<T> {
         <KPPurchasePowerByIdHash<T>>::contains_key(&key)
     }
 
-    pub fn kp_document_power(app_id: u32, document_id: Vec<u8>) -> PowerSize {
+    pub fn kp_document_power(app_id: u32, document_id: Vec<u8>) -> DocumentPowerInfo {
         let key = T::Hashing::hash_of(&(app_id, &document_id));
-        <KPDocumentPowerByIdHash<T>>::get(&key).total()
+        let power = <KPDocumentPowerByIdHash<T>>::get(&key).total();
+        let doc = <KPDocumentDataByIdHash<T>>::get(&key);
+        DocumentPowerInfo {
+            doc_type: doc.document_type,
+            power,
+        }
     }
 
     pub fn kp_account_attend_power(app_id: u32, account: T::AccountId) -> PowerSize {

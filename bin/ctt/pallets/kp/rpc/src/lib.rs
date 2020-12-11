@@ -75,6 +75,14 @@ pub struct LeaderBoardResultRPC<AccountId> {
     board: Vec<LeaderBoardItemRPC<AccountId>>,
 }
 
+#[derive(Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+#[serde(deny_unknown_fields)]
+pub struct DocumentPowerRPC {
+    doc_type: u8,
+    power: PowerSize,
+}
+
 #[rpc]
 pub trait KpApi<BlockHash, AccountId, Balance> {
     #[rpc(name = "kp_totalPower")]
@@ -95,7 +103,7 @@ pub trait KpApi<BlockHash, AccountId, Balance> {
         &self,
         query: QueryDocumentPowerParams,
         at: Option<BlockHash>,
-    ) -> Result<PowerSize>;
+    ) -> Result<DocumentPowerRPC>;
 
     #[rpc(name = "kp_isCommodityPowerExist")]
     fn is_commodity_power_exist(
@@ -218,7 +226,7 @@ where
         &self,
         query: QueryDocumentPowerParams,
         at: Option<<Block as BlockT>::Hash>,
-    ) -> Result<PowerSize> {
+    ) -> Result<DocumentPowerRPC> {
         let api = self.client.runtime_api();
         let at = BlockId::hash(at.unwrap_or_else(||
             // If the block hash is not supplied assume the best block.
@@ -227,11 +235,23 @@ where
         let QueryDocumentPowerParams { app_id, doc_id } = query;
 
         let runtime_api_result = api.document_power(&at, app_id, doc_id.to_vec());
-        runtime_api_result.map_err(|e| RpcError {
-            code: ErrorCode::ServerError(9876), // No real reason for this value
-            message: "Something wrong".into(),
-            data: Some(format!("{:?}", e).into()),
-        })
+        match runtime_api_result {
+            Ok(v) => {
+                let converted: DocumentPowerRPC = DocumentPowerRPC {
+                    doc_type: v.doc_type.into(),
+                    power: v.power,
+                };
+
+                Ok(converted)
+            }
+            Err(e) => {
+                Err(RpcError {
+                    code: ErrorCode::ServerError(9876), // No real reason for this value
+                    message: "Something wrong".into(),
+                    data: Some(format!("{:?}", e).into()),
+                })
+            }
+        }
     }
 
     fn is_commodity_power_exist(
