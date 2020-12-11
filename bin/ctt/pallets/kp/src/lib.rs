@@ -1654,9 +1654,9 @@ impl<T: Trait> Module<T> {
         <KPPurchasePowerByIdHash<T>>::contains_key(&key)
     }
 
-    pub fn kp_document_power(app_id: u32, document_id: Vec<u8>) -> DocumentPower {
+    pub fn kp_document_power(app_id: u32, document_id: Vec<u8>) -> PowerSize {
         let key = T::Hashing::hash_of(&(app_id, &document_id));
-        <KPDocumentPowerByIdHash<T>>::get(&key)
+        <KPDocumentPowerByIdHash<T>>::get(&key).total()
     }
 
     pub fn kp_account_attend_power(app_id: u32, account: T::AccountId) -> PowerSize {

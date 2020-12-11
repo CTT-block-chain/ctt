@@ -44,6 +44,14 @@ pub struct QueryCommodityPowerParams {
 #[derive(Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 #[serde(deny_unknown_fields)]
+pub struct QueryDocumentPowerParams {
+    app_id: u32,
+    doc_id: Bytes,
+}
+
+#[derive(Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+#[serde(deny_unknown_fields)]
 pub struct QueryLeaderBoardParams {
     app_id: u32,
     model_id: Bytes,
@@ -79,6 +87,13 @@ pub trait KpApi<BlockHash, AccountId, Balance> {
     fn commodity_power(
         &self,
         query: QueryCommodityPowerParams,
+        at: Option<BlockHash>,
+    ) -> Result<PowerSize>;
+
+    #[rpc(name = "kp_documentPower")]
+    fn document_power(
+        &self,
+        query: QueryDocumentPowerParams,
         at: Option<BlockHash>,
     ) -> Result<PowerSize>;
 
@@ -192,6 +207,26 @@ where
         let QueryCommodityPowerParams { app_id, cart_id } = query;
 
         let runtime_api_result = api.commodity_power(&at, app_id, cart_id.to_vec());
+        runtime_api_result.map_err(|e| RpcError {
+            code: ErrorCode::ServerError(9876), // No real reason for this value
+            message: "Something wrong".into(),
+            data: Some(format!("{:?}", e).into()),
+        })
+    }
+
+    fn document_power(
+        &self,
+        query: QueryDocumentPowerParams,
+        at: Option<<Block as BlockT>::Hash>,
+    ) -> Result<PowerSize> {
+        let api = self.client.runtime_api();
+        let at = BlockId::hash(at.unwrap_or_else(||
+            // If the block hash is not supplied assume the best block.
+            self.client.info().best_hash));
+
+        let QueryDocumentPowerParams { app_id, doc_id } = query;
+
+        let runtime_api_result = api.document_power(&at, app_id, doc_id.to_vec());
         runtime_api_result.map_err(|e| RpcError {
             code: ErrorCode::ServerError(9876), // No real reason for this value
             message: "Something wrong".into(),
