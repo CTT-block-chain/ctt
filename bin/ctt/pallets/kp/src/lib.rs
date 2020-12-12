@@ -853,6 +853,9 @@ decl_storage! {
         AppLeaderBoardRcord get(fn app_leader_board_record):
             map hasher(twox_64_concat) T::Hash => LeaderBoardResult<T::AccountId>;
 
+        // Store AppLeaderBoardRcord keys, for load
+        AppLeaderBoardSequenceKeys get(fn app_leader_board_sequence_keys): Vec<(u32, T::BlockNumber, Vec<u8>)>;
+
         // Leader board last record (AppId, ModelId) -> BlockNumber
         AppLeaderBoardLastTime get(fn app_leader_board_last_time):
             map hasher(twox_64_concat) T::Hash => T::BlockNumber;
@@ -2282,6 +2285,10 @@ impl<T: Trait> Module<T> {
         };
         <AppLeaderBoardRcord<T>>::insert(&lottery_record_key, &record);
         <AppLeaderBoardLastTime<T>>::insert(&lottery_last_time_key, block);
+        // update sequence keys
+        let mut keys = <AppLeaderBoardSequenceKeys<T>>::get();
+        keys.push((app_id, block, model_id.clone()));
+        <AppLeaderBoardSequenceKeys<T>>::put(keys);
     }
 
     fn update_document_comment_pool(
