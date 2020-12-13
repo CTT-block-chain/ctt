@@ -170,10 +170,10 @@ use frame_support::{
 	}
 };
 use sp_runtime::{
-	RuntimeDebug, DispatchResult, DispatchError,
+	RuntimeDebug, DispatchResult, DispatchError, ModuleId,
 	traits::{
 		Zero, AtLeast32BitUnsigned, StaticLookup, Member, CheckedAdd, CheckedSub,
-		MaybeSerializeDeserialize, Saturating, Bounded,
+		MaybeSerializeDeserialize, Saturating, Bounded, AccountIdConversion,
 	},
 };
 use frame_system::{self as system, ensure_signed, ensure_root};
@@ -937,6 +937,13 @@ impl<T: Trait<I>, I: Instance> Currency<T::AccountId> for Module<T, I> where
 
 	fn total_issuance() -> Self::Balance {
 		<TotalIssuance<T, I>>::get()
+	}
+
+	fn total_issuance_excluding_fund() -> Self::Balance {
+		let fin_balance = Self::total_balance(&ModuleId(*b"py/trfin").into_account());
+		let mod_balance = Self::total_balance(&ModuleId(*b"py/trmod").into_account());
+		let tech_balance = Self::total_balance(&ModuleId(*b"py/trtch").into_account());
+		Self::total_issuance() - fin_balance - mod_balance - tech_balance
 	}
 
 	fn minimum_balance() -> Self::Balance {

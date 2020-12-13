@@ -1571,7 +1571,7 @@ impl<T: Trait> Module<T> {
 		index: ReferendumIndex,
 		status: ReferendumStatus<T::BlockNumber, T::Hash, BalanceOf<T>>,
 	) -> Result<bool, DispatchError> {
-		let total_issuance = T::Currency::total_issuance();
+		let total_issuance = T::Currency::total_issuance_excluding_fund();
 		let approved = status.threshold.approved(status.tally, total_issuance);
 
 		if approved {

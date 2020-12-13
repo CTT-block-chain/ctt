@@ -878,6 +878,12 @@ pub trait Currency<AccountId> {
 	/// The total amount of issuance in the system.
 	fn total_issuance() -> Self::Balance;
 
+	/// The total amount of issuance in the system excluding funding pot
+	fn total_issuance_excluding_fund() -> Self::Balance {
+		// defualt return total_issuance
+		Self::total_issuance()
+	}
+
 	/// The minimum balance any single account may have. This is equivalent to the `Balances` module's
 	/// `ExistentialDeposit`.
 	fn minimum_balance() -> Self::Balance;

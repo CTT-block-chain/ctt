@@ -2721,7 +2721,7 @@ impl<T: Trait> Module<T> {
 			let (validator_payout, max_payout) = inflation::compute_total_payout(
 				&T::RewardCurve::get(),
 				Self::eras_total_stake(&active_era.index),
-				T::Currency::total_issuance(),
+				T::Currency::total_issuance_excluding_fund(),
 				// Duration of era; more than u64::MAX is rewarded as u64::MAX.
 				era_duration.saturated_into::<u64>(),
 			);
