@@ -943,7 +943,8 @@ impl<T: Trait<I>, I: Instance> Currency<T::AccountId> for Module<T, I> where
 		let fin_balance = Self::total_balance(&ModuleId(*b"py/trfin").into_account());
 		let mod_balance = Self::total_balance(&ModuleId(*b"py/trmod").into_account());
 		let tech_balance = Self::total_balance(&ModuleId(*b"py/trtch").into_account());
-		Self::total_issuance() - fin_balance - mod_balance - tech_balance
+		let account_mod_balance = Self::total_balance(&ModuleId(*b"py/acmod").into_account());
+		Self::total_issuance() - fin_balance - mod_balance - tech_balance - account_mod_balance
 	}
 
 	fn minimum_balance() -> Self::Balance {
