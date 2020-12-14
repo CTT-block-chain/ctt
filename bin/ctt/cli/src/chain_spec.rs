@@ -254,7 +254,12 @@ pub fn testnet_genesis(
         // fund balances
         (TreasuryFin::account_id(), 500_000_000 * DOLLARS),
         (TreasuryTech::account_id(), 99_000_000 * DOLLARS),
-        (TreasuryMod::account_id(), 400_000_000 * DOLLARS),
+        (TreasuryMod::account_id(), 300_000_000 * DOLLARS),
+        (
+            // py/acmod 5EYCAe5ijiYdQFKVTyae1wy3ne6CrutrAFZyN3bZsqrhf7jB
+            hex!["6d6f646c70792f61636d6f640000000000000000000000000000000000000000"].into(),
+            100_000_000 * DOLLARS,
+        ),
         // initial JIANFA app admin balance
         (
             // 5GsdH24tsB3NxtiewWVEeqBWFV6kT2JKCEPig7LxjxUJw4Fc

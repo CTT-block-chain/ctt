@@ -645,6 +645,7 @@ parameter_types! {
     pub const TreasuryFinModuleId: ModuleId = ModuleId(*b"py/trfin");
     pub const TreasuryTechModuleId: ModuleId = ModuleId(*b"py/trtch");
     pub const TreasuryModModuleId: ModuleId = ModuleId(*b"py/trmod");
+    pub const AccountModModuleId: ModuleId = ModuleId(*b"py/acmod");
     pub const BountyUpdatePeriod: BlockNumber = 14 * DAYS;
     pub const MaximumReasonLength: u32 = 16384;
     pub const BountyCuratorDeposit: Permill = Permill::from_percent(50);
@@ -1027,7 +1028,7 @@ impl members::Trait for Runtime {
     type Event = Event;
     type Currency = Balances;
     type ModelCreatorCreateBenefit = ModelCreatorCreateBenefit;
-    type ModTreasuryModuleId = TreasuryModModuleId;
+    type ModTreasuryModuleId = AccountModModuleId;
 }
 
 parameter_types! {
