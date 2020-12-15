@@ -120,7 +120,7 @@ where
     C::Api: pallet_transaction_payment_rpc::TransactionPaymentRuntimeApi<Block, Balance>,
     C::Api: BabeApi<Block>,
     C::Api: BlockBuilder<Block>,
-    C::Api: kp_rpc::KpRuntimeRpcApi<Block, AuthAccountId, Balance>,
+    C::Api: kp_rpc::KpRuntimeRpcApi<Block, AuthAccountId, Balance, BlockNumber>,
     C::Api: members_rpc::MembersRuntimeRpcApi<Block, AccountId>,
     P: TransactionPool + 'static,
     SC: SelectChain<Block> + 'static,

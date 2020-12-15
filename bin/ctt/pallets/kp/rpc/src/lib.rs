@@ -3,9 +3,10 @@
 pub use self::gen_client::Client as KpClient;
 use jsonrpc_core::{Error as RpcError, ErrorCode, Result};
 use jsonrpc_derive::rpc;
+use kp::AppFinancedData;
 use kp_runtime_api::KpApi as KpRuntimeApi;
 pub use kp_runtime_api::KpApi as KpRuntimeRpcApi;
-use primitives::{AuthAccountId, Balance, PowerSize};
+use primitives::{AuthAccountId, Balance, BlockNumber, PowerSize};
 use sp_api::ProvideRuntimeApi;
 use sp_blockchain::HeaderBackend;
 use sp_core::Bytes;
@@ -83,8 +84,16 @@ pub struct DocumentPowerRPC {
     power: PowerSize,
 }
 
+#[derive(Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+#[serde(deny_unknown_fields)]
+pub struct AppFinanceRecordParams {
+    app_id: u32,
+    proposal_id: Bytes,
+}
+
 #[rpc]
-pub trait KpApi<BlockHash, AccountId, Balance> {
+pub trait KpApi<BlockHash, AccountId, Balance, BlockNumber> {
     #[rpc(name = "kp_totalPower")]
     fn total_power(&self, at: Option<BlockHash>) -> Result<PowerSize>;
 
@@ -125,6 +134,13 @@ pub trait KpApi<BlockHash, AccountId, Balance> {
         params: StakeToVoteParams<AccountId, u64>,
         at: Option<BlockHash>,
     ) -> Result<StakeToVoteResult<u64>>;
+
+    #[rpc(name = "kp_appFinanceRecord")]
+    fn app_finance_record(
+        &self,
+        params: AppFinanceRecordParams,
+        at: Option<BlockHash>,
+    ) -> Result<AppFinancedData<Balance, BlockNumber>>;
 }
 
 /// A struct that implements the `KpApi`.
@@ -162,13 +178,13 @@ impl From<Error> for i64 {
     }
 }
 
-impl<C, Block> KpApi<<Block as BlockT>::Hash, AuthAccountId, Balance> for Kp<C, Block>
+impl<C, Block> KpApi<<Block as BlockT>::Hash, AuthAccountId, Balance, BlockNumber> for Kp<C, Block>
 where
     Block: BlockT,
     C: Send + Sync + 'static,
     C: ProvideRuntimeApi<Block>,
     C: HeaderBackend<Block>,
-    C::Api: KpRuntimeRpcApi<Block, AuthAccountId, Balance>,
+    C::Api: KpRuntimeRpcApi<Block, AuthAccountId, Balance, BlockNumber>,
 {
     fn total_power(&self, at: Option<<Block as BlockT>::Hash>) -> Result<PowerSize> {
         let api = self.client.runtime_api();
@@ -347,5 +363,28 @@ where
                 })
             }
         }
+    }
+
+    fn app_finance_record(
+        &self,
+        query: AppFinanceRecordParams,
+        at: Option<<Block as BlockT>::Hash>,
+    ) -> Result<AppFinancedData<Balance, BlockNumber>> {
+        let api = self.client.runtime_api();
+        let at = BlockId::hash(at.unwrap_or_else(||
+            // If the block hash is not supplied assume the best block.
+            self.client.info().best_hash));
+
+        let AppFinanceRecordParams {
+            app_id,
+            proposal_id,
+        } = query;
+
+        let runtime_api_result = api.app_finance_record(&at, app_id, proposal_id.to_vec());
+        runtime_api_result.map_err(|e| RpcError {
+            code: ErrorCode::ServerError(9876), // No real reason for this value
+            message: "Something wrong".into(),
+            data: Some(format!("{:?}", e).into()),
+        })
     }
 }

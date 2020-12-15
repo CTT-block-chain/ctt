@@ -36,7 +36,7 @@ use frame_support::{
     RuntimeDebug,
 };
 use frame_system::{EnsureOneOf, EnsureRoot};
-use kp::{DocumentPowerInfo, LeaderBoardResult};
+use kp::{AppFinancedData, DocumentPowerInfo, LeaderBoardResult};
 pub use node_primitives::{AccountId, AuthAccountId, PowerSize, Signature};
 use node_primitives::{AccountIndex, Balance, BlockNumber, Hash, Index, Moment};
 use pallet_contracts_rpc_runtime_api::ContractExecResult;
@@ -1207,7 +1207,7 @@ pub type Executive = frame_executive::Executive<
 >;
 
 impl_runtime_apis! {
-    impl kp_runtime_api::KpApi<Block, AuthAccountId, Balance> for Runtime {
+    impl kp_runtime_api::KpApi<Block, AuthAccountId, Balance, BlockNumber> for Runtime {
         fn total_power() -> PowerSize {
             Kp::kp_total_power()
         }
@@ -1234,6 +1234,10 @@ impl_runtime_apis! {
 
         fn stake_to_vote(account: AuthAccountId, stake: Balance) -> Balance {
             Kp::kp_staking_to_vote(&account, stake)
+        }
+
+        fn app_finance_record(app_id: u32, proposal_id: Vec<u8>) -> AppFinancedData<Balance, BlockNumber> {
+            Kp::app_finance_record(app_id, proposal_id)
         }
     }
 

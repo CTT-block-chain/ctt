@@ -416,11 +416,13 @@ impl PartialOrd for CommodityTypeData {
         Some(self.cmp(other))
     }
 }
-
+/*
 #[derive(Encode, Decode, Clone, RuntimeDebug)]
 pub struct AppFinancedData<T: Trait> {
     amount: BalanceOf<T>,
     exchange_rate: BalanceOf<T>,
+    block: T::BlockNumber,
+    total_balance: BalanceOf<T>,
 }
 
 impl<T: Trait> Default for AppFinancedData<T> {
@@ -428,9 +430,31 @@ impl<T: Trait> Default for AppFinancedData<T> {
         AppFinancedData::<T> {
             amount: 0.into(),
             exchange_rate: 0.into(),
+            block: T::BlockNumber::default(),
+            total_balance: 0.into(),
         }
     }
+}*/
+
+#[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
+#[derive(Encode, Decode, Clone, Default, PartialEq, RuntimeDebug)]
+pub struct AppFinancedData<Balance, BlockNumber> {
+    pub amount: Balance,
+    pub exchange_rate: Balance,
+    pub block: BlockNumber,
+    pub total_balance: Balance,
 }
+
+/*impl<T: Trait> Default for AppFinancedData<BalanceOf<T>, T::BlockNumber> {
+    fn default() -> Self {
+        AppFinancedData::<T> {
+            amount: 0.into(),
+            exchange_rate: 0.into(),
+            block: T::BlockNumber::default(),
+            total_balance: 0.into(),
+        }
+    }
+}*/
 
 #[derive(Encode, Decode, Clone, Default, RuntimeDebug)]
 pub struct AccountStatistics {
@@ -827,9 +851,9 @@ decl_storage! {
         AppYearIncomeTotal get(fn app_year_income_total):
             map hasher(twox_64_concat) u32 => u64;
 
-        // App financed record
+        // App financed record (AppId & proposal_id)
         AppFinancedRecord get(fn app_financed_record):
-            map hasher(twox_64_concat) u32 => AppFinancedData<T>;
+            map hasher(twox_64_concat) T::Hash => AppFinancedData<BalanceOf<T>, T::BlockNumber>;
 
         // App commodity(cart_id) count AppId -> u32
         AppCommodityCount get(fn app_commodity_count):
@@ -1589,23 +1613,22 @@ decl_module! {
         }
 
         #[weight = 0]
-        pub fn democracy_app_financed(origin, app_id: u32, kpt_amount: BalanceOf<T>, exchange_rate: BalanceOf<T>) -> dispatch::DispatchResult {
+        pub fn democracy_app_financed(origin, app_id: u32, kpt_amount: BalanceOf<T>, exchange_rate: BalanceOf<T>, proposal_id: Vec<u8>) -> dispatch::DispatchResult {
             ensure_root(origin)?;
 
             ensure!(T::Membership::is_valid_app(app_id), Error::<T>::AppIdInvalid);
-
-            // TODO: exchange_rate min max configuration
             ensure!(exchange_rate >= T::KptExchangeMinRate::get(), Error::<T>::AppFinancedExchangeRateTooLow);
 
-            // Do we permit multi-financed records?
-            ensure!(!<AppFinancedRecord<T>>::contains_key(app_id), Error::<T>::AppAlreadyFinanced);
+            let key = T::Hashing::hash_of(&(app_id, &proposal_id));
 
-            <AppFinancedRecord<T>>::insert(app_id, AppFinancedData::<T> {
+            ensure!(!<AppFinancedRecord<T>>::contains_key(&key), Error::<T>::AppAlreadyFinanced);
+
+            <AppFinancedRecord<T>>::insert(&key, AppFinancedData::<BalanceOf<T>, T::BlockNumber> {
                 amount: kpt_amount,
                 exchange_rate,
+                block: <system::Module<T>>::block_number(),
+                total_balance: T::Currency::total_issuance_excluding_fund(),
             });
-
-            // TODO: start exchange process
 
             Self::deposit_event(RawEvent::AppFinanced(app_id));
             Ok(())
@@ -1665,6 +1688,14 @@ impl<T: Trait> Module<T> {
         let adjusted = (math_covert as f64 * ratio) as u64;
 
         return adjusted.saturated_into();
+    }
+
+    pub fn app_finance_record(
+        app_id: u32,
+        proposal_id: Vec<u8>,
+    ) -> AppFinancedData<BalanceOf<T>, T::BlockNumber> {
+        let key = T::Hashing::hash_of(&(app_id, &proposal_id));
+        <AppFinancedRecord<T>>::get(&key)
     }
 
     pub fn kp_commodity_power(app_id: u32, cart_id: Vec<u8>) -> PowerSize {
