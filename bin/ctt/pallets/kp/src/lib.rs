@@ -421,7 +421,7 @@ impl PartialOrd for CommodityTypeData {
 #[derive(Encode, Decode, Clone, Default, PartialEq, RuntimeDebug)]
 pub struct AppFinancedData<Balance, BlockNumber> {
     pub amount: Balance,
-    pub exchange_rate: Balance,
+    pub exchange: Balance,
     pub block: BlockNumber,
     pub total_balance: Balance,
 }
@@ -923,6 +923,7 @@ decl_error! {
         AppIdInvalid,
         AppAlreadyFinanced,
         AppFinancedExchangeRateTooLow,
+        AppFinancedParamsInvalid,
         DocumentIdentifyAlreadyExisted,
         DocumentTryAlreadyExisted,
         LeaderBoardCreateNotPermit,
@@ -1583,10 +1584,11 @@ decl_module! {
         }
 
         #[weight = 0]
-        pub fn democracy_app_financed(origin, app_id: u32, kpt_amount: BalanceOf<T>, exchange_rate: BalanceOf<T>, proposal_id: Vec<u8>) -> dispatch::DispatchResult {
+        pub fn democracy_app_financed(origin, app_id: u32, kpt_amount: BalanceOf<T>, exchange: BalanceOf<T>, proposal_id: Vec<u8>) -> dispatch::DispatchResult {
             ensure_root(origin)?;
-
+            ensure!(kpt_amount > 0u32.into() && exchange > 0u32.into(),  Error::<T>::AppFinancedParamsInvalid);
             ensure!(T::Membership::is_valid_app(app_id), Error::<T>::AppIdInvalid);
+            let exchange_rate = exchange / kpt_amount;
             ensure!(exchange_rate >= T::KptExchangeMinRate::get(), Error::<T>::AppFinancedExchangeRateTooLow);
 
             let key = T::Hashing::hash_of(&(app_id, &proposal_id));
@@ -1595,7 +1597,7 @@ decl_module! {
 
             <AppFinancedRecord<T>>::insert(&key, AppFinancedData::<BalanceOf<T>, T::BlockNumber> {
                 amount: kpt_amount,
-                exchange_rate,
+                exchange,
                 block: <system::Module<T>>::block_number(),
                 total_balance: T::Currency::total_issuance_excluding_fund(),
             });

@@ -3,7 +3,6 @@
 pub use self::gen_client::Client as KpClient;
 use jsonrpc_core::{Error as RpcError, ErrorCode, Result};
 use jsonrpc_derive::rpc;
-use kp::AppFinancedData;
 use kp_runtime_api::KpApi as KpRuntimeApi;
 pub use kp_runtime_api::KpApi as KpRuntimeRpcApi;
 use primitives::{AuthAccountId, Balance, BlockNumber, PowerSize};
@@ -97,7 +96,7 @@ pub struct AppFinanceRecordParams {
 #[serde(deny_unknown_fields)]
 pub struct AppFinanceDataRPC {
     amount: u64,
-    exchange_rate: u64,
+    exchange: u64,
     block: BlockNumber,
     total_balance: u64,
 }
@@ -401,7 +400,7 @@ where
         match runtime_api_result {
             Ok(v) => Ok(AppFinanceDataRPC {
                 amount: convert_balance(v.amount),
-                exchange_rate: convert_balance(v.exchange_rate),
+                exchange: convert_balance(v.exchange),
                 block: v.block,
                 total_balance: convert_balance(v.total_balance),
             }),
