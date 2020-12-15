@@ -416,25 +416,6 @@ impl PartialOrd for CommodityTypeData {
         Some(self.cmp(other))
     }
 }
-/*
-#[derive(Encode, Decode, Clone, RuntimeDebug)]
-pub struct AppFinancedData<T: Trait> {
-    amount: BalanceOf<T>,
-    exchange_rate: BalanceOf<T>,
-    block: T::BlockNumber,
-    total_balance: BalanceOf<T>,
-}
-
-impl<T: Trait> Default for AppFinancedData<T> {
-    fn default() -> Self {
-        AppFinancedData::<T> {
-            amount: 0.into(),
-            exchange_rate: 0.into(),
-            block: T::BlockNumber::default(),
-            total_balance: 0.into(),
-        }
-    }
-}*/
 
 #[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
 #[derive(Encode, Decode, Clone, Default, PartialEq, RuntimeDebug)]
@@ -444,17 +425,6 @@ pub struct AppFinancedData<Balance, BlockNumber> {
     pub block: BlockNumber,
     pub total_balance: Balance,
 }
-
-/*impl<T: Trait> Default for AppFinancedData<BalanceOf<T>, T::BlockNumber> {
-    fn default() -> Self {
-        AppFinancedData::<T> {
-            amount: 0.into(),
-            exchange_rate: 0.into(),
-            block: T::BlockNumber::default(),
-            total_balance: 0.into(),
-        }
-    }
-}*/
 
 #[derive(Encode, Decode, Clone, Default, RuntimeDebug)]
 pub struct AccountStatistics {

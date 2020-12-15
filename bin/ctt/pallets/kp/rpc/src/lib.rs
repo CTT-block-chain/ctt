@@ -92,6 +92,16 @@ pub struct AppFinanceRecordParams {
     proposal_id: Bytes,
 }
 
+#[derive(Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+#[serde(deny_unknown_fields)]
+pub struct AppFinanceDataRPC {
+    amount: u64,
+    exchange_rate: u64,
+    block: BlockNumber,
+    total_balance: u64,
+}
+
 #[rpc]
 pub trait KpApi<BlockHash, AccountId, Balance, BlockNumber> {
     #[rpc(name = "kp_totalPower")]
@@ -140,7 +150,7 @@ pub trait KpApi<BlockHash, AccountId, Balance, BlockNumber> {
         &self,
         params: AppFinanceRecordParams,
         at: Option<BlockHash>,
-    ) -> Result<AppFinancedData<Balance, BlockNumber>>;
+    ) -> Result<AppFinanceDataRPC>;
 }
 
 /// A struct that implements the `KpApi`.
@@ -176,6 +186,12 @@ impl From<Error> for i64 {
             Error::DecodeError => 2,
         }
     }
+}
+
+fn convert_balance(source: Balance) -> u64 {
+    const REDUCE_FACTOR: Balance = 1_000_000_000_0;
+    let reduce = source / REDUCE_FACTOR;
+    reduce.saturated_into()
 }
 
 impl<C, Block> KpApi<<Block as BlockT>::Hash, AuthAccountId, Balance, BlockNumber> for Kp<C, Block>
@@ -369,7 +385,7 @@ where
         &self,
         query: AppFinanceRecordParams,
         at: Option<<Block as BlockT>::Hash>,
-    ) -> Result<AppFinancedData<Balance, BlockNumber>> {
+    ) -> Result<AppFinanceDataRPC> {
         let api = self.client.runtime_api();
         let at = BlockId::hash(at.unwrap_or_else(||
             // If the block hash is not supplied assume the best block.
@@ -381,10 +397,21 @@ where
         } = query;
 
         let runtime_api_result = api.app_finance_record(&at, app_id, proposal_id.to_vec());
-        runtime_api_result.map_err(|e| RpcError {
-            code: ErrorCode::ServerError(9876), // No real reason for this value
-            message: "Something wrong".into(),
-            data: Some(format!("{:?}", e).into()),
-        })
+        // convert result
+        match runtime_api_result {
+            Ok(v) => Ok(AppFinanceDataRPC {
+                amount: convert_balance(v.amount),
+                exchange_rate: convert_balance(v.exchange_rate),
+                block: v.block,
+                total_balance: convert_balance(v.total_balance),
+            }),
+            Err(e) => {
+                Err(RpcError {
+                    code: ErrorCode::ServerError(9876), // No real reason for this value
+                    message: "Something wrong".into(),
+                    data: Some(format!("{:?}", e).into()),
+                })
+            }
+        }
     }
 }
