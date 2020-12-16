@@ -4,7 +4,10 @@
 use frame_support::{
     codec::{Decode, Encode},
     decl_error, decl_event, decl_module, decl_storage, dispatch, ensure,
-    traits::{Currency, Get, LockableCurrency, OnUnbalanced, Randomness, ReservableCurrency},
+    traits::{
+        Currency, ExistenceRequirement::KeepAlive, Get, LockableCurrency, OnUnbalanced, Randomness,
+        ReservableCurrency, WithdrawReason,
+    },
 };
 use rand_chacha::{
     rand_core::{RngCore, SeedableRng},
@@ -35,8 +38,11 @@ use primitives::{AuthAccountId, Membership, PowerSize};
 use sp_core::sr25519;
 use sp_runtime::{
     print,
-    traits::{Hash, IntegerSquareRoot, SaturatedConversion, TrailingZeroInput, Verify},
-    MultiSignature, RuntimeDebug,
+    traits::{
+        AccountIdConversion, Hash, IntegerSquareRoot, SaturatedConversion, TrailingZeroInput,
+        Verify,
+    },
+    ModuleId, MultiSignature, RuntimeDebug,
 };
 
 pub trait PowerVote<AccountId> {
@@ -424,6 +430,21 @@ pub struct AppFinancedData<Balance, BlockNumber> {
     pub exchange: Balance,
     pub block: BlockNumber,
     pub total_balance: Balance,
+    pub exchanged: Balance,
+}
+
+#[derive(Encode, Decode, Clone, Default, PartialEq, RuntimeDebug)]
+pub struct AppFinancedUserExchangeParams<AccountId, Balance> {
+    account: AccountId,
+    app_id: u32,
+    proposal_id: Vec<u8>,
+    exchange_amount: Balance,
+}
+
+#[derive(Encode, Decode, Clone, Default, RuntimeDebug)]
+pub struct AppFinancedUserExchangeData<Balance> {
+    exchange_amount: Balance,
+    status: u8, // 0: initial state, 1: reserved, 2: received cash and burned
 }
 
 #[derive(Encode, Decode, Clone, Default, RuntimeDebug)]
@@ -590,8 +611,20 @@ pub trait Trait: system::Trait {
     /// Handler for the unbalanced reduction when slashing a model create deposit.
     type Slash: OnUnbalanced<NegativeImbalanceOf<Self>>;
 
+    /// Handler for the unbalanced decrease when redeem amount are burned.
+    type BurnDestination: OnUnbalanced<NegativeImbalanceOf<Self>>;
+
     /// Something that provides randomness in the runtime.
     type Randomness: Randomness<Self::Hash>;
+
+    /// Finance treasury model id
+    type FinTreasuryModuleId: Get<ModuleId>;
+
+    /// Model treasury model id
+    type ModTreasuryModuleId: Get<ModuleId>;
+
+    /// Tech treasury model id
+    type TechTreasuryModuleId: Get<ModuleId>;
 
     /// The overarching event type.
     type Event: From<Event<Self>> + Into<<Self as system::Trait>::Event>;
@@ -825,6 +858,10 @@ decl_storage! {
         AppFinancedRecord get(fn app_financed_record):
             map hasher(twox_64_concat) T::Hash => AppFinancedData<BalanceOf<T>, T::BlockNumber>;
 
+        // App financed user exchange record (AppId & ProposalId & AccountId -> AppFinancedUserExchangeData)
+        AppFinancedUserExchangeRecord get(fn app_financed_user_exchange_record):
+            map hasher(twox_64_concat) T::Hash => AppFinancedUserExchangeData<BalanceOf<T>>;
+
         // App commodity(cart_id) count AppId -> u32
         AppCommodityCount get(fn app_commodity_count):
             map hasher(twox_64_concat) u32 => u32;
@@ -896,6 +933,8 @@ decl_event!(
         LeaderBoardsCreated(BlockNumber, u32, Vec<u8>),
         ModelDisputed(AccountId),
         AppRedeemed(AccountId),
+        AppFinanceUserExchangeStart(AccountId),
+        AppFinanceUserExchangeConfirmed(AccountId),
     }
 );
 
@@ -922,8 +961,14 @@ decl_error! {
         ReturnRateInvalid,
         AppIdInvalid,
         AppAlreadyFinanced,
+        AppFinancedNotInvestor,
         AppFinancedExchangeRateTooLow,
         AppFinancedParamsInvalid,
+        AppFinancedUserExchangeProposalNotExist,
+        AppFinancedUserExchangeAlreadyPerformed,
+        AppFinancedUserExchangeRecordNotExist,
+        AppFinancedUserExchangeOverflow,
+        AppFinancedUserExchangeStateWrong,
         DocumentIdentifyAlreadyExisted,
         DocumentTryAlreadyExisted,
         LeaderBoardCreateNotPermit,
@@ -1584,7 +1629,7 @@ decl_module! {
         }
 
         #[weight = 0]
-        pub fn democracy_app_financed(origin, app_id: u32, kpt_amount: BalanceOf<T>, exchange: BalanceOf<T>, proposal_id: Vec<u8>) -> dispatch::DispatchResult {
+        pub fn democracy_app_financed(origin, app_id: u32, kpt_amount: BalanceOf<T>, exchange: BalanceOf<T>, proposal_id: Vec<u8>, receiver: T::AccountId) -> dispatch::DispatchResult {
             ensure_root(origin)?;
             ensure!(kpt_amount > 0u32.into() && exchange > 0u32.into(),  Error::<T>::AppFinancedParamsInvalid);
             ensure!(T::Membership::is_valid_app(app_id), Error::<T>::AppIdInvalid);
@@ -1592,17 +1637,117 @@ decl_module! {
             ensure!(exchange_rate >= T::KptExchangeMinRate::get(), Error::<T>::AppFinancedExchangeRateTooLow);
 
             let key = T::Hashing::hash_of(&(app_id, &proposal_id));
-
             ensure!(!<AppFinancedRecord<T>>::contains_key(&key), Error::<T>::AppAlreadyFinanced);
+
+            // start transfer amount
+            ensure!(T::Membership::is_investor(&receiver), Error::<T>::AppFinancedNotInvestor);
+            let treasury_account: T::AccountId = T::FinTreasuryModuleId::get().into_account();
+            T::Currency::transfer(
+                &treasury_account,
+                &receiver,
+                kpt_amount,
+                KeepAlive,
+            )?;
 
             <AppFinancedRecord<T>>::insert(&key, AppFinancedData::<BalanceOf<T>, T::BlockNumber> {
                 amount: kpt_amount,
                 exchange,
                 block: <system::Module<T>>::block_number(),
                 total_balance: T::Currency::total_issuance_excluding_fund(),
+                exchanged: 0u32.into(),
             });
 
             Self::deposit_event(RawEvent::AppFinanced(app_id));
+            Ok(())
+        }
+
+        #[weight = 0]
+        pub fn app_financed_user_exchange_request(origin,
+            params: AppFinancedUserExchangeParams<T::AccountId, BalanceOf<T>>,
+            app_user_account: AuthAccountId,
+            app_user_sign: sr25519::Signature,
+
+            auth_server: AuthAccountId,
+            auth_sign: sr25519::Signature) -> dispatch::DispatchResult {
+
+            let _who = ensure_signed(origin)?;
+            let AppFinancedUserExchangeParams {
+                account,
+                app_id,
+                proposal_id,
+                exchange_amount,
+            } = params;
+
+            // check if app financed record exist
+            let fkey = T::Hashing::hash_of(&(app_id, &proposal_id));
+            ensure!(<AppFinancedRecord<T>>::contains_key(&fkey),
+                Error::<T>::AppFinancedUserExchangeProposalNotExist);
+            // check if user has performed this exchange
+            let ukey = Self::app_financed_exchange_record_key(app_id, &proposal_id, &account);
+            ensure!(!<AppFinancedUserExchangeRecord<T>>::contains_key(&ukey),
+                Error::<T>::AppFinancedUserExchangeAlreadyPerformed);
+            // TODO: check sign
+
+            // read financed record
+            let mut financed_record = <AppFinancedRecord<T>>::get(&fkey);
+            // make sure exchanged not overflow (this should not happen, if happen should be serious bug)
+            ensure!(financed_record.exchanged + exchange_amount <= financed_record.exchange,
+                Error::<T>::AppFinancedUserExchangeOverflow);
+            // reserve exchange_amount from user account
+            T::Currency::reserve(&account, exchange_amount)?;
+
+            financed_record.exchanged += exchange_amount;
+            <AppFinancedRecord<T>>::insert(&fkey, financed_record);
+
+            // AppFinancedUserExchangeData
+            <AppFinancedUserExchangeRecord<T>>::insert(&ukey, AppFinancedUserExchangeData {
+                exchange_amount,
+                status: 1,
+            });
+
+            Self::deposit_event(RawEvent::AppFinanceUserExchangeStart(account));
+            Ok(())
+        }
+
+        #[weight = 0]
+        pub fn app_financed_user_exchange_confirm(origin, params: AppFinancedUserExchangeParams<T::AccountId, BalanceOf<T>>) -> dispatch::DispatchResult {
+            let _who = ensure_signed(origin)?;
+            // TODO: make sure who is auth server
+
+            let AppFinancedUserExchangeParams {
+                account,
+                app_id,
+                proposal_id,
+                exchange_amount,
+            } = params;
+
+            let ukey = Self::app_financed_exchange_record_key(app_id, &proposal_id, &account);
+            // make sure record exist
+            ensure!(<AppFinancedUserExchangeRecord<T>>::contains_key(&ukey),
+                Error::<T>::AppFinancedUserExchangeRecordNotExist);
+
+            // make sure state is 1
+            let record = <AppFinancedUserExchangeRecord<T>>::get(&ukey);
+            ensure!(record.status == 1, Error::<T>::AppFinancedUserExchangeStateWrong);
+
+            // unreserve account balance
+            T::Currency::unreserve(&account, exchange_amount);
+            // burn process
+            let (debit, credit) = T::Currency::pair(exchange_amount);
+            T::BurnDestination::on_unbalanced(credit);
+
+            if let Err(problem) = T::Currency::settle(
+                &account,
+                debit,
+                WithdrawReason::Transfer.into(),
+                KeepAlive,
+            ) {
+                print("Inconsistent state - couldn't settle imbalance");
+                // Nothing else to do here.
+                drop(problem);
+            }
+
+            Self::deposit_event(RawEvent::AppFinanceUserExchangeConfirmed(account));
             Ok(())
         }
 
@@ -1734,6 +1879,15 @@ impl<T: Trait> Module<T> {
     fn get_purchase_power(key: &T::Hash) -> PowerSize {
         let power = <KPPurchasePowerByIdHash<T>>::get(key);
         Self::compute_commodity_power(&power)
+    }
+
+    fn app_financed_exchange_record_key(
+        app_id: u32,
+        proposal_id: &Vec<u8>,
+        account: &T::AccountId,
+    ) -> T::Hash {
+        let fkey = T::Hashing::hash_of(&(app_id, proposal_id));
+        T::Hashing::hash_of(&(fkey, account))
     }
 
     fn update_purchase_power(

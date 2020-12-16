@@ -1118,6 +1118,10 @@ impl kp::Trait for Runtime {
     type AppLeaderBoardInterval = AppLeaderBoardInterval;
     type AppLeaderBoardMaxPos = AppLeaderBoardMaxPos;
     type Randomness = RandomnessCollectiveFlip;
+    type FinTreasuryModuleId = TreasuryFinModuleId;
+    type ModTreasuryModuleId = TreasuryModModuleId;
+    type TechTreasuryModuleId = TreasuryTechModuleId;
+    type BurnDestination = ();
 }
 
 construct_runtime!(

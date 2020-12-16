@@ -159,6 +159,10 @@ impl Trait for Test {
     type AppLeaderBoardInterval = AppLeaderBoardInterval;
     type AppLeaderBoardMaxPos = AppLeaderBoardMaxPos;
     type Randomness = TestRandomness;
+    type FinTreasuryModuleId = ();
+    type ModTreasuryModuleId = ();
+    type TechTreasuryModuleId = ();
+    type BurnDestination = ();
 }
 
 impl pallet_balances::Trait for Test {
