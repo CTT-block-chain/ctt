@@ -434,6 +434,15 @@ pub struct AppFinancedData<Balance, BlockNumber> {
 }
 
 #[derive(Encode, Decode, Clone, Default, PartialEq, RuntimeDebug)]
+pub struct AppFinancedProposalParams<AccountId, Balance> {
+    account: AccountId,
+    app_id: u32,
+    proposal_id: Vec<u8>,
+    exchange: Balance,
+    amount: Balance,
+}
+
+#[derive(Encode, Decode, Clone, Default, PartialEq, RuntimeDebug)]
 pub struct AppFinancedUserExchangeParams<AccountId, Balance> {
     account: AccountId,
     app_id: u32,
@@ -1629,28 +1638,45 @@ decl_module! {
         }
 
         #[weight = 0]
-        pub fn democracy_app_financed(origin, app_id: u32, kpt_amount: BalanceOf<T>, exchange: BalanceOf<T>, proposal_id: Vec<u8>, receiver: T::AccountId) -> dispatch::DispatchResult {
+        pub fn democracy_app_financed(origin,
+            params: AppFinancedProposalParams<T::AccountId, BalanceOf<T>>,
+            app_user_account: AuthAccountId,
+            app_user_sign: sr25519::Signature,
+
+            auth_server: AuthAccountId,
+            auth_sign: sr25519::Signature) -> dispatch::DispatchResult {
             ensure_root(origin)?;
-            ensure!(kpt_amount > 0u32.into() && exchange > 0u32.into(),  Error::<T>::AppFinancedParamsInvalid);
+
+            // TODO verify sign
+
+            let AppFinancedProposalParams {
+                account,
+                app_id,
+                proposal_id,
+                exchange,
+                amount,
+            } = params;
+
+            ensure!(amount > 0u32.into() && exchange > 0u32.into(),  Error::<T>::AppFinancedParamsInvalid);
             ensure!(T::Membership::is_valid_app(app_id), Error::<T>::AppIdInvalid);
-            let exchange_rate = exchange / kpt_amount;
+            let exchange_rate = exchange / amount;
             ensure!(exchange_rate >= T::KptExchangeMinRate::get(), Error::<T>::AppFinancedExchangeRateTooLow);
 
             let key = T::Hashing::hash_of(&(app_id, &proposal_id));
             ensure!(!<AppFinancedRecord<T>>::contains_key(&key), Error::<T>::AppAlreadyFinanced);
 
             // start transfer amount
-            ensure!(T::Membership::is_investor(&receiver), Error::<T>::AppFinancedNotInvestor);
+            ensure!(T::Membership::is_investor(&account), Error::<T>::AppFinancedNotInvestor);
             let treasury_account: T::AccountId = T::FinTreasuryModuleId::get().into_account();
             T::Currency::transfer(
                 &treasury_account,
-                &receiver,
-                kpt_amount,
+                &account,
+                amount,
                 KeepAlive,
             )?;
 
             <AppFinancedRecord<T>>::insert(&key, AppFinancedData::<BalanceOf<T>, T::BlockNumber> {
-                amount: kpt_amount,
+                amount,
                 exchange,
                 block: <system::Module<T>>::block_number(),
                 total_balance: T::Currency::total_issuance_excluding_fund(),
