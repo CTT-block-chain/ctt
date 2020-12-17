@@ -42,7 +42,7 @@ use sp_runtime::{
         AccountIdConversion, Hash, IntegerSquareRoot, SaturatedConversion, TrailingZeroInput,
         Verify,
     },
-    ModuleId, MultiSignature, RuntimeDebug,
+    ModuleId, MultiSignature, Permill, RuntimeDebug,
 };
 
 pub trait PowerVote<AccountId> {
@@ -714,8 +714,8 @@ pub trait Trait: system::Trait {
 
     type ModelCreateDeposit: Get<BalanceOf<Self>>;
 
-    /// App financed purpose minimal exchange rate, aka 1 RMB exchange how many KPT
-    type KptExchangeMinRate: Get<BalanceOf<Self>>;
+    /// App financed purpose minimal exchange rate
+    type KptExchangeMinRate: Get<Permill>;
 
     type AppLeaderBoardInterval: Get<Self::BlockNumber>;
 
@@ -1038,7 +1038,7 @@ decl_module! {
         const CMPowerAccountAttend: u8 = T::CMPowerAccountAttend::get();
 
         const ModelCreateDeposit: BalanceOf<T> = T::ModelCreateDeposit::get();
-        const KptExchangeMinRate: BalanceOf<T> = T::KptExchangeMinRate::get();
+        const KptExchangeMinRate: Permill = T::KptExchangeMinRate::get();
 
         #[weight = 0]
         pub fn create_model(origin,
@@ -1659,8 +1659,8 @@ decl_module! {
 
             ensure!(amount > 0u32.into() && exchange > 0u32.into(),  Error::<T>::AppFinancedParamsInvalid);
             ensure!(T::Membership::is_valid_app(app_id), Error::<T>::AppIdInvalid);
-            let exchange_rate = exchange / amount;
-            ensure!(exchange_rate >= T::KptExchangeMinRate::get(), Error::<T>::AppFinancedExchangeRateTooLow);
+            let min_exchange = T::KptExchangeMinRate::get() * amount;
+            ensure!(exchange >= min_exchange, Error::<T>::AppFinancedExchangeRateTooLow);
 
             let key = T::Hashing::hash_of(&(app_id, &proposal_id));
             ensure!(!<AppFinancedRecord<T>>::contains_key(&key), Error::<T>::AppAlreadyFinanced);
@@ -1744,7 +1744,7 @@ decl_module! {
                 account,
                 app_id,
                 proposal_id,
-                exchange_amount,
+                ..
             } = params;
 
             let ukey = Self::app_financed_exchange_record_key(app_id, &proposal_id, &account);
@@ -1757,9 +1757,9 @@ decl_module! {
             ensure!(record.status == 1, Error::<T>::AppFinancedUserExchangeStateWrong);
 
             // unreserve account balance
-            T::Currency::unreserve(&account, exchange_amount);
+            T::Currency::unreserve(&account, record.exchange_amount);
             // burn process
-            let (debit, credit) = T::Currency::pair(exchange_amount);
+            let (debit, credit) = T::Currency::pair(record.exchange_amount);
             T::BurnDestination::on_unbalanced(credit);
 
             if let Err(problem) = T::Currency::settle(

@@ -1070,7 +1070,7 @@ parameter_types! {
     pub const CommentCMPowerWeightPositive: u8 = 5;
 
     pub const ModelCreateDeposit: Balance = 100 * DOLLARS;
-    pub const KptExchangeMinRate: Balance = 10 * DOLLARS;
+    pub const KptExchangeMinRate: Permill = Permill::from_percent(10);
 
     pub const AppLeaderBoardInterval: BlockNumber = 1 * DAYS;
     pub const AppLeaderBoardMaxPos: u32 = 96;
