@@ -281,6 +281,16 @@ impl Default for DocumentSpecificData {
     }
 }
 
+#[derive(Encode, Decode, Clone, PartialEq, RuntimeDebug)]
+pub struct CommentData<Hash> {
+  app_id: u32,
+  document_id: Vec<u8>,
+  comment_id: Vec<u8>,
+  comment_hash: Hash,
+  comment_fee: PowerSize,
+  comment_trend: u8,
+}
+
 // account comment action record
 #[derive(Encode, Decode, Clone, PartialEq, Default, RuntimeDebug)]
 pub struct KPCommentAccountRecord {
@@ -982,6 +992,8 @@ decl_error! {
         DocumentTryAlreadyExisted,
         LeaderBoardCreateNotPermit,
         AppRedeemTransactionIdRepeat,
+        SignVerifyErrorUser,
+        SignVerifyErrorAuth,
     }
 }
 
@@ -1343,13 +1355,7 @@ decl_module! {
 
         #[weight = 0]
         pub fn create_comment(origin,
-            app_id: u32,
-            comment_id: Vec<u8>,
-            document_id: Vec<u8>,
-
-            comment_hash: T::Hash,
-            comment_fee: PowerSize,
-            comment_trend: u8,
+            comment_data: CommentData<T::Hash>,
 
             app_user_account: AuthAccountId,
             app_user_sign: sr25519::Signature,
@@ -1360,6 +1366,18 @@ decl_module! {
             let who = ensure_signed(origin)?;
 
             // TODO: 2 sign verification
+            let buf = comment_data.encode();
+            ensure!(Self::verify_sign(&app_user_account, app_user_sign, &buf), Error::<T>::SignVerifyErrorUser);
+            ensure!(Self::verify_sign(&auth_server, auth_sign, &buf), Error::<T>::SignVerifyErrorAuth);
+
+            let CommentData {
+              app_id,
+              document_id,
+              comment_id,
+              comment_hash,
+              comment_fee,
+              comment_trend,
+            } = comment_data;
 
             // TODO: check platform & expert member role
 
@@ -1647,7 +1665,9 @@ decl_module! {
             auth_sign: sr25519::Signature) -> dispatch::DispatchResult {
             ensure_root(origin)?;
 
-            // TODO verify sign
+            let buf = params.encode();
+            ensure!(Self::verify_sign(&app_user_account, app_user_sign, &buf), Error::<T>::SignVerifyErrorUser);
+            ensure!(Self::verify_sign(&auth_server, auth_sign, &buf), Error::<T>::SignVerifyErrorAuth);
 
             let AppFinancedProposalParams {
                 account,
@@ -1888,9 +1908,9 @@ impl<T: Trait> Module<T> {
         <AuthServers<T>>::get().contains(who)
     }
 
-    fn auth_server_verify(server: AuthAccountId, sign: sr25519::Signature, msg: &[u8]) -> bool {
+    fn verify_sign(pub_key: &AuthAccountId, sign: sr25519::Signature, msg: &[u8]) -> bool {
         let ms: MultiSignature = sign.into();
-        ms.verify(msg, &server)
+        ms.verify(msg, &pub_key)
     }
 
     fn convert_account(origin: &AuthAccountId) -> T::AccountId {
