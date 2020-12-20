@@ -368,16 +368,16 @@ pub fn testnet_genesis(
         kp: Some(KpConfig {
             auth_servers,
             app_id_range: vec![
-                (b"commodity_general".to_vec(), 100010000), // JianFa app start point
-                (b"commodity_vertical".to_vec(), 100020000), // Empty
-                (b"commodity_special".to_vec(), 100300000), // Empty
-                (b"service_education".to_vec(), 200010000), // Empty
-                (b"service_health".to_vec(), 200020000),    // Empty
-                (b"service_finance".to_vec(), 200030000),   // Empty
-                (b"service_medicine".to_vec(), 200040000),  // Empty
-                (b"governance_legal".to_vec(), 300010000),  // Empty
-                (b"governance_rules".to_vec(), 300020000),  // Empty
-                (b"misc".to_vec(), 400010000),              // Empty
+                (b"commodity_general".to_vec(), (100010000, 100 * DOLLARS)), // JianFa app start point
+                (b"commodity_vertical".to_vec(), (100020000, 100 * DOLLARS)), // Empty
+                (b"commodity_special".to_vec(), (100300000, 100 * DOLLARS)), // Empty
+                (b"service_education".to_vec(), (200010000, 100 * DOLLARS)), // Empty
+                (b"service_health".to_vec(), (200020000, 100 * DOLLARS)),    // Empty
+                (b"service_finance".to_vec(), (200030000, 100 * DOLLARS)),   // Empty
+                (b"service_medicine".to_vec(), (200040000, 100 * DOLLARS)),  // Empty
+                (b"governance_legal".to_vec(), (300010000, 100 * DOLLARS)),  // Empty
+                (b"governance_rules".to_vec(), (300020000, 100 * DOLLARS)),  // Empty
+                (b"misc".to_vec(), (400010000, 100 * DOLLARS)),              // Empty
             ],
         }),
     }

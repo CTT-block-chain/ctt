@@ -545,6 +545,15 @@ impl<T: Trait> PartialOrd for CommentWeightData<T> {
     }
 }
 
+#[derive(Encode, Decode, Clone, Default, PartialEq, RuntimeDebug)]
+pub struct AddAppParams<AccountId> {
+  app_type: Vec<u8>,
+  app_name: Vec<u8>,
+  app_key: AccountId,
+  app_admin_key: AccountId,
+  return_rate: u32,
+} 
+
 /*
 type KnowledgePowerDataOf<T> = KnowledgePowerData<<T as system::Trait>::AccountId>;
 
@@ -742,7 +751,7 @@ decl_storage! {
 
         // App id ranges according type string
         AppIdRange get(fn app_id_range) config():
-            map hasher(twox_64_concat) Vec<u8> => u32;
+            map hasher(twox_64_concat) Vec<u8> => (u32, BalanceOf<T>);
 
         // (AppId, ModelId) -> KPModelData
         KPModelDataByIdHash get(fn kp_model_data_by_idhash):
@@ -1365,7 +1374,6 @@ decl_module! {
 
             let who = ensure_signed(origin)?;
 
-            // TODO: 2 sign verification
             let buf = comment_data.encode();
             ensure!(Self::verify_sign(&app_user_account, app_user_sign, &buf), Error::<T>::SignVerifyErrorUser);
             ensure!(Self::verify_sign(&auth_server, auth_sign, &buf), Error::<T>::SignVerifyErrorAuth);
@@ -1634,22 +1642,47 @@ decl_module! {
         }
 
         #[weight = 0]
-        pub fn democracy_add_app(origin, app_type: Vec<u8>, app_name: Vec<u8>,
-            app_key: T::AccountId, app_admin_key: T::AccountId, return_rate: u32) -> dispatch::DispatchResult {
+        pub fn democracy_add_app(origin, params: AddAppParams<T::AccountId>, 
+            app_user_account: AuthAccountId,
+            app_user_sign: sr25519::Signature,
+
+            auth_server: AuthAccountId,
+            auth_sign: sr25519::Signature) -> dispatch::DispatchResult {
             ensure_root(origin)?;
+
+            let buf = params.encode();
+            ensure!(Self::verify_sign(&app_user_account, app_user_sign, &buf), Error::<T>::SignVerifyErrorUser);
+            ensure!(Self::verify_sign(&auth_server, auth_sign, &buf), Error::<T>::SignVerifyErrorAuth);
+
+            let AddAppParams {
+              app_type,
+              app_name,
+              app_key,
+              app_admin_key,
+              return_rate,
+            } = params;
+
             // check app_type
-            ensure!(<AppIdRange>::contains_key(&app_type), Error::<T>::AppTypeInvalid);
+            ensure!(<AppIdRange<T>>::contains_key(&app_type), Error::<T>::AppTypeInvalid);
             // check return_rate
             ensure!(return_rate > 0 && return_rate < 10000, Error::<T>::ReturnRateInvalid);
+
             // generate app_id
-            let app_id = <AppIdRange>::get(&app_type) + 1;
+            let app_info = <AppIdRange<T>>::get(&app_type);
+
+            // reserve balance
+            T::Currency::reserve(&app_admin_key, app_info.1)?;
+
+            let app_id = app_info.0 + 1;
             // set admin and idenetity key
             T::Membership::config_app_admin(&app_admin_key, app_id);
             T::Membership::config_app_key(&app_key, app_id);
             T::Membership::config_app_setting(app_id, return_rate, app_name);
 
             // update app_id range store
-            <AppIdRange>::insert(&app_type, app_id);
+            <AppIdRange<T>>::mutate(&app_type, |info| {
+              info.0 = app_id;
+            });
 
             Self::deposit_event(RawEvent::AppAdded(app_id));
             Ok(())
