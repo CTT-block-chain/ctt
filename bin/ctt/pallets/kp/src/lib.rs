@@ -283,12 +283,12 @@ impl Default for DocumentSpecificData {
 
 #[derive(Encode, Decode, Clone, PartialEq, RuntimeDebug)]
 pub struct CommentData<Hash> {
-  app_id: u32,
-  document_id: Vec<u8>,
-  comment_id: Vec<u8>,
-  comment_hash: Hash,
-  comment_fee: PowerSize,
-  comment_trend: u8,
+    app_id: u32,
+    document_id: Vec<u8>,
+    comment_id: Vec<u8>,
+    comment_hash: Hash,
+    comment_fee: PowerSize,
+    comment_trend: u8,
 }
 
 // account comment action record
@@ -547,12 +547,12 @@ impl<T: Trait> PartialOrd for CommentWeightData<T> {
 
 #[derive(Encode, Decode, Clone, Default, PartialEq, RuntimeDebug)]
 pub struct AddAppParams<AccountId> {
-  app_type: Vec<u8>,
-  app_name: Vec<u8>,
-  app_key: AccountId,
-  app_admin_key: AccountId,
-  return_rate: u32,
-} 
+    app_type: Vec<u8>,
+    app_name: Vec<u8>,
+    app_key: AccountId,
+    app_admin_key: AccountId,
+    return_rate: u32,
+}
 
 /*
 type KnowledgePowerDataOf<T> = KnowledgePowerData<<T as system::Trait>::AccountId>;
@@ -749,9 +749,9 @@ decl_storage! {
         // Trusted application server account
         AuthServers get(fn auth_servers) config() : Vec<T::AccountId>;
 
-        // App id ranges according type string
+        // App id ranges according type string (current appid, staking, maxNum, currentNum)
         AppIdRange get(fn app_id_range) config():
-            map hasher(twox_64_concat) Vec<u8> => (u32, BalanceOf<T>);
+            map hasher(twox_64_concat) Vec<u8> => (u32, BalanceOf<T>, u32, u32);
 
         // (AppId, ModelId) -> KPModelData
         KPModelDataByIdHash get(fn kp_model_data_by_idhash):
@@ -988,6 +988,7 @@ decl_error! {
         AppTypeInvalid,
         ReturnRateInvalid,
         AppIdInvalid,
+        AppIdReachMax,
         AppAlreadyFinanced,
         AppFinancedNotInvestor,
         AppFinancedExchangeRateTooLow,
@@ -1642,7 +1643,7 @@ decl_module! {
         }
 
         #[weight = 0]
-        pub fn democracy_add_app(origin, params: AddAppParams<T::AccountId>, 
+        pub fn democracy_add_app(origin, params: AddAppParams<T::AccountId>,
             app_user_account: AuthAccountId,
             app_user_sign: sr25519::Signature,
 
@@ -1669,11 +1670,19 @@ decl_module! {
 
             // generate app_id
             let app_info = <AppIdRange<T>>::get(&app_type);
+            let (current_id, stake, max, num) = app_info;
+
+            // check if reach max
+            if max > 0 {
+                ensure!(num < max, Error::<T>::AppIdReachMax);
+            }
 
             // reserve balance
-            T::Currency::reserve(&app_admin_key, app_info.1)?;
+            if stake > 0u32.into() {
+                T::Currency::reserve(&app_admin_key, stake)?;
+            }
 
-            let app_id = app_info.0 + 1;
+            let app_id = current_id + 1;
             // set admin and idenetity key
             T::Membership::config_app_admin(&app_admin_key, app_id);
             T::Membership::config_app_key(&app_key, app_id);
@@ -1682,6 +1691,7 @@ decl_module! {
             // update app_id range store
             <AppIdRange<T>>::mutate(&app_type, |info| {
               info.0 = app_id;
+              info.3 += 1;
             });
 
             Self::deposit_event(RawEvent::AppAdded(app_id));
