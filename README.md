@@ -7,3 +7,6 @@ pls flow Substrate tool chain setup steps:[installation](https://substrate.dev/d
 
 ### release build:  
 ```./build-release.sh```
+
+### debug run:  
+```./target/debug/ctt --dev```
