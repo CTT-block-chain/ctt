@@ -554,6 +554,78 @@ pub struct AddAppParams<AccountId> {
     return_rate: u32,
 }
 
+/// create_model params
+#[derive(Encode, Decode, Clone, Default, PartialEq, RuntimeDebug)]
+pub struct ClientParamsCreateModel<Hash> {
+    app_id: u32,
+    expert_id: Vec<u8>,
+    commodity_name: Vec<u8>,
+    commodity_type: u32,
+    content_hash: Hash,
+}
+
+#[derive(Encode, Decode, Clone, Default, PartialEq, RuntimeDebug)]
+pub struct AuthParamsCreateModel {
+    model_id: Vec<u8>,
+}
+
+#[derive(Encode, Decode, Clone, Default, PartialEq, RuntimeDebug)]
+pub struct ClientParamsCreatePublishDoc<Hash> {
+    app_id: u32,
+    document_id: Vec<u8>,
+    model_id: Vec<u8>,
+    product_id: Vec<u8>,
+    content_hash: Hash,
+    para_issue_rate: PowerSize,
+    self_issue_rate: PowerSize,
+}
+
+#[derive(Encode, Decode, Clone, Default, PartialEq, RuntimeDebug)]
+pub struct ClientParamsCreateIdentifyDoc<Hash> {
+    app_id: u32,
+    document_id: Vec<u8>,
+    product_id: Vec<u8>,
+    content_hash: Hash,
+    goods_price: PowerSize,
+    ident_rate: PowerSize,
+    ident_consistence: PowerSize,
+    cart_id: Vec<u8>,
+}
+
+#[derive(Encode, Decode, Clone, Default, PartialEq, RuntimeDebug)]
+pub struct ClientParamsCreateTryDoc<Hash> {
+    app_id: u32,
+    document_id: Vec<u8>,
+    product_id: Vec<u8>,
+    content_hash: Hash,
+    goods_price: PowerSize,
+    offset_rate: PowerSize,
+    true_rate: PowerSize,
+    cart_id: Vec<u8>,
+}
+
+#[derive(Encode, Decode, Clone, Default, PartialEq, RuntimeDebug)]
+pub struct ClientParamsCreateChooseDoc<Hash> {
+    app_id: u32,
+    document_id: Vec<u8>,
+    model_id: Vec<u8>,
+    product_id: Vec<u8>,
+    content_hash: Hash,
+    sell_count: PowerSize,
+    try_count: PowerSize,
+}
+
+#[derive(Encode, Decode, Clone, Default, PartialEq, RuntimeDebug)]
+pub struct ClientParamsCreateModelDoc<Hash> {
+    app_id: u32,
+    document_id: Vec<u8>,
+    model_id: Vec<u8>,
+    product_id: Vec<u8>,
+    content_hash: Hash,
+    producer_count: PowerSize,
+    product_count: PowerSize,
+}
+
 /*
 type KnowledgePowerDataOf<T> = KnowledgePowerData<<T as system::Trait>::AccountId>;
 
@@ -1064,12 +1136,8 @@ decl_module! {
 
         #[weight = 0]
         pub fn create_model(origin,
-            app_id: u32,
-            model_id: Vec<u8>,
-            expert_id: Vec<u8>,
-            commodity_name: Vec<u8>,
-            commodity_type: u32,
-            content_hash: T::Hash,
+            client_params: ClientParamsCreateModel<T::Hash>,
+            auth_params: AuthParamsCreateModel,
 
             app_user_account: AuthAccountId,
             app_user_sign: sr25519::Signature,
@@ -1080,7 +1148,21 @@ decl_module! {
             )-> dispatch::DispatchResult {
             let who = ensure_signed(origin)?;
 
-            // TODO: verify 2 signature
+            ensure!(Self::verify_sign(&app_user_account, app_user_sign, &client_params.encode()), Error::<T>::SignVerifyErrorUser);
+            ensure!(Self::verify_sign(&auth_server, auth_sign, &auth_params.encode()), Error::<T>::SignVerifyErrorAuth);
+
+            let ClientParamsCreateModel {
+                app_id,
+                expert_id,
+                commodity_name,
+                commodity_type,
+                content_hash,
+            } = client_params;
+
+            let AuthParamsCreateModel {
+                model_id,
+            } = auth_params;
+
 
             let key = T::Hashing::hash_of(&(app_id, &model_id));
             ensure!(!<KPModelDataByIdHash<T>>::contains_key(&key), Error::<T>::ModelAlreadyExisted);
@@ -1127,37 +1209,8 @@ decl_module! {
         }
 
         #[weight = 0]
-        pub fn disable_model(origin, app_id: Vec<u8>, model_id: Vec<u8>,
-            app_user_account: AuthAccountId,
-            app_user_sign: sr25519::Signature,
-
-            auth_server: AuthAccountId,
-            auth_sign: sr25519::Signature
-            )-> dispatch::DispatchResult {
-            let who = ensure_signed(origin)?;
-
-            let key = T::Hashing::hash_of(&(app_id, &model_id));
-            ensure!(<KPModelDataByIdHash<T>>::contains_key(&key), Error::<T>::ModelNotFound);
-
-            <KPModelDataByIdHash<T>>::mutate(&key, |model| {
-                model.status = ModelStatus::DISABLED;
-            });
-
-            // TODO: delay return of deposit money
-
-            Self::deposit_event(RawEvent::ModelDisabled(who));
-            Ok(())
-        }
-
-        #[weight = 0]
         pub fn create_product_publish_document(origin,
-            app_id: u32,
-            document_id: Vec<u8>,
-            model_id: Vec<u8>,
-            product_id: Vec<u8>,
-            content_hash: T::Hash,
-
-            document_power_data: KPProductPublishData,
+            client_params: ClientParamsCreatePublishDoc<T::Hash>,
 
             app_user_account: AuthAccountId,
             app_user_sign: sr25519::Signature,
@@ -1167,14 +1220,22 @@ decl_module! {
 
             // Check it was signed and get the signer. See also: ensure_root and ensure_none
             let who = ensure_signed(origin)?;
-            // check if document_id is existed already.
-            /*let mut doc_key_buf = vec![];
-            doc_key_buf.append(&mut(app_id.clone()));
-            doc_key_buf.append(&mut(document_id.clone()));
-            let doc_key = H160::from(doc_key_buf);*/
+
+            let encode = client_params.encode();
+            ensure!(Self::verify_sign(&app_user_account, app_user_sign, &encode), Error::<T>::SignVerifyErrorUser);
+            ensure!(Self::verify_sign(&auth_server, auth_sign, &encode), Error::<T>::SignVerifyErrorAuth);
+
+            let ClientParamsCreatePublishDoc {
+                app_id,
+                document_id,
+                model_id,
+                product_id,
+                content_hash,
+                para_issue_rate,
+                self_issue_rate,
+            } = client_params;
 
             let doc_key_hash = T::Hashing::hash_of(&(app_id, &document_id));
-
             ensure!(!<KPDocumentDataByIdHash<T>>::contains_key(&doc_key_hash), Error::<T>::DocumentAlreadyExisted);
 
             // extract percent rates data
@@ -1188,19 +1249,6 @@ decl_module! {
             let model_key = T::Hashing::hash_of(&(app_id, &model_id));
             ensure!(<KPModelDataByIdHash<T>>::contains_key(&model_key), Error::<T>::ModelNotFound);
 
-            // TODO: 2 sign verification
-            // construct verification u8 array:
-            /*let mut buf = vec![];
-            buf.append(&mut(app_id.clone()));
-            buf.append(&mut(document_id.clone()));
-            buf.append(&mut vec![knowledge_type, extra_compute_param]);
-
-            // auth sign check with auth_server & auth_sign
-            ensure!(Self::auth_server_verify(auth_server, auth_sign, &buf), "auth server signature verification fail");*/
-
-            // TODO: validate data
-            // let data_encoded: Vec<u8> = document_power_data.encode();
-
             let doc = KPDocumentData {
                 sender: who.clone(),
                 owner: app_user_account.clone(),
@@ -1210,7 +1258,7 @@ decl_module! {
                 model_id,
                 product_id: product_id.clone(),
                 content_hash,
-                document_data: DocumentSpecificData::ProductPublish(document_power_data),
+                document_data: DocumentSpecificData::ProductPublish(KPProductPublishData {para_issue_rate, self_issue_rate}),
                 ..Default::default()
             };
 
@@ -1229,13 +1277,7 @@ decl_module! {
 
         #[weight = 0]
         pub fn create_product_identify_document(origin,
-            app_id: u32,
-            document_id: Vec<u8>,
-            _model_id: Vec<u8>,
-            product_id: Vec<u8>,
-            content_hash: T::Hash,
-
-            document_power_data: KPProductIdentifyData,
+            client_params: ClientParamsCreateIdentifyDoc<T::Hash>,
 
             app_user_account: AuthAccountId,
             app_user_sign: sr25519::Signature,
@@ -1245,19 +1287,31 @@ decl_module! {
 
             let who = ensure_signed(origin)?;
 
+            let encode = client_params.encode();
+            ensure!(Self::verify_sign(&app_user_account, app_user_sign, &encode), Error::<T>::SignVerifyErrorUser);
+            ensure!(Self::verify_sign(&auth_server, auth_sign, &encode), Error::<T>::SignVerifyErrorAuth);
+
+            let ClientParamsCreateIdentifyDoc {
+                app_id,
+                document_id,
+                product_id,
+                content_hash,
+                goods_price,
+                ident_rate,
+                ident_consistence,
+                cart_id,
+            } = client_params;
+
             let doc_key_hash = T::Hashing::hash_of(&(app_id, &document_id));
             ensure!(!<KPDocumentDataByIdHash<T>>::contains_key(&doc_key_hash), Error::<T>::DocumentAlreadyExisted);
 
             let product_key_hash = T::Hashing::hash_of(&(app_id, &product_id));
             ensure!(<KPDocumentProductIndexByIdHash<T>>::contains_key(&product_key_hash), Error::<T>::ProductNotFound);
 
-            let cart_id = document_power_data.cart_id.clone();
-
             let key = T::Hashing::hash_of(&(app_id, &cart_id));
             ensure!(!<KPCartProductIdentifyIndexByIdHash<T>>::contains_key(&key), Error::<T>::DocumentIdentifyAlreadyExisted);
 
             let model_id = Self::get_model_id_from_product(app_id, &product_id).unwrap_or_default();
-            let cart_id = document_power_data.cart_id.clone();
 
             // create doc
             let doc = KPDocumentData {
@@ -1269,7 +1323,7 @@ decl_module! {
                 model_id,
                 product_id,
                 content_hash,
-                document_data: DocumentSpecificData::ProductIdentify(document_power_data),
+                document_data: DocumentSpecificData::ProductIdentify(KPProductIdentifyData {goods_price, ident_rate, ident_consistence, cart_id: cart_id.clone()}),
                 ..Default::default()
             };
 
@@ -1297,13 +1351,7 @@ decl_module! {
 
         #[weight = 0]
         pub fn create_product_try_document(origin,
-            app_id: u32,
-            document_id: Vec<u8>,
-            _model_id: Vec<u8>,
-            product_id: Vec<u8>,
-            content_hash: T::Hash,
-
-            document_power_data: KPProductTryData,
+            client_params: ClientParamsCreateTryDoc<T::Hash>,
 
             app_user_account: AuthAccountId,
             app_user_sign: sr25519::Signature,
@@ -1313,18 +1361,31 @@ decl_module! {
 
             let who = ensure_signed(origin)?;
 
+            let encode = client_params.encode();
+            ensure!(Self::verify_sign(&app_user_account, app_user_sign, &encode), Error::<T>::SignVerifyErrorUser);
+            ensure!(Self::verify_sign(&auth_server, auth_sign, &encode), Error::<T>::SignVerifyErrorAuth);
+
+            let ClientParamsCreateTryDoc {
+                app_id,
+                document_id,
+                product_id,
+                content_hash,
+                goods_price,
+                offset_rate,
+                true_rate,
+                cart_id,
+            } = client_params;
+
             let doc_key_hash = T::Hashing::hash_of(&(app_id, &document_id));
             ensure!(!<KPDocumentDataByIdHash<T>>::contains_key(&doc_key_hash), Error::<T>::DocumentAlreadyExisted);
 
             let product_key_hash = T::Hashing::hash_of(&(app_id, &product_id));
             ensure!(<KPDocumentProductIndexByIdHash<T>>::contains_key(&product_key_hash), Error::<T>::ProductNotFound);
 
-            let cart_id = document_power_data.cart_id.clone();
             let key = T::Hashing::hash_of(&(app_id, &cart_id));
             ensure!(!<KPCartProductTryIndexByIdHash<T>>::contains_key(&key), Error::<T>::DocumentTryAlreadyExisted);
 
             let model_id = Self::get_model_id_from_product(app_id, &product_id).unwrap_or_default();
-            let cart_id = document_power_data.cart_id.clone();
 
             // create doc
             let doc = KPDocumentData {
@@ -1336,7 +1397,7 @@ decl_module! {
                 model_id,
                 product_id,
                 content_hash,
-                document_data: DocumentSpecificData::ProductTry(document_power_data),
+                document_data: DocumentSpecificData::ProductTry(KPProductTryData {goods_price, offset_rate, true_rate, cart_id: cart_id.clone()}),
                 ..Default::default()
             };
 
@@ -1358,6 +1419,119 @@ decl_module! {
                 DocumentType::ProductTry,
                 &Self::convert_account(&doc.owner),
             );
+
+            Self::deposit_event(RawEvent::KnowledgeCreated(who));
+            Ok(())
+        }
+
+         #[weight = 0]
+        pub fn create_product_choose_document(origin,
+            client_params: ClientParamsCreateChooseDoc<T::Hash>,
+
+            app_user_account: AuthAccountId,
+            app_user_sign: sr25519::Signature,
+
+            auth_server: AuthAccountId,
+            auth_sign: sr25519::Signature) -> dispatch::DispatchResult {
+
+            let who = ensure_signed(origin)?;
+
+            let encode = client_params.encode();
+            ensure!(Self::verify_sign(&app_user_account, app_user_sign, &encode), Error::<T>::SignVerifyErrorUser);
+            ensure!(Self::verify_sign(&auth_server, auth_sign, &encode), Error::<T>::SignVerifyErrorAuth);
+
+            let ClientParamsCreateChooseDoc {
+                app_id,
+                document_id,
+                model_id,
+                product_id,
+                content_hash,
+                sell_count,
+                try_count,
+            } = client_params;
+
+            let doc_key_hash = T::Hashing::hash_of(&(app_id, &document_id));
+
+            ensure!(!<KPDocumentDataByIdHash<T>>::contains_key(&doc_key_hash), Error::<T>::DocumentAlreadyExisted);
+
+            // create doc
+            let doc = KPDocumentData {
+                sender: who.clone(),
+                owner: app_user_account.clone(),
+                document_type: DocumentType::ProductChoose,
+                app_id,
+                document_id: document_id.clone(),
+                model_id,
+                product_id,
+                content_hash,
+                document_data: DocumentSpecificData::ProductChoose(KPProductChooseData {sell_count, try_count}),
+                ..Default::default()
+            };
+
+            // process content power
+            Self::process_document_content_power(&doc);
+            Self::process_commodity_power(&doc);
+
+            // create document record
+            <KPDocumentDataByIdHash<T>>::insert(&doc_key_hash, &doc);
+
+            Self::deposit_event(RawEvent::KnowledgeCreated(who));
+            Ok(())
+        }
+
+        #[weight = 0]
+        pub fn create_model_create_document(origin,
+            client_params: ClientParamsCreateModelDoc<T::Hash>,
+
+            app_user_account: AuthAccountId,
+            app_user_sign: sr25519::Signature,
+
+            auth_server: AuthAccountId,
+            auth_sign: sr25519::Signature) -> dispatch::DispatchResult {
+
+            let who = ensure_signed(origin)?;
+
+            let encode = client_params.encode();
+            ensure!(Self::verify_sign(&app_user_account, app_user_sign, &encode), Error::<T>::SignVerifyErrorUser);
+            ensure!(Self::verify_sign(&auth_server, auth_sign, &encode), Error::<T>::SignVerifyErrorAuth);
+
+            let ClientParamsCreateModelDoc {
+                app_id,
+                document_id,
+                model_id,
+                product_id,
+                content_hash,
+                producer_count,
+                product_count,
+            } = client_params;
+
+            let doc_key_hash = T::Hashing::hash_of(&(app_id, &document_id));
+
+            ensure!(!<KPDocumentDataByIdHash<T>>::contains_key(&doc_key_hash), Error::<T>::DocumentAlreadyExisted);
+
+            let model_key = T::Hashing::hash_of(&(app_id, &model_id));
+            ensure!(<KPModelDataByIdHash<T>>::contains_key(&model_key), Error::<T>::ModelNotFound);
+
+            // create doc
+            let doc = KPDocumentData {
+                sender: who.clone(),
+                owner: app_user_account.clone(),
+                document_type: DocumentType::ModelCreate,
+                app_id,
+                document_id: document_id.clone(),
+                model_id,
+                product_id,
+                content_hash,
+                document_data: DocumentSpecificData::ModelCreate(KPModelCreateData {producer_count, product_count}),
+                ..Default::default()
+            };
+
+            // process content power
+            Self::process_document_content_power(&doc);
+            Self::process_commodity_power(&doc);
+
+            // create document record
+            <KPDocumentDataByIdHash<T>>::insert(&doc_key_hash, &doc);
 
             Self::deposit_event(RawEvent::KnowledgeCreated(who));
             Ok(())
@@ -1477,103 +1651,6 @@ decl_module! {
             <ModelYearIncome<T>>::insert(year, &subkey, income);
 
             Self::deposit_event(RawEvent::ModelYearIncome(who));
-            Ok(())
-        }
-
-        #[weight = 0]
-        pub fn create_product_choose_document(origin,
-            app_id: u32,
-            document_id: Vec<u8>,
-            model_id: Vec<u8>,
-            product_id: Vec<u8>,
-            content_hash: T::Hash,
-
-            document_power_data: KPProductChooseData,
-
-            app_user_account: AuthAccountId,
-            app_user_sign: sr25519::Signature,
-
-            auth_server: AuthAccountId,
-            auth_sign: sr25519::Signature) -> dispatch::DispatchResult {
-
-            let who = ensure_signed(origin)?;
-
-            let doc_key_hash = T::Hashing::hash_of(&(app_id, &document_id));
-
-            ensure!(!<KPDocumentDataByIdHash<T>>::contains_key(&doc_key_hash), Error::<T>::DocumentAlreadyExisted);
-
-            // create doc
-            let doc = KPDocumentData {
-                sender: who.clone(),
-                owner: app_user_account.clone(),
-                document_type: DocumentType::ProductChoose,
-                app_id,
-                document_id: document_id.clone(),
-                model_id,
-                product_id,
-                content_hash,
-                document_data: DocumentSpecificData::ProductChoose(document_power_data),
-                ..Default::default()
-            };
-
-            // process content power
-            Self::process_document_content_power(&doc);
-            Self::process_commodity_power(&doc);
-
-            // create document record
-            <KPDocumentDataByIdHash<T>>::insert(&doc_key_hash, &doc);
-
-            Self::deposit_event(RawEvent::KnowledgeCreated(who));
-            Ok(())
-        }
-
-        #[weight = 0]
-        pub fn create_model_create_document(origin,
-            app_id: u32,
-            document_id: Vec<u8>,
-            model_id: Vec<u8>,
-            product_id: Vec<u8>,
-            content_hash: T::Hash,
-
-            document_power_data: KPModelCreateData,
-
-            app_user_account: AuthAccountId,
-            app_user_sign: sr25519::Signature,
-
-            auth_server: AuthAccountId,
-            auth_sign: sr25519::Signature) -> dispatch::DispatchResult {
-
-            let who = ensure_signed(origin)?;
-
-            let doc_key_hash = T::Hashing::hash_of(&(app_id, &document_id));
-
-            ensure!(!<KPDocumentDataByIdHash<T>>::contains_key(&doc_key_hash), Error::<T>::DocumentAlreadyExisted);
-
-            let model_key = T::Hashing::hash_of(&(app_id, &model_id));
-            ensure!(<KPModelDataByIdHash<T>>::contains_key(&model_key), Error::<T>::ModelNotFound);
-
-            // create doc
-            let doc = KPDocumentData {
-                sender: who.clone(),
-                owner: app_user_account.clone(),
-                document_type: DocumentType::ModelCreate,
-                app_id,
-                document_id: document_id.clone(),
-                model_id,
-                product_id,
-                content_hash,
-                document_data: DocumentSpecificData::ModelCreate(document_power_data),
-                ..Default::default()
-            };
-
-            // process content power
-            Self::process_document_content_power(&doc);
-            Self::process_commodity_power(&doc);
-
-            // create document record
-            <KPDocumentDataByIdHash<T>>::insert(&doc_key_hash, &doc);
-
-            Self::deposit_event(RawEvent::KnowledgeCreated(who));
             Ok(())
         }
 
