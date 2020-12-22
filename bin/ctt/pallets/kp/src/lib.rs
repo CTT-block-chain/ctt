@@ -1837,6 +1837,11 @@ decl_module! {
             auth_sign: sr25519::Signature) -> dispatch::DispatchResult {
 
             let _who = ensure_signed(origin)?;
+
+            let buf = params.encode();
+            ensure!(Self::verify_sign(&app_user_account, app_user_sign, &buf), Error::<T>::SignVerifyErrorUser);
+            ensure!(Self::verify_sign(&auth_server, auth_sign, &buf), Error::<T>::SignVerifyErrorAuth);
+
             let AppFinancedUserExchangeParams {
                 account,
                 app_id,
@@ -1852,7 +1857,6 @@ decl_module! {
             let ukey = Self::app_financed_exchange_record_key(app_id, &proposal_id, &account);
             ensure!(!<AppFinancedUserExchangeRecord<T>>::contains_key(&ukey),
                 Error::<T>::AppFinancedUserExchangeAlreadyPerformed);
-            // TODO: check sign
 
             // read financed record
             let mut financed_record = <AppFinancedRecord<T>>::get(&fkey);
