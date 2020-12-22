@@ -371,7 +371,8 @@ pub fn testnet_genesis(
                 (b"default".to_vec(), (100000000, 0 * DOLLARS, 1, 0)),
                 (
                     b"commodity_general".to_vec(),
-                    (100010000, 1_000_000 * DOLLARS, 0, 0),
+                    //(100010000, 1_000_000 * DOLLARS, 0, 0),
+                    (100010000, 1 * DOLLARS, 0, 0), // for test
                 ),
                 (
                     b"commodity_vertical".to_vec(),
