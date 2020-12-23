@@ -15,8 +15,8 @@ use primitives::{AccountSet, AuthAccountId, Membership};
 use sp_core::sr25519;
 use sp_runtime::{
     print,
-    traits::{AccountIdConversion, Hash},
-    ModuleId, RuntimeDebug,
+    traits::{AccountIdConversion, Hash, Verify},
+    ModuleId, MultiSignature, RuntimeDebug,
 };
 use sp_std::collections::btree_set::BTreeSet;
 use sp_std::prelude::*;
@@ -48,6 +48,20 @@ impl<T: Trait> Default for StableExchangeData<T> {
             redeemed: false,
         }
     }
+}
+
+#[derive(Encode, Decode, Clone, Default, PartialEq, RuntimeDebug)]
+pub struct ModelExpertAddMemberParams {
+    app_id: u32,
+    model_id: Vec<u8>,
+    kpt_profit_rate: u32,
+}
+
+#[derive(Encode, Decode, Clone, Default, PartialEq, RuntimeDebug)]
+pub struct ModelExpertDelMemberParams<Account> {
+    app_id: u32,
+    model_id: Vec<u8>,
+    member: Account,
 }
 
 pub trait Trait: system::Trait {
@@ -148,6 +162,7 @@ decl_error! {
         StableRedeemRepeat,
         AppRedeemAcountNotSet,
         StableRedeemAccountNotMatch,
+        SignVerifyError,
     }
 }
 
@@ -354,10 +369,19 @@ decl_module! {
         }
 
         #[weight = 0]
-        pub fn add_expert_member(origin, app_id: u32, model_id: Vec<u8>, kpt_profit_rate: u32, model_creator: AuthAccountId, model_creator_sign: sr25519::Signature) -> DispatchResult {
+        pub fn add_expert_member(origin, params: ModelExpertAddMemberParams, model_creator: AuthAccountId, model_creator_sign: sr25519::Signature) -> DispatchResult {
             let new_member = ensure_signed(origin)?;
 
-            // TODO: verify model_sign
+            ensure!(Self::verify_sign(&model_creator, model_creator_sign, &params.encode()), Error::<T>::SignVerifyError);
+
+            let ModelExpertAddMemberParams {
+                app_id,
+                model_id,
+                kpt_profit_rate,
+            } = params;
+
+            // check if model creator valid
+            ensure!(Self::is_model_creator(&Self::convert_account(&model_creator), app_id, &model_id), Error::<T>::NotModelCreator);
 
             let key = T::Hashing::hash_of(&(app_id, &model_id));
 
@@ -384,7 +408,7 @@ decl_module! {
 
         #[weight = 0]
         pub fn remove_expert_member(origin,
-            old_member: T::AccountId, app_id: u32, model_id: Vec<u8>,
+            params: ModelExpertDelMemberParams<T::AccountId>,
             app_user_account: AuthAccountId,
             app_user_sign: sr25519::Signature,
 
@@ -394,7 +418,15 @@ decl_module! {
             // this is app server account
             let _who = ensure_signed(origin)?;
 
-            // TODO: verify 2 sign
+            let buf = params.encode();
+            ensure!(Self::verify_sign(&app_user_account, app_user_sign, &buf), Error::<T>::SignVerifyError);
+            ensure!(Self::verify_sign(&auth_server, auth_sign, &buf), Error::<T>::SignVerifyError);
+
+            let ModelExpertDelMemberParams {
+                app_id,
+                model_id,
+                member,
+            } = params;
 
             // check the creator authority
             let key = T::Hashing::hash_of(&(app_id, &model_id));
@@ -403,12 +435,12 @@ decl_module! {
 
             let mut members = <ExpertMembers<T>>::get(&key);
 
-            match members.binary_search(&old_member) {
+            match members.binary_search(&member) {
                 // If the search succeeds, the caller is already a member, so just return
                 Ok(index) => {
                     members.remove(index);
                     <ExpertMembers<T>>::insert(&key, members);
-                    Self::deposit_event(RawEvent::MemberRemoved(old_member));
+                    Self::deposit_event(RawEvent::MemberRemoved(member));
                     Ok(())
                 },
                 // If the search fails, the caller is not a member, so just return
@@ -506,6 +538,11 @@ impl<T: Trait> Module<T> {
     fn convert_account(origin: &AuthAccountId) -> T::AccountId {
         let tmp: [u8; 32] = origin.clone().into();
         T::AccountId::decode(&mut &tmp[..]).unwrap_or_default()
+    }
+
+    fn verify_sign(pub_key: &AuthAccountId, sign: sr25519::Signature, msg: &[u8]) -> bool {
+        let ms: MultiSignature = sign.into();
+        ms.verify(msg, &pub_key)
     }
 
     pub fn is_platform_expert(who: &T::AccountId, app_id: u32) -> bool {
