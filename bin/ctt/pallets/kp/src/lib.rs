@@ -1077,6 +1077,7 @@ decl_error! {
         AppRedeemTransactionIdRepeat,
         SignVerifyErrorUser,
         SignVerifyErrorAuth,
+        AuthIdentityNotAppKey,
     }
 }
 
@@ -1164,6 +1165,10 @@ decl_module! {
                 model_id,
             } = auth_params;
 
+            ensure!(T::Membership::is_valid_app(app_id), Error::<T>::AppIdInvalid);
+
+            // check if valid auth server
+            ensure!(T::Membership::is_valid_app_key(app_id, &Self::convert_account(&auth_server)), Error::<T>::AuthIdentityNotAppKey);
 
             let key = T::Hashing::hash_of(&(app_id, &model_id));
             ensure!(!<KPModelDataByIdHash<T>>::contains_key(&key), Error::<T>::ModelAlreadyExisted);
@@ -1236,6 +1241,11 @@ decl_module! {
                 self_issue_rate,
             } = client_params;
 
+            ensure!(T::Membership::is_valid_app(app_id), Error::<T>::AppIdInvalid);
+
+            // check if valid auth server
+            ensure!(T::Membership::is_valid_app_key(app_id, &Self::convert_account(&auth_server)), Error::<T>::AuthIdentityNotAppKey);
+
             let doc_key_hash = T::Hashing::hash_of(&(app_id, &document_id));
             ensure!(!<KPDocumentDataByIdHash<T>>::contains_key(&doc_key_hash), Error::<T>::DocumentAlreadyExisted);
 
@@ -1302,6 +1312,11 @@ decl_module! {
                 ident_consistence,
                 cart_id,
             } = client_params;
+
+            ensure!(T::Membership::is_valid_app(app_id), Error::<T>::AppIdInvalid);
+
+            // check if valid auth server
+            ensure!(T::Membership::is_valid_app_key(app_id, &Self::convert_account(&auth_server)), Error::<T>::AuthIdentityNotAppKey);
 
             let doc_key_hash = T::Hashing::hash_of(&(app_id, &document_id));
             ensure!(!<KPDocumentDataByIdHash<T>>::contains_key(&doc_key_hash), Error::<T>::DocumentAlreadyExisted);
@@ -1377,6 +1392,11 @@ decl_module! {
                 cart_id,
             } = client_params;
 
+            ensure!(T::Membership::is_valid_app(app_id), Error::<T>::AppIdInvalid);
+
+            // check if valid auth server
+            ensure!(T::Membership::is_valid_app_key(app_id, &Self::convert_account(&auth_server)), Error::<T>::AuthIdentityNotAppKey);
+
             let doc_key_hash = T::Hashing::hash_of(&(app_id, &document_id));
             ensure!(!<KPDocumentDataByIdHash<T>>::contains_key(&doc_key_hash), Error::<T>::DocumentAlreadyExisted);
 
@@ -1451,6 +1471,11 @@ decl_module! {
                 try_count,
             } = client_params;
 
+            ensure!(T::Membership::is_valid_app(app_id), Error::<T>::AppIdInvalid);
+
+            // check if valid auth server
+            ensure!(T::Membership::is_valid_app_key(app_id, &Self::convert_account(&auth_server)), Error::<T>::AuthIdentityNotAppKey);
+
             let doc_key_hash = T::Hashing::hash_of(&(app_id, &document_id));
 
             ensure!(!<KPDocumentDataByIdHash<T>>::contains_key(&doc_key_hash), Error::<T>::DocumentAlreadyExisted);
@@ -1505,6 +1530,11 @@ decl_module! {
                 producer_count,
                 product_count,
             } = client_params;
+
+            ensure!(T::Membership::is_valid_app(app_id), Error::<T>::AppIdInvalid);
+
+            // check if valid auth server
+            ensure!(T::Membership::is_valid_app_key(app_id, &Self::convert_account(&auth_server)), Error::<T>::AuthIdentityNotAppKey);
 
             let doc_key_hash = T::Hashing::hash_of(&(app_id, &document_id));
 
@@ -1562,6 +1592,11 @@ decl_module! {
               comment_fee,
               comment_trend,
             } = comment_data;
+
+            ensure!(T::Membership::is_valid_app(app_id), Error::<T>::AppIdInvalid);
+
+            // check if valid auth server
+            ensure!(T::Membership::is_valid_app_key(app_id, &Self::convert_account(&auth_server)), Error::<T>::AuthIdentityNotAppKey);
 
             // TODO: check platform & expert member role
 
@@ -1665,6 +1700,8 @@ decl_module! {
 
             ensure_root(origin)?;
 
+            ensure!(T::Membership::is_valid_app(app_id), Error::<T>::AppIdInvalid);
+
             // read out comment to get related document owner
             let comment_key = T::Hashing::hash_of(&(app_id, &comment_id));
             ensure!(<KPCommentDataByIdHash<T>>::contains_key(&comment_key), Error::<T>::CommentNotFound);
@@ -1699,6 +1736,8 @@ decl_module! {
 
             ensure_root(origin)?;
 
+            ensure!(T::Membership::is_valid_app(app_id), Error::<T>::AppIdInvalid);
+
             // get model creator account
             let key = T::Hashing::hash_of(&(app_id, &model_id));
             ensure!(<KPModelDataByIdHash<T>>::contains_key(&key), Error::<T>::ModelNotFound);
@@ -1723,15 +1762,11 @@ decl_module! {
         #[weight = 0]
         pub fn democracy_add_app(origin, params: AddAppParams<T::AccountId>,
             app_user_account: AuthAccountId,
-            app_user_sign: sr25519::Signature,
-
-            auth_server: AuthAccountId,
-            auth_sign: sr25519::Signature) -> dispatch::DispatchResult {
+            app_user_sign: sr25519::Signature) -> dispatch::DispatchResult {
             ensure_root(origin)?;
 
             let buf = params.encode();
             ensure!(Self::verify_sign(&app_user_account, app_user_sign, &buf), Error::<T>::SignVerifyErrorUser);
-            ensure!(Self::verify_sign(&auth_server, auth_sign, &buf), Error::<T>::SignVerifyErrorAuth);
 
             let AddAppParams {
               app_type,
@@ -1800,6 +1835,8 @@ decl_module! {
                 amount,
             } = params;
 
+            ensure!(T::Membership::is_valid_app(app_id), Error::<T>::AppIdInvalid);
+
             ensure!(amount > 0u32.into() && exchange > 0u32.into(),  Error::<T>::AppFinancedParamsInvalid);
             ensure!(T::Membership::is_valid_app(app_id), Error::<T>::AppIdInvalid);
             let min_exchange = T::KptExchangeMinRate::get() * amount;
@@ -1852,6 +1889,8 @@ decl_module! {
                 exchange_amount,
             } = params;
 
+            ensure!(T::Membership::is_valid_app(app_id), Error::<T>::AppIdInvalid);
+
             // check if app financed record exist
             let fkey = T::Hashing::hash_of(&(app_id, &proposal_id));
             ensure!(<AppFinancedRecord<T>>::contains_key(&fkey),
@@ -1894,6 +1933,8 @@ decl_module! {
                 ..
             } = params;
 
+            ensure!(T::Membership::is_valid_app(app_id), Error::<T>::AppIdInvalid);
+
             let ukey = Self::app_financed_exchange_record_key(app_id, &proposal_id, &account);
             // make sure record exist
             ensure!(<AppFinancedUserExchangeRecord<T>>::contains_key(&ukey),
@@ -1927,6 +1968,8 @@ decl_module! {
         #[weight = 0]
         pub fn create_power_leader_board(origin, app_id: u32, model_id: Vec<u8>) -> dispatch::DispatchResult {
             ensure_root(origin)?;
+
+            ensure!(T::Membership::is_valid_app(app_id), Error::<T>::AppIdInvalid);
 
             let current_block = <system::Module<T>>::block_number();
             // read out last time block number and check distance
@@ -2031,7 +2074,7 @@ impl<T: Trait> Module<T> {
         T::Hashing::hash_of(&(buf, model_id))
     }
 
-    fn is_auth_server(who: &T::AccountId) -> bool {
+    fn _is_auth_server(who: &T::AccountId) -> bool {
         <AuthServers<T>>::get().contains(who)
     }
 

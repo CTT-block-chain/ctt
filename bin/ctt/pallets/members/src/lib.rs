@@ -163,6 +163,8 @@ decl_error! {
         AppRedeemAcountNotSet,
         StableRedeemAccountNotMatch,
         SignVerifyError,
+        AppIdInvalid,
+        AuthIdentityNotAppAdmin,
     }
 }
 
@@ -222,6 +224,8 @@ decl_module! {
         pub fn add_investor_member(origin, app_id: u32, new_member: T::AccountId) -> DispatchResult {
             let who = ensure_signed(origin)?;
 
+            ensure!(Self::is_valid_app(app_id), Error::<T>::AppIdInvalid);
+
             // check if who is app admin
             ensure!(Self::is_app_admin(&who, app_id), Error::<T>::NotAppAdmin);
 
@@ -250,6 +254,7 @@ decl_module! {
         pub fn remove_investor_member(origin, app_id: u32, old_member: T::AccountId) -> DispatchResult {
             let who = ensure_signed(origin)?;
 
+            ensure!(Self::is_valid_app(app_id), Error::<T>::AppIdInvalid);
             // check if who is app admin
             ensure!(Self::is_app_admin(&who, app_id), Error::<T>::NotAppAdmin);
 
@@ -327,6 +332,8 @@ decl_module! {
         pub fn add_app_platform_expert_member(origin, app_id: u32, new_member: T::AccountId) -> DispatchResult {
             let who = ensure_signed(origin)?;
 
+            ensure!(Self::is_valid_app(app_id), Error::<T>::AppIdInvalid);
+
             // check if origin is app_id's admin
             ensure!(<AppAdmins<T>>::get(app_id) == who,  Error::<T>::NotAppAdmin);
 
@@ -349,6 +356,8 @@ decl_module! {
         #[weight = 0]
         pub fn remove_app_platform_expert_member(origin, app_id: u32, old_member: T::AccountId) -> DispatchResult {
             let who = ensure_signed(origin)?;
+
+            ensure!(Self::is_valid_app(app_id), Error::<T>::AppIdInvalid);
 
             // check if origin is app_id's admin
             ensure!(<AppAdmins<T>>::get(app_id) == who,  Error::<T>::NotAppAdmin);
@@ -379,6 +388,8 @@ decl_module! {
                 model_id,
                 kpt_profit_rate,
             } = params;
+
+            ensure!(Self::is_valid_app(app_id), Error::<T>::AppIdInvalid);
 
             // check if model creator valid
             ensure!(Self::is_model_creator(&Self::convert_account(&model_creator), app_id, &model_id), Error::<T>::NotModelCreator);
@@ -428,6 +439,10 @@ decl_module! {
                 member,
             } = params;
 
+            ensure!(Self::is_valid_app(app_id), Error::<T>::AppIdInvalid);
+            // makre sure auth_server is app admin account
+            ensure!(Self::is_app_admin(&Self::convert_account(&auth_server), app_id), Error::<T>::AuthIdentityNotAppAdmin);
+
             // check the creator authority
             let key = T::Hashing::hash_of(&(app_id, &model_id));
             let creator = <ModelCreators<T>>::get(&key);
@@ -453,6 +468,9 @@ decl_module! {
             receiver: <T as frame_system::Trait>::AccountId, amount: BalanceOf<T>) -> DispatchResult {
 
             let who = ensure_signed(origin)?;
+
+            ensure!(Self::is_valid_app(app_id), Error::<T>::AppIdInvalid);
+
             let key = T::Hashing::hash_of(&(app_id, &user_id));
 
             ensure!(!<NewAccountBenefitRecords<T>>::contains_key(&key), Error::<T>::BenefitAlreadyDropped);
@@ -475,6 +493,8 @@ decl_module! {
         pub fn stable_exchange(origin, amount: BalanceOf<T>, receiver: T::AccountId, app_id: u32, cash_receipt: Vec<u8>) -> DispatchResult {
             let who = ensure_signed(origin)?;
 
+            ensure!(Self::is_valid_app(app_id), Error::<T>::AppIdInvalid);
+
             let available = T::Currency::free_balance(&who);
             ensure!(available > amount, Error::<T>::NotEnoughFund);
 
@@ -496,6 +516,8 @@ decl_module! {
         #[weight = 0]
         pub fn stable_redeem(origin, app_id: u32, cash_receipt: Vec<u8>) -> DispatchResult {
             let who = ensure_signed(origin)?;
+
+            ensure!(Self::is_valid_app(app_id), Error::<T>::AppIdInvalid);
 
             let key = T::Hashing::hash_of(&(app_id, &cash_receipt));
             ensure!(<StableExchangeRecords<T>>::contains_key(&key), Error::<T>::StableExchangeReceiptNotFound);
@@ -522,6 +544,8 @@ decl_module! {
         #[weight = 0]
         pub fn set_app_redeem_account(origin, app_id: u32, account: T::AccountId) -> DispatchResult {
             let who = ensure_signed(origin)?;
+
+            ensure!(Self::is_valid_app(app_id), Error::<T>::AppIdInvalid);
 
             // check if origin is app_id's admin
             ensure!(<AppAdmins<T>>::get(app_id) == who,  Error::<T>::NotAppAdmin);
@@ -629,6 +653,10 @@ impl<T: Trait> Membership<T::AccountId, T::Hash> for Module<T> {
 
     fn is_valid_app(app_id: u32) -> bool {
         <AppDataMap>::contains_key(app_id)
+    }
+
+    fn is_valid_app_key(app_id: u32, app_key: &T::AccountId) -> bool {
+        <AppKeys<T>>::contains_key(app_id) && <AppKeys<T>>::get(app_id) == *app_key
     }
 
     fn is_investor(who: &T::AccountId) -> bool {
