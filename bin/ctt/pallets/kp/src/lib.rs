@@ -1059,6 +1059,7 @@ decl_error! {
         ProductNotFound,
         AppTypeInvalid,
         ReturnRateInvalid,
+        AppAdminNotMatchUser,
         AppIdInvalid,
         AppIdReachMax,
         AppAlreadyFinanced,
@@ -1744,6 +1745,8 @@ decl_module! {
             ensure!(<AppIdRange<T>>::contains_key(&app_type), Error::<T>::AppTypeInvalid);
             // check return_rate
             ensure!(return_rate > 0 && return_rate < 10000, Error::<T>::ReturnRateInvalid);
+            // check app_admin_key match app_user_account
+            ensure!(Self::convert_account(&app_user_account) == app_admin_key, Error::<T>::AppAdminNotMatchUser);
 
             // generate app_id
             let app_info = <AppIdRange<T>>::get(&app_type);
