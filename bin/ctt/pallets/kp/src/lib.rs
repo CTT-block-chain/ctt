@@ -5,8 +5,8 @@ use frame_support::{
     codec::{Decode, Encode},
     decl_error, decl_event, decl_module, decl_storage, dispatch, ensure,
     traits::{
-        Currency, ExistenceRequirement::KeepAlive, Get, LockableCurrency, OnUnbalanced, Randomness,
-        ReservableCurrency, WithdrawReason,
+        Contains, Currency, ExistenceRequirement::KeepAlive, Get, LockableCurrency, OnUnbalanced,
+        Randomness, ReservableCurrency, WithdrawReason,
     },
 };
 use rand_chacha::{
@@ -704,6 +704,9 @@ pub trait Trait: system::Trait {
     /// Membership control
     type Membership: Membership<Self::AccountId, Self::Hash>;
 
+    /// TechnicalCommittee member ship check
+    type TechMembers: Contains<Self::AccountId>;
+
     /// Currency type for this module.
     type Currency: ReservableCurrency<Self::AccountId>
         + LockableCurrency<Self::AccountId, Moment = Self::BlockNumber>;
@@ -1078,6 +1081,7 @@ decl_error! {
         SignVerifyErrorUser,
         SignVerifyErrorAuth,
         AuthIdentityNotAppKey,
+        AuthIdentityNotTechMember,
     }
 }
 
@@ -1759,12 +1763,15 @@ decl_module! {
             Ok(())
         }
 
+        /// Register new app
         #[weight = 0]
         pub fn democracy_add_app(origin, params: AddAppParams<T::AccountId>,
             app_user_account: AuthAccountId,
             app_user_sign: sr25519::Signature) -> dispatch::DispatchResult {
+            print("democracy_add_app enter");
             ensure_root(origin)?;
 
+            print("democracy_add_app pass root check");
             let buf = params.encode();
             ensure!(Self::verify_sign(&app_user_account, app_user_sign, &buf), Error::<T>::SignVerifyErrorUser);
 
@@ -1778,10 +1785,13 @@ decl_module! {
 
             // check app_type
             ensure!(<AppIdRange<T>>::contains_key(&app_type), Error::<T>::AppTypeInvalid);
+            print("democracy_add_app pass type check");
             // check return_rate
             ensure!(return_rate > 0 && return_rate < 10000, Error::<T>::ReturnRateInvalid);
+            print("democracy_add_app pass rate check");
             // check app_admin_key match app_user_account
             ensure!(Self::convert_account(&app_user_account) == app_admin_key, Error::<T>::AppAdminNotMatchUser);
+            print("democracy_add_app pass account check");
 
             // generate app_id
             let app_info = <AppIdRange<T>>::get(&app_type);
@@ -1796,6 +1806,7 @@ decl_module! {
             if stake > 0u32.into() {
                 T::Currency::reserve(&app_admin_key, stake)?;
             }
+            print("democracy_add_app pass staking");
 
             let app_id = current_id + 1;
             // set admin and idenetity key
@@ -1808,7 +1819,7 @@ decl_module! {
               info.0 = app_id;
               info.3 += 1;
             });
-
+            print("democracy_add_app done");
             Self::deposit_event(RawEvent::AppAdded(app_id));
             Ok(())
         }
@@ -1822,6 +1833,9 @@ decl_module! {
             auth_server: AuthAccountId,
             auth_sign: sr25519::Signature) -> dispatch::DispatchResult {
             ensure_root(origin)?;
+
+            // only tech memebers allow auth
+            ensure!(T::TechMembers::contains(&Self::convert_account(&auth_server)), Error::<T>::AuthIdentityNotTechMember);
 
             let buf = params.encode();
             ensure!(Self::verify_sign(&app_user_account, app_user_sign, &buf), Error::<T>::SignVerifyErrorUser);

@@ -1083,6 +1083,7 @@ impl kp::Trait for Runtime {
     type Event = Event;
     type Currency = Balances;
     type Slash = Treasury;
+    type TechMembers = TechnicalMembership;
     type Membership = members::Module<Runtime>;
     type TopWeightProductPublish = TopWeightProductPublish;
     type TopWeightDocumentIdentify = TopWeightDocumentIdentify;

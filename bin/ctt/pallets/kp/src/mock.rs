@@ -163,6 +163,7 @@ impl Trait for Test {
     type ModTreasuryModuleId = ();
     type TechTreasuryModuleId = ();
     type BurnDestination = ();
+    type TechMembers = ();
 }
 
 impl pallet_balances::Trait for Test {
