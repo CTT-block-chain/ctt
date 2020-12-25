@@ -1812,7 +1812,7 @@ decl_module! {
             // set admin and idenetity key
             T::Membership::config_app_admin(&app_admin_key, app_id);
             T::Membership::config_app_key(&app_key, app_id);
-            T::Membership::config_app_setting(app_id, return_rate, app_name);
+            T::Membership::config_app_setting(app_id, return_rate, app_name, stake.saturated_into());
 
             // update app_id range store
             <AppIdRange<T>>::mutate(&app_type, |info| {
@@ -1833,13 +1833,16 @@ decl_module! {
             auth_server: AuthAccountId,
             auth_sign: sr25519::Signature) -> dispatch::DispatchResult {
             ensure_root(origin)?;
+            print("pass root check");
 
             // only tech memebers allow auth
             ensure!(T::TechMembers::contains(&Self::convert_account(&auth_server)), Error::<T>::AuthIdentityNotTechMember);
+            print("pass tech member check");
 
             let buf = params.encode();
             ensure!(Self::verify_sign(&app_user_account, app_user_sign, &buf), Error::<T>::SignVerifyErrorUser);
             ensure!(Self::verify_sign(&auth_server, auth_sign, &buf), Error::<T>::SignVerifyErrorAuth);
+            print("pass sign check");
 
             let AppFinancedProposalParams {
                 account,
@@ -1850,17 +1853,23 @@ decl_module! {
             } = params;
 
             ensure!(T::Membership::is_valid_app(app_id), Error::<T>::AppIdInvalid);
+            print("pass app id check");
 
             ensure!(amount > 0u32.into() && exchange > 0u32.into(),  Error::<T>::AppFinancedParamsInvalid);
-            ensure!(T::Membership::is_valid_app(app_id), Error::<T>::AppIdInvalid);
+            print("pass value check");
+
             let min_exchange = T::KptExchangeMinRate::get() * amount;
             ensure!(exchange >= min_exchange, Error::<T>::AppFinancedExchangeRateTooLow);
+            print("pass rate check");
 
             let key = T::Hashing::hash_of(&(app_id, &proposal_id));
             ensure!(!<AppFinancedRecord<T>>::contains_key(&key), Error::<T>::AppAlreadyFinanced);
+            print("pass exist check");
 
             // start transfer amount
             ensure!(T::Membership::is_investor(&account), Error::<T>::AppFinancedNotInvestor);
+            print("pass investor check");
+
             let treasury_account: T::AccountId = T::FinTreasuryModuleId::get().into_account();
             T::Currency::transfer(
                 &treasury_account,
@@ -1877,6 +1886,7 @@ decl_module! {
                 exchanged: 0u32.into(),
             });
 
+            print("done");
             Self::deposit_event(RawEvent::AppFinanced(app_id));
             Ok(())
         }

@@ -11,7 +11,7 @@ use frame_support::{
     traits::{Currency, ExistenceRequirement::KeepAlive, Get},
 };
 use frame_system::{self as system, ensure_root, ensure_signed};
-use primitives::{AccountSet, AuthAccountId, Membership};
+use primitives::{AccountSet, AuthAccountId, Balance, Membership};
 use sp_core::sr25519;
 use sp_runtime::{
     print,
@@ -31,6 +31,7 @@ type BalanceOf<T> =
 pub struct AppData {
     name: Vec<u8>,
     return_rate: u32,
+    stake: Balance,
 }
 
 #[derive(Encode, Decode, Clone, RuntimeDebug)]
@@ -641,12 +642,13 @@ impl<T: Trait> Membership<T::AccountId, T::Hash> for Module<T> {
         <KeyApps<T>>::insert(&who, app_id);
     }
 
-    fn config_app_setting(app_id: u32, rate: u32, name: Vec<u8>) {
+    fn config_app_setting(app_id: u32, rate: u32, name: Vec<u8>, stake: Balance) {
         <AppDataMap>::insert(
             app_id,
             &AppData {
                 return_rate: rate,
                 name,
+                stake,
             },
         );
     }
