@@ -631,8 +631,8 @@ pub struct ClientParamsCreateModelDoc<Hash> {
 pub struct AppFinancedUserExchangeConfirmParams<AccountId> {
     account: AccountId,
     app_id: u32,
-    proposal_id: Vec<u8>,
     pay_id: Vec<u8>,
+    proposal_id: Vec<u8>,
 }
 
 /*
