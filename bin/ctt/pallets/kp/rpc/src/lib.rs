@@ -94,6 +94,24 @@ pub struct AppFinanceRecordParams {
 #[derive(Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 #[serde(deny_unknown_fields)]
+pub struct AppFinanceExchangeDataParams {
+    app_id: u32,
+    proposal_id: Bytes,
+    account: AuthAccountId,
+}
+
+#[derive(Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+#[serde(deny_unknown_fields)]
+pub struct AppFinanceExchangeDataRPC {
+    exchange_amount: u64,
+    status: u8, // 0: initial state, 1: reserved, 2: received cash and burned
+    pay_id: Bytes,
+}
+
+#[derive(Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+#[serde(deny_unknown_fields)]
 pub struct AppFinanceDataRPC {
     amount: u64,
     exchange: u64,
@@ -158,6 +176,13 @@ pub trait KpApi<BlockHash, AccountId, Balance, BlockNumber> {
         params: AppFinanceRecordParams,
         at: Option<BlockHash>,
     ) -> Result<Vec<AccountId>>;
+
+    #[rpc(name = "kp_appFinanceExchangeData")]
+    fn app_finance_exchange_data(
+        &self,
+        params: AppFinanceExchangeDataParams,
+        at: Option<BlockHash>,
+    ) -> Result<AppFinanceExchangeDataRPC>;
 }
 
 /// A struct that implements the `KpApi`.
@@ -445,5 +470,40 @@ where
             message: "Something wrong".into(),
             data: Some(format!("{:?}", e).into()),
         })
+    }
+
+    fn app_finance_exchange_data(
+        &self,
+        query: AppFinanceExchangeDataParams,
+        at: Option<<Block as BlockT>::Hash>,
+    ) -> Result<AppFinanceExchangeDataRPC> {
+        let api = self.client.runtime_api();
+        let at = BlockId::hash(at.unwrap_or_else(||
+            // If the block hash is not supplied assume the best block.
+            self.client.info().best_hash));
+
+        let AppFinanceExchangeDataParams {
+            app_id,
+            proposal_id,
+            account,
+        } = query;
+
+        let runtime_api_result =
+            api.app_finance_exchange_data(&at, app_id, proposal_id.to_vec(), account);
+        // convert result
+        match runtime_api_result {
+            Ok(v) => Ok(AppFinanceExchangeDataRPC {
+                exchange_amount: convert_balance(v.exchange_amount),
+                status: v.status,
+                pay_id: v.pay_id.into(),
+            }),
+            Err(e) => {
+                Err(RpcError {
+                    code: ErrorCode::ServerError(9876), // No real reason for this value
+                    message: "Something wrong".into(),
+                    data: Some(format!("{:?}", e).into()),
+                })
+            }
+        }
     }
 }

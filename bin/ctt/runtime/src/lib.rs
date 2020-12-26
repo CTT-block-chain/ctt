@@ -36,7 +36,7 @@ use frame_support::{
     RuntimeDebug,
 };
 use frame_system::{EnsureOneOf, EnsureRoot};
-use kp::{AppFinancedData, DocumentPowerInfo, LeaderBoardResult};
+use kp::{AppFinancedData, AppFinancedUserExchangeData, DocumentPowerInfo, LeaderBoardResult};
 pub use node_primitives::{AccountId, AuthAccountId, PowerSize, Signature};
 use node_primitives::{AccountIndex, Balance, BlockNumber, Hash, Index, Moment};
 use pallet_contracts_rpc_runtime_api::ContractExecResult;
@@ -1250,6 +1250,10 @@ impl_runtime_apis! {
 
         fn app_finance_exchange_accounts(app_id: u32, proposal_id: Vec<u8>) -> Vec<AccountId> {
             Kp::app_finance_exchange_accounts(app_id, proposal_id)
+        }
+
+        fn app_finance_exchange_data(app_id: u32, proposal_id: Vec<u8>, account: AccountId) -> AppFinancedUserExchangeData<Balance> {
+            Kp::app_finance_exchange_data(app_id, proposal_id, account)
         }
     }
 

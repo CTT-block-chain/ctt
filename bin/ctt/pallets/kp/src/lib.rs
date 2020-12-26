@@ -460,11 +460,11 @@ pub struct AppFinancedUserExchangeParams<AccountId, Balance> {
     exchange_amount: Balance,
 }
 
-#[derive(Encode, Decode, Clone, Default, RuntimeDebug)]
+#[derive(Encode, Decode, Clone, Default, PartialEq, RuntimeDebug)]
 pub struct AppFinancedUserExchangeData<Balance> {
-    exchange_amount: Balance,
-    status: u8, // 0: initial state, 1: reserved, 2: received cash and burned
-    pay_id: Vec<u8>,
+    pub exchange_amount: Balance,
+    pub status: u8, // 0: initial state, 1: reserved, 2: received cash and burned
+    pub pay_id: Vec<u8>,
 }
 
 #[derive(Encode, Decode, Clone, Default, RuntimeDebug)]
@@ -2084,6 +2084,15 @@ impl<T: Trait> Module<T> {
     pub fn app_finance_exchange_accounts(app_id: u32, proposal_id: Vec<u8>) -> Vec<T::AccountId> {
         let key = T::Hashing::hash_of(&(app_id, &proposal_id));
         <AppFinancedUserExchangeSet<T>>::get(&key)
+    }
+
+    pub fn app_finance_exchange_data(
+        app_id: u32,
+        proposal_id: Vec<u8>,
+        account: T::AccountId,
+    ) -> AppFinancedUserExchangeData<BalanceOf<T>> {
+        let key = Self::app_financed_exchange_record_key(app_id, &proposal_id, &account);
+        <AppFinancedUserExchangeRecord<T>>::get(&key)
     }
 
     pub fn kp_commodity_power(app_id: u32, cart_id: Vec<u8>) -> PowerSize {
