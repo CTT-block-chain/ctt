@@ -151,6 +151,13 @@ pub trait KpApi<BlockHash, AccountId, Balance, BlockNumber> {
         params: AppFinanceRecordParams,
         at: Option<BlockHash>,
     ) -> Result<AppFinanceDataRPC>;
+
+    #[rpc(name = "kp_appFinanceExchangeAccounts")]
+    fn app_finance_exchange_accounts(
+        &self,
+        params: AppFinanceRecordParams,
+        at: Option<BlockHash>,
+    ) -> Result<Vec<AccountId>>;
 }
 
 /// A struct that implements the `KpApi`.
@@ -414,5 +421,29 @@ where
                 })
             }
         }
+    }
+
+    fn app_finance_exchange_accounts(
+        &self,
+        query: AppFinanceRecordParams,
+        at: Option<<Block as BlockT>::Hash>,
+    ) -> Result<Vec<AuthAccountId>> {
+        let api = self.client.runtime_api();
+        let at = BlockId::hash(at.unwrap_or_else(||
+            // If the block hash is not supplied assume the best block.
+            self.client.info().best_hash));
+
+        let AppFinanceRecordParams {
+            app_id,
+            proposal_id,
+        } = query;
+
+        let runtime_api_result =
+            api.app_finance_exchange_accounts(&at, app_id, proposal_id.to_vec());
+        runtime_api_result.map_err(|e| RpcError {
+            code: ErrorCode::ServerError(9876), // No real reason for this value
+            message: "Something wrong".into(),
+            data: Some(format!("{:?}", e).into()),
+        })
     }
 }

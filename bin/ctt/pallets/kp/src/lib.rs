@@ -974,6 +974,10 @@ decl_storage! {
         AppFinancedUserExchangeRecord get(fn app_financed_user_exchange_record):
             map hasher(twox_64_concat) T::Hash => AppFinancedUserExchangeData<BalanceOf<T>>;
 
+        // (AppId & ProposalId) -> user accounts set
+        AppFinancedUserExchangeSet get(fn app_financed_user_exchange_set):
+            map hasher(twox_64_concat) T::Hash => Vec<T::AccountId>;
+
         // App commodity(cart_id) count AppId -> u32
         AppCommodityCount get(fn app_commodity_count):
             map hasher(twox_64_concat) u32 => u32;
@@ -1924,6 +1928,7 @@ decl_module! {
             } = params;
 
             ensure!(T::Membership::is_valid_app(app_id), Error::<T>::AppIdInvalid);
+            ensure!(T::Membership::is_app_admin(&Self::convert_account(&auth_server), app_id), Error::<T>::NotAppAdmin);
 
             // check if app financed record exist
             let fkey = T::Hashing::hash_of(&(app_id, &proposal_id));
@@ -1951,6 +1956,10 @@ decl_module! {
                 status: 1,
                 ..Default::default()
             });
+
+            let mut accounts = <AppFinancedUserExchangeSet<T>>::get(&fkey);
+            accounts.push(account.clone());
+            <AppFinancedUserExchangeSet<T>>::insert(&fkey, accounts);
 
             Self::deposit_event(RawEvent::AppFinanceUserExchangeStart(account));
             Ok(())
@@ -2070,6 +2079,11 @@ impl<T: Trait> Module<T> {
     ) -> AppFinancedData<BalanceOf<T>, T::BlockNumber> {
         let key = T::Hashing::hash_of(&(app_id, &proposal_id));
         <AppFinancedRecord<T>>::get(&key)
+    }
+
+    pub fn app_finance_exchange_accounts(app_id: u32, proposal_id: Vec<u8>) -> Vec<T::AccountId> {
+        let key = T::Hashing::hash_of(&(app_id, &proposal_id));
+        <AppFinancedUserExchangeSet<T>>::get(&key)
     }
 
     pub fn kp_commodity_power(app_id: u32, cart_id: Vec<u8>) -> PowerSize {

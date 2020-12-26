@@ -1247,6 +1247,10 @@ impl_runtime_apis! {
         fn app_finance_record(app_id: u32, proposal_id: Vec<u8>) -> AppFinancedData<Balance, BlockNumber> {
             Kp::app_finance_record(app_id, proposal_id)
         }
+
+        fn app_finance_exchange_accounts(app_id: u32, proposal_id: Vec<u8>) -> Vec<AccountId> {
+            Kp::app_finance_exchange_accounts(app_id, proposal_id)
+        }
     }
 
     impl members_runtime_api::MembersApi<Block, AccountId> for Runtime {
