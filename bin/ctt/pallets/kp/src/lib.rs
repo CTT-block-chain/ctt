@@ -464,6 +464,7 @@ pub struct AppFinancedUserExchangeParams<AccountId, Balance> {
 pub struct AppFinancedUserExchangeData<Balance> {
     exchange_amount: Balance,
     status: u8, // 0: initial state, 1: reserved, 2: received cash and burned
+    pay_id: Vec<u8>,
 }
 
 #[derive(Encode, Decode, Clone, Default, RuntimeDebug)]
@@ -624,6 +625,14 @@ pub struct ClientParamsCreateModelDoc<Hash> {
     content_hash: Hash,
     producer_count: PowerSize,
     product_count: PowerSize,
+}
+
+#[derive(Encode, Decode, Clone, Default, PartialEq, RuntimeDebug)]
+pub struct AppFinancedUserExchangeConfirmParams<AccountId> {
+    account: AccountId,
+    app_id: u32,
+    proposal_id: Vec<u8>,
+    pay_id: Vec<u8>,
 }
 
 /*
@@ -1841,8 +1850,9 @@ decl_module! {
 
             let buf = params.encode();
             ensure!(Self::verify_sign(&app_user_account, app_user_sign, &buf), Error::<T>::SignVerifyErrorUser);
+            print("pass user sign check");
             ensure!(Self::verify_sign(&auth_server, auth_sign, &buf), Error::<T>::SignVerifyErrorAuth);
-            print("pass sign check");
+            print("pass auth sign check");
 
             let AppFinancedProposalParams {
                 account,
@@ -1939,6 +1949,7 @@ decl_module! {
             <AppFinancedUserExchangeRecord<T>>::insert(&ukey, AppFinancedUserExchangeData {
                 exchange_amount,
                 status: 1,
+                ..Default::default()
             });
 
             Self::deposit_event(RawEvent::AppFinanceUserExchangeStart(account));
@@ -1946,15 +1957,15 @@ decl_module! {
         }
 
         #[weight = 0]
-        pub fn app_financed_user_exchange_confirm(origin, params: AppFinancedUserExchangeParams<T::AccountId, BalanceOf<T>>) -> dispatch::DispatchResult {
-            let _who = ensure_signed(origin)?;
-            // TODO: make sure who is auth server
+        pub fn app_financed_user_exchange_confirm(origin, params: AppFinancedUserExchangeConfirmParams<T::AccountId>) -> dispatch::DispatchResult {
+            let who = ensure_signed(origin)?;
+            ensure!(T::TechMembers::contains(&who), Error::<T>::AuthIdentityNotTechMember);
 
-            let AppFinancedUserExchangeParams {
+            let AppFinancedUserExchangeConfirmParams {
                 account,
                 app_id,
                 proposal_id,
-                ..
+                pay_id
             } = params;
 
             ensure!(T::Membership::is_valid_app(app_id), Error::<T>::AppIdInvalid);
@@ -1984,6 +1995,12 @@ decl_module! {
                 // Nothing else to do here.
                 drop(problem);
             }
+
+            // update store
+            <AppFinancedUserExchangeRecord<T>>::mutate(&ukey, |record| {
+                record.status = 2;
+                record.pay_id = pay_id;
+            });
 
             Self::deposit_event(RawEvent::AppFinanceUserExchangeConfirmed(account));
             Ok(())
