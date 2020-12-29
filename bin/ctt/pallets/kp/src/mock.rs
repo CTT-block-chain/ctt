@@ -88,6 +88,7 @@ parameter_types! {
 
     pub const AppLeaderBoardInterval: u32 = 5;
     pub const AppLeaderBoardMaxPos: u32 = 5;
+    pub const AppFinanceExchangePeriod: u32 = 1;
 }
 impl system::Trait for Test {
     type BaseCallFilter = ();
@@ -164,6 +165,7 @@ impl Trait for Test {
     type TechTreasuryModuleId = ();
     type BurnDestination = ();
     type TechMembers = ();
+    type AppFinanceExchangePeriod = AppFinanceExchangePeriod;
 }
 
 impl pallet_balances::Trait for Test {

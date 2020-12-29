@@ -441,6 +441,7 @@ pub struct AppFinancedData<Balance, BlockNumber> {
     pub block: BlockNumber,
     pub total_balance: Balance,
     pub exchanged: Balance,
+    pub exchange_end_block: BlockNumber,
 }
 
 #[derive(Encode, Decode, Clone, Default, PartialEq, RuntimeDebug)]
@@ -823,6 +824,8 @@ pub trait Trait: system::Trait {
     type AppLeaderBoardInterval: Get<Self::BlockNumber>;
 
     type AppLeaderBoardMaxPos: Get<u32>;
+
+    type AppFinanceExchangePeriod: Get<Self::BlockNumber>;
 }
 
 // This pallet's storage items.
@@ -833,9 +836,9 @@ decl_storage! {
         // Trusted application server account
         AuthServers get(fn auth_servers) config() : Vec<T::AccountId>;
 
-        // App id ranges according type string (current appid, staking, maxNum, currentNum)
+        // App id ranges according type string (current appid, staking, maxNum, currentNum, maxModelNum)
         AppIdRange get(fn app_id_range) config():
-            map hasher(twox_64_concat) Vec<u8> => (u32, BalanceOf<T>, u32, u32);
+            map hasher(twox_64_concat) Vec<u8> => (u32, BalanceOf<T>, u32, u32, u32);
 
         // (AppId, ModelId) -> KPModelData
         KPModelDataByIdHash get(fn kp_model_data_by_idhash):
@@ -970,6 +973,9 @@ decl_storage! {
         AppFinancedRecord get(fn app_financed_record):
             map hasher(twox_64_concat) T::Hash => AppFinancedData<BalanceOf<T>, T::BlockNumber>;
 
+        // Last time app financed record key
+        AppFinancedLast get(fn app_financed_last): T::Hash;
+
         // App financed user exchange record (AppId & ProposalId & AccountId -> AppFinancedUserExchangeData)
         AppFinancedUserExchangeRecord get(fn app_financed_user_exchange_record):
             map hasher(twox_64_concat) T::Hash => AppFinancedUserExchangeData<BalanceOf<T>>;
@@ -1079,6 +1085,7 @@ decl_error! {
         AppIdInvalid,
         AppIdReachMax,
         AppAlreadyFinanced,
+        AppFinancedLastExchangeNotEnd,
         AppFinancedNotInvestor,
         AppFinancedExchangeRateTooLow,
         AppFinancedParamsInvalid,
@@ -1087,6 +1094,7 @@ decl_error! {
         AppFinancedUserExchangeRecordNotExist,
         AppFinancedUserExchangeOverflow,
         AppFinancedUserExchangeStateWrong,
+        AppFinancedUserExchangeEnded,
         DocumentIdentifyAlreadyExisted,
         DocumentTryAlreadyExisted,
         LeaderBoardCreateNotPermit,
@@ -1196,7 +1204,10 @@ decl_module! {
             ensure!(CommodityTypeMap::contains_key(commodity_type),  Error::<T>::ModelTypeInvalid);
 
             let count = <AppModelCount>::get(app_id);
-            ensure!(count < <AppModelTotalConfig>::get(app_id), Error::<T>::ModelOverSizeLimit);
+            let max_models = <AppModelTotalConfig>::get(app_id);
+            if max_models > 0 {
+                ensure!(count < max_models, Error::<T>::ModelOverSizeLimit);
+            }
 
             print("checking deposit");
             // deposit
@@ -1808,7 +1819,7 @@ decl_module! {
 
             // generate app_id
             let app_info = <AppIdRange<T>>::get(&app_type);
-            let (current_id, stake, max, num) = app_info;
+            let (current_id, stake, max, num, max_models) = app_info;
 
             // check if reach max
             if max > 0 {
@@ -1826,6 +1837,9 @@ decl_module! {
             T::Membership::config_app_admin(&app_admin_key, app_id);
             T::Membership::config_app_key(&app_key, app_id);
             T::Membership::config_app_setting(app_id, return_rate, app_name, stake.saturated_into());
+
+            // config max model
+            <AppModelTotalConfig>::insert(app_id, max_models);
 
             // update app_id range store
             <AppIdRange<T>>::mutate(&app_type, |info| {
@@ -1847,6 +1861,16 @@ decl_module! {
             auth_sign: sr25519::Signature) -> dispatch::DispatchResult {
             ensure_root(origin)?;
             print("pass root check");
+
+            let current_block = <system::Module<T>>::block_number();
+
+            // check if last exchange cycle ended
+            let last_key = <AppFinancedLast<T>>::get();
+            if <AppFinancedRecord<T>>::contains_key(&last_key) {
+                let last_record = <AppFinancedRecord<T>>::get(&last_key);
+                ensure!(last_record.exchange_end_block < current_block, Error::<T>::AppFinancedLastExchangeNotEnd);
+            }
+
 
             // only tech memebers allow auth
             ensure!(T::TechMembers::contains(&Self::convert_account(&auth_server)), Error::<T>::AuthIdentityNotTechMember);
@@ -1895,10 +1919,14 @@ decl_module! {
             <AppFinancedRecord<T>>::insert(&key, AppFinancedData::<BalanceOf<T>, T::BlockNumber> {
                 amount,
                 exchange,
-                block: <system::Module<T>>::block_number(),
+                block: current_block,
                 total_balance: T::Currency::total_issuance_excluding_fund(),
                 exchanged: 0u32.into(),
+                exchange_end_block: current_block + T::AppFinanceExchangePeriod::get(),
             });
+
+            // recrod it as last
+            <AppFinancedLast<T>>::put(&key);
 
             print("done");
             Self::deposit_event(RawEvent::AppFinanced(app_id));
@@ -1941,6 +1969,10 @@ decl_module! {
 
             // read financed record
             let mut financed_record = <AppFinancedRecord<T>>::get(&fkey);
+
+            // check if exchange end
+            ensure!(financed_record.exchange_end_block > <system::Module<T>>::block_number(), Error::<T>::AppFinancedUserExchangeEnded);
+
             // make sure exchanged not overflow (this should not happen, if happen should be serious bug)
             ensure!(financed_record.exchanged + exchange_amount <= financed_record.exchange,
                 Error::<T>::AppFinancedUserExchangeOverflow);

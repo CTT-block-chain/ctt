@@ -368,45 +368,45 @@ pub fn testnet_genesis(
         kp: Some(KpConfig {
             auth_servers,
             app_id_range: vec![
-                (b"default".to_vec(), (100000000, 0 * DOLLARS, 1, 0)),
+                (b"default".to_vec(), (100000000, 0 * DOLLARS, 1, 0, 0)),
                 (
                     b"commodity_general".to_vec(),
-                    //(100010000, 1_000_000 * DOLLARS, 0, 0),
-                    (100010000, 1 * DOLLARS, 0, 0), // for test
+                    //(100010000, 1_000_000 * DOLLARS, 0, 0, 100),
+                    (100010000, 1 * DOLLARS, 0, 0, 100), // for test
                 ),
                 (
                     b"commodity_vertical".to_vec(),
-                    (100020000, 500_000 * DOLLARS, 0, 0),
+                    (100020000, 500_000 * DOLLARS, 0, 0, 20),
                 ),
                 (
                     b"commodity_special".to_vec(),
-                    (100300000, 1_000_000 * DOLLARS, 0, 0),
+                    (100300000, 1_000_000 * DOLLARS, 0, 0, 10),
                 ),
                 (
                     b"service_education".to_vec(),
-                    (200010000, 500_000 * DOLLARS, 0, 0),
+                    (200010000, 500_000 * DOLLARS, 0, 0, 20),
                 ),
                 (
                     b"service_health".to_vec(),
-                    (200020000, 500_000 * DOLLARS, 0, 0),
+                    (200020000, 500_000 * DOLLARS, 0, 0, 20),
                 ),
                 (
                     b"service_finance".to_vec(),
-                    (200030000, 1_000_000 * DOLLARS, 0, 0),
+                    (200030000, 1_000_000 * DOLLARS, 0, 0, 20),
                 ),
                 (
                     b"service_medicine".to_vec(),
-                    (200040000, 1_000_000 * DOLLARS, 0, 0),
+                    (200040000, 1_000_000 * DOLLARS, 0, 0, 50),
                 ),
                 (
                     b"governance_legal".to_vec(),
-                    (300010000, 500_000 * DOLLARS, 0, 0),
+                    (300010000, 500_000 * DOLLARS, 0, 0, 20),
                 ),
                 (
                     b"governance_rules".to_vec(),
-                    (300020000, 500_000 * DOLLARS, 0, 0),
+                    (300020000, 500_000 * DOLLARS, 0, 0, 20),
                 ),
-                (b"misc".to_vec(), (400010000, 1_000_000 * DOLLARS, 0, 0)),
+                (b"misc".to_vec(), (400010000, 1_000_000 * DOLLARS, 0, 0, 10)),
             ],
         }),
     }

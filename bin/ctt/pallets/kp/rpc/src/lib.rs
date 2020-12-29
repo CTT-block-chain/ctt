@@ -118,6 +118,7 @@ pub struct AppFinanceDataRPC {
     block: BlockNumber,
     total_balance: u64,
     exchanged: u64,
+    exchange_end_block: BlockNumber,
 }
 
 #[rpc]
@@ -437,6 +438,7 @@ where
                 block: v.block,
                 total_balance: convert_balance(v.total_balance),
                 exchanged: convert_balance(v.exchanged),
+                exchange_end_block: v.exchange_end_block,
             }),
             Err(e) => {
                 Err(RpcError {

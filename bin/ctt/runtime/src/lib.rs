@@ -1077,6 +1077,8 @@ parameter_types! {
 
     pub const AppLeaderBoardInterval: BlockNumber = 1 * DAYS;
     pub const AppLeaderBoardMaxPos: u32 = 96;
+    //pub const AppFinanceExchangePeriod: BlockNumber = 28 * DAYS;
+    pub const AppFinanceExchangePeriod: BlockNumber = 1 * DAYS; // TODO: Test only
 }
 
 impl kp::Trait for Runtime {
@@ -1126,6 +1128,7 @@ impl kp::Trait for Runtime {
     type ModTreasuryModuleId = TreasuryModModuleId;
     type TechTreasuryModuleId = TreasuryTechModuleId;
     type BurnDestination = ();
+    type AppFinanceExchangePeriod = AppFinanceExchangePeriod;
 }
 
 construct_runtime!(
