@@ -1767,7 +1767,7 @@ decl_module! {
             } = params;
 
             ensure!(T::Membership::is_app_admin(&Self::convert_account(&user_key), app_id), Error::<T>::NotAppAdmin);
-            ensure!(incomes.len() <= 10, Error::<T>::ModelIncomeParamsTooLarge);
+            ensure!(incomes.len() <= 100, Error::<T>::ModelIncomeParamsTooLarge);
 
             let block = <system::Module<T>>::block_number();
             ensure!(Self::model_income_stage(block).0 == ModelIncomeStage::COLLECTING, Error::<T>::ModelIncomeNotInCollectingStage);
