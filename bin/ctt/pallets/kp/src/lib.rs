@@ -1779,9 +1779,16 @@ decl_module! {
                 let income = incomes[idx];
 
                 let subkey = T::Hashing::hash_of(&(app_id, model_id));
+                if !<KPModelDataByIdHash<T>>::contains_key(&subkey) {
+                    print("model id not found, ignore");
+                    continue;
+                }
 
                 // check if it is existed already
-                ensure!(!<ModelCycleIncome<T>>::contains_key(cycle_index, &subkey), Error::<T>::ModelCycleIncomeAlreadyExisted);
+                if <ModelCycleIncome<T>>::contains_key(cycle_index, &subkey) {
+                    print("model income current cycle exist, ignore");
+                    continue;
+                }
 
                 // add this model income to cycle total
                 let result = match <ModelCycleIncomeTotal<T>>::get(cycle_index).checked_add(income) {
