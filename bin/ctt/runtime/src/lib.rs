@@ -36,7 +36,10 @@ use frame_support::{
     RuntimeDebug,
 };
 use frame_system::{EnsureOneOf, EnsureRoot};
-use kp::{AppFinancedData, AppFinancedUserExchangeData, DocumentPowerInfo, LeaderBoardResult};
+use kp::{
+    AppFinancedData, AppFinancedUserExchangeData, DocumentPowerInfo, LeaderBoardResult,
+    ModelIncomeCurrentStage,
+};
 pub use node_primitives::{AccountId, AuthAccountId, PowerSize, Signature};
 use node_primitives::{AccountIndex, Balance, BlockNumber, Hash, Index, Moment};
 use pallet_contracts_rpc_runtime_api::ContractExecResult;
@@ -1073,12 +1076,23 @@ parameter_types! {
     pub const CommentCMPowerWeightPositive: u8 = 5;
 
     pub const ModelCreateDeposit: Balance = 100 * DOLLARS;
+    //pub const ModelCycleIncomeRewardTotal: Balance = 10_000_000 * DOLLARS;
+    // TODO: test
+    pub const ModelCycleIncomeRewardTotal: Balance = 10000 * DOLLARS;
     pub const KptExchangeMinRate: Permill = Permill::from_percent(10);
 
     pub const AppLeaderBoardInterval: BlockNumber = 1 * DAYS;
     pub const AppLeaderBoardMaxPos: u32 = 96;
     //pub const AppFinanceExchangePeriod: BlockNumber = 28 * DAYS;
     pub const AppFinanceExchangePeriod: BlockNumber = 1 * DAYS; // TODO: Test only
+
+    //pub const ModelIncomeCyclePeriod: BlockNumber = 365 * DAYS;
+    //pub const ModelIncomeCollectingPeriod: BlockNumber = 28 * DAYS;
+    //pub const ModelIncomeRewardingPeriod: BlockNumber = 28 * DAYS;
+    // TODO: test
+    pub const ModelIncomeCyclePeriod: BlockNumber = 1 * HOURS;
+    pub const ModelIncomeCollectingPeriod: BlockNumber = 10 * MINUTES;
+    pub const ModelIncomeRewardingPeriod: BlockNumber = 10 * MINUTES;
 }
 
 impl kp::Trait for Runtime {
@@ -1129,6 +1143,10 @@ impl kp::Trait for Runtime {
     type TechTreasuryModuleId = TreasuryTechModuleId;
     type BurnDestination = ();
     type AppFinanceExchangePeriod = AppFinanceExchangePeriod;
+    type ModelIncomeCyclePeriod = ModelIncomeCyclePeriod;
+    type ModelIncomeCollectingPeriod = ModelIncomeCollectingPeriod;
+    type ModelIncomeRewardingPeriod = ModelIncomeRewardingPeriod;
+    type ModelCycleIncomeRewardTotal = ModelCycleIncomeRewardTotal;
 }
 
 construct_runtime!(
@@ -1257,6 +1275,10 @@ impl_runtime_apis! {
 
         fn app_finance_exchange_data(app_id: u32, proposal_id: Vec<u8>, account: AccountId) -> AppFinancedUserExchangeData<Balance> {
             Kp::app_finance_exchange_data(app_id, proposal_id, account)
+        }
+
+        fn model_income_current_stage() -> ModelIncomeCurrentStage<BlockNumber> {
+            Kp::model_income_current_stage()
         }
     }
 

@@ -89,6 +89,10 @@ parameter_types! {
     pub const AppLeaderBoardInterval: u32 = 5;
     pub const AppLeaderBoardMaxPos: u32 = 5;
     pub const AppFinanceExchangePeriod: u32 = 1;
+
+    pub const ModelIncomeCyclePeriod: u32 = 1;
+    pub const ModelIncomeCollectingPeriod: u32 = 1;
+    pub const ModelIncomeRewardingPeriod: u32 = 1;
 }
 impl system::Trait for Test {
     type BaseCallFilter = ();
@@ -155,6 +159,7 @@ impl Trait for Test {
     type CommentCMPowerWeightPositive = ();
     type CMPowerAccountAttend = ();
     type ModelCreateDeposit = ();
+    type ModelCycleIncomeRewardTotal = ();
     type KptExchangeMinRate = ();
     type Slash = ();
     type AppLeaderBoardInterval = AppLeaderBoardInterval;
@@ -166,6 +171,9 @@ impl Trait for Test {
     type BurnDestination = ();
     type TechMembers = ();
     type AppFinanceExchangePeriod = AppFinanceExchangePeriod;
+    type ModelIncomeCollectingPeriod = ModelIncomeCollectingPeriod;
+    type ModelIncomeCyclePeriod = ModelIncomeCyclePeriod;
+    type ModelIncomeRewardingPeriod = ModelIncomeRewardingPeriod;
 }
 
 impl pallet_balances::Trait for Test {

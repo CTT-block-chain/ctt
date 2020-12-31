@@ -118,6 +118,7 @@ pub trait Membership<AccountId, Hash> {
     fn is_investor(who: &AccountId) -> bool;
     fn is_developer(who: &AccountId) -> bool;
     fn set_model_creator(key: &Hash, creator: &AccountId, is_give_benefit: bool) -> ();
+    fn is_model_creator(who: &AccountId, app_id: u32, model_id: &Vec<u8>) -> bool;
     fn config_app_admin(who: &AccountId, app_id: u32);
     fn config_app_key(who: &AccountId, app_id: u32);
     fn config_app_setting(app_id: u32, rate: u32, name: Vec<u8>, stake: Balance);

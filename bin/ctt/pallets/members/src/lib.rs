@@ -686,4 +686,8 @@ impl<T: Trait> Membership<T::AccountId, T::Hash> for Module<T> {
             );
         }
     }
+
+    fn is_model_creator(who: &T::AccountId, app_id: u32, model_id: &Vec<u8>) -> bool {
+        Self::is_model_creator(who, app_id, model_id)
+    }
 }

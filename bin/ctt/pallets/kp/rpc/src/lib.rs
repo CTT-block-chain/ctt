@@ -121,6 +121,14 @@ pub struct AppFinanceDataRPC {
     exchange_end_block: BlockNumber,
 }
 
+#[derive(Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+#[serde(deny_unknown_fields)]
+pub struct ModelIncomeCurrentStageRPC {
+    stage: u8,
+    left: BlockNumber,
+}
+
 #[rpc]
 pub trait KpApi<BlockHash, AccountId, Balance, BlockNumber> {
     #[rpc(name = "kp_totalPower")]
@@ -184,6 +192,12 @@ pub trait KpApi<BlockHash, AccountId, Balance, BlockNumber> {
         params: AppFinanceExchangeDataParams,
         at: Option<BlockHash>,
     ) -> Result<AppFinanceExchangeDataRPC>;
+
+    #[rpc(name = "kp_modelIncomeCurrentStage")]
+    fn model_income_current_stage(
+        &self,
+        at: Option<BlockHash>,
+    ) -> Result<ModelIncomeCurrentStageRPC>;
 }
 
 /// A struct that implements the `KpApi`.
@@ -498,6 +512,31 @@ where
                 exchange_amount: convert_balance(v.exchange_amount),
                 status: v.status,
                 pay_id: v.pay_id.into(),
+            }),
+            Err(e) => {
+                Err(RpcError {
+                    code: ErrorCode::ServerError(9876), // No real reason for this value
+                    message: "Something wrong".into(),
+                    data: Some(format!("{:?}", e).into()),
+                })
+            }
+        }
+    }
+
+    fn model_income_current_stage(
+        &self,
+        at: Option<<Block as BlockT>::Hash>,
+    ) -> Result<ModelIncomeCurrentStageRPC> {
+        let api = self.client.runtime_api();
+        let at = BlockId::hash(at.unwrap_or_else(||
+            // If the block hash is not supplied assume the best block.
+            self.client.info().best_hash));
+
+        let runtime_api_result = api.model_income_current_stage(&at);
+        match runtime_api_result {
+            Ok(v) => Ok(ModelIncomeCurrentStageRPC {
+                stage: v.stage,
+                left: v.left,
             }),
             Err(e) => {
                 Err(RpcError {

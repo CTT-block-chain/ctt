@@ -636,6 +636,37 @@ pub struct AppFinancedUserExchangeConfirmParams<AccountId> {
     proposal_id: Vec<u8>,
 }
 
+#[derive(Encode, Decode, Clone, Default, PartialEq, RuntimeDebug)]
+pub struct ModelIncomeCollectingParam {
+    app_id: u32,
+    model_ids: Vec<Vec<u8>>,
+    incomes: Vec<u64>,
+}
+
+#[derive(Encode, Decode, PartialEq, Clone, Copy, RuntimeDebug)]
+enum ModelIncomeStage {
+    NORMAL,
+    COLLECTING,
+    REWARDING,
+}
+
+impl From<ModelIncomeStage> for u8 {
+    fn from(orig: ModelIncomeStage) -> Self {
+        return match orig {
+            ModelIncomeStage::NORMAL => 0,
+            ModelIncomeStage::COLLECTING => 1,
+            ModelIncomeStage::REWARDING => 2,
+        };
+    }
+}
+
+#[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
+#[derive(Encode, Decode, PartialEq, Clone, Copy, RuntimeDebug)]
+pub struct ModelIncomeCurrentStage<Block> {
+    pub stage: u8,
+    pub left: Block,
+}
+
 /*
 type KnowledgePowerDataOf<T> = KnowledgePowerData<<T as system::Trait>::AccountId>;
 
@@ -817,6 +848,7 @@ pub trait Trait: system::Trait {
     type CMPowerAccountAttend: Get<u8>;
 
     type ModelCreateDeposit: Get<BalanceOf<Self>>;
+    type ModelCycleIncomeRewardTotal: Get<BalanceOf<Self>>;
 
     /// App financed purpose minimal exchange rate
     type KptExchangeMinRate: Get<Permill>;
@@ -826,6 +858,10 @@ pub trait Trait: system::Trait {
     type AppLeaderBoardMaxPos: Get<u32>;
 
     type AppFinanceExchangePeriod: Get<Self::BlockNumber>;
+
+    type ModelIncomeCyclePeriod: Get<Self::BlockNumber>;
+    type ModelIncomeCollectingPeriod: Get<Self::BlockNumber>;
+    type ModelIncomeRewardingPeriod: Get<Self::BlockNumber>;
 }
 
 // This pallet's storage items.
@@ -962,12 +998,20 @@ decl_storage! {
         AppModelCount get(fn app_model_count):
             map hasher(twox_64_concat) u32 => u32;
 
-        // model year incoming double map, main key is year (u32), sub key is hash of AppId & ModelId
-        ModelYearIncome get(fn model_year_income):
-            double_map hasher(twox_64_concat) u32, hasher(twox_64_concat) T::Hash => u64;
+        // model year incoming double map, main key is cycle (u64), sub key is hash of AppId & ModelId
+        ModelCycleIncome get(fn model_cycle_income):
+            double_map hasher(twox_64_concat) T::BlockNumber, hasher(twox_64_concat) T::Hash => u64;
 
-        AppYearIncomeTotal get(fn app_year_income_total):
-            map hasher(twox_64_concat) u32 => u64;
+        // cycle number => total income
+        ModelCycleIncomeTotal get(fn model_cycle_income_total):
+            map hasher(twox_64_concat) T::BlockNumber => u64;
+
+        // cycle_index (app_id, model_id)
+        ModelCycleIncomeRewardRecords get(fn model_cycle_income_reward_records):
+            double_map hasher(twox_64_concat) T::BlockNumber, hasher(twox_64_concat) T::Hash => BalanceOf<T>;
+
+        // total model reward sending count
+        ModelIncomeRewardTotal get(fn model_income_reward_total): BalanceOf<T>;
 
         // App financed record (AppId & proposal_id)
         AppFinancedRecord get(fn app_financed_record):
@@ -1048,7 +1092,7 @@ decl_event!(
         ModelDisabled(AccountId),
         CommodityTypeCreated(u32),
         AppModelTotal(u32),
-        ModelYearIncome(AccountId),
+        ModelCycleIncome(AccountId),
         PowerSlashed(AccountId),
         AppAdded(u32),
         AppFinanced(u32),
@@ -1057,6 +1101,7 @@ decl_event!(
         AppRedeemed(AccountId),
         AppFinanceUserExchangeStart(AccountId),
         AppFinanceUserExchangeConfirmed(AccountId),
+        ModelIncomeRewarded(AccountId),
     }
 );
 
@@ -1075,7 +1120,6 @@ decl_error! {
         CommodityTypeExisted,
         ModelOverSizeLimit,
         NotAppAdmin,
-        ModelYearIncomeAlreadyExisted,
         CommentNotFound,
         DocumentNotFound,
         ProductNotFound,
@@ -1103,6 +1147,14 @@ decl_error! {
         SignVerifyErrorAuth,
         AuthIdentityNotAppKey,
         AuthIdentityNotTechMember,
+        ModelCycleIncomeAlreadyExisted,
+        ModelCycleRewardAlreadyExisted,
+        ModelIncomeParamsTooLarge,
+        ModelIncomeNotInCollectingStage,
+        ModelIncomeNotInRewardingStage,
+        ModelCycleIncomeTotalZero,
+        ModelCycleIncomeZero,
+        NotModelCreator,
     }
 }
 
@@ -1696,25 +1748,96 @@ decl_module! {
         }
 
         #[weight = 0]
-        pub fn set_model_year_income(origin, year: u32, app_id: u32, model_id: Vec<u8>, income: u64) -> dispatch::DispatchResult {
+        pub fn set_model_income(origin, params: ModelIncomeCollectingParam,
+            user_key: AuthAccountId,
+            user_sign: sr25519::Signature,
+            auth_key: AuthAccountId,
+            auth_sign: sr25519::Signature) -> dispatch::DispatchResult {
             let who = ensure_signed(origin)?;
-            // check if who is app admin
-            ensure!(T::Membership::is_app_admin(&who, app_id), Error::<T>::NotAppAdmin);
+            ensure!(T::TechMembers::contains(&Self::convert_account(&auth_key)), Error::<T>::AuthIdentityNotTechMember);
 
-            let subkey = T::Hashing::hash_of(&(app_id, &model_id));
+            let buf = params.encode();
+            ensure!(Self::verify_sign(&user_key, user_sign, &buf), Error::<T>::SignVerifyErrorUser);
+            ensure!(Self::verify_sign(&auth_key, auth_sign, &buf), Error::<T>::SignVerifyErrorAuth);
 
-            // check if it is existed already
-            ensure!(!<ModelYearIncome<T>>::contains_key(year, &subkey), Error::<T>::ModelYearIncomeAlreadyExisted);
+            let ModelIncomeCollectingParam {
+                app_id,
+                model_ids,
+                incomes,
+            } = params;
 
-            // add this model income to year total
-            let result = match <AppYearIncomeTotal>::get(year).checked_add(income) {
-                Some(r) => r,
-                None => return Err(<Error<T>>::AddOverflow.into()),
-            };
-            <AppYearIncomeTotal>::insert(year, result);
-            <ModelYearIncome<T>>::insert(year, &subkey, income);
+            ensure!(T::Membership::is_app_admin(&Self::convert_account(&user_key), app_id), Error::<T>::NotAppAdmin);
+            ensure!(incomes.len() <= 10, Error::<T>::ModelIncomeParamsTooLarge);
 
-            Self::deposit_event(RawEvent::ModelYearIncome(who));
+            let block = <system::Module<T>>::block_number();
+            ensure!(Self::model_income_stage(block).0 == ModelIncomeStage::COLLECTING, Error::<T>::ModelIncomeNotInCollectingStage);
+
+            let cycle_index = Self::model_income_cycle_index(block);
+
+            for idx in 0..incomes.len() {
+                let model_id = &model_ids[idx];
+                let income = incomes[idx];
+
+                let subkey = T::Hashing::hash_of(&(app_id, model_id));
+
+                // check if it is existed already
+                ensure!(!<ModelCycleIncome<T>>::contains_key(cycle_index, &subkey), Error::<T>::ModelCycleIncomeAlreadyExisted);
+
+                // add this model income to cycle total
+                let result = match <ModelCycleIncomeTotal<T>>::get(cycle_index).checked_add(income) {
+                    Some(r) => r,
+                    None => return Err(<Error<T>>::AddOverflow.into()),
+                };
+                <ModelCycleIncomeTotal<T>>::insert(cycle_index, result);
+                <ModelCycleIncome<T>>::insert(cycle_index, &subkey, income);
+            }
+
+            Self::deposit_event(RawEvent::ModelCycleIncome(who));
+            Ok(())
+        }
+
+        #[weight = 0]
+        pub fn request_model_reward(origin, app_id: u32, model_id: Vec<u8>) -> dispatch::DispatchResult {
+            let who = ensure_signed(origin)?;
+            // make sure who is creaor of this model id
+            ensure!(T::Membership::is_model_creator(&who, app_id, &model_id),  Error::<T>::NotModelCreator);
+
+            let block = <system::Module<T>>::block_number();
+            ensure!(Self::model_income_stage(block).0 == ModelIncomeStage::REWARDING, Error::<T>::ModelIncomeNotInRewardingStage);
+
+            let cycle_index = Self::model_income_cycle_index(block);
+            let sub_key = T::Hashing::hash_of(&(app_id, &model_id));
+            ensure!(!<ModelCycleIncomeRewardRecords<T>>::contains_key(cycle_index, &sub_key), Error::<T>::ModelCycleRewardAlreadyExisted);
+
+            // now compute reward
+            let total_reward = T::ModelCycleIncomeRewardTotal::get();
+
+            let cycle_income_total = <ModelCycleIncomeTotal<T>>::get(cycle_index);
+            ensure!(cycle_income_total > 0, Error::<T>::ModelCycleIncomeTotalZero);
+
+            let cycle_income = <ModelCycleIncome<T>>::get(cycle_index, &sub_key);
+            ensure!(cycle_income > 0, Error::<T>::ModelCycleIncomeZero);
+
+            let per = Permill::from_rational_approximation(cycle_income, cycle_income_total);
+            let reward = per * total_reward;
+
+            // transfer now
+            let treasury_account: T::AccountId = T::ModTreasuryModuleId::get().into_account();
+            T::Currency::transfer(
+                &treasury_account,
+                &who,
+                reward,
+                KeepAlive,
+            )?;
+
+            // update global total reward
+            let total = <ModelIncomeRewardTotal<T>>::get() + reward;
+            <ModelIncomeRewardTotal<T>>::put(total);
+
+            // update records
+            <ModelCycleIncomeRewardRecords<T>>::insert(cycle_index, &sub_key, reward);
+
+            Self::deposit_event(RawEvent::ModelIncomeRewarded(who));
             Ok(())
         }
 
@@ -2103,6 +2226,16 @@ impl<T: Trait> Module<T> {
         let adjusted = (math_covert as f64 * ratio) as u64;
 
         return adjusted.saturated_into();
+    }
+
+    pub fn model_income_current_stage() -> ModelIncomeCurrentStage<T::BlockNumber> {
+        let block = <system::Module<T>>::block_number();
+        let stage = Self::model_income_stage(block);
+
+        ModelIncomeCurrentStage {
+            stage: stage.0.into(),
+            left: stage.1,
+        }
     }
 
     pub fn app_finance_record(
@@ -3391,6 +3524,34 @@ impl<T: Trait> Module<T> {
                 info.slash_kp_total += cart_power;
             });
         }
+    }
+
+    fn model_income_stage(block: T::BlockNumber) -> (ModelIncomeStage, T::BlockNumber) {
+        let cycle_index = Self::model_income_cycle_index(block);
+        let cycle_blocks = T::ModelIncomeCyclePeriod::get();
+
+        if cycle_index == 0u32.into() {
+            return (ModelIncomeStage::NORMAL, cycle_blocks - block);
+        }
+
+        let collecting = T::ModelIncomeCollectingPeriod::get();
+        let rewarding_blocks = T::ModelIncomeRewardingPeriod::get();
+        let progress = block % T::ModelIncomeCyclePeriod::get();
+
+        return if progress < collecting {
+            (ModelIncomeStage::COLLECTING, collecting - progress)
+        } else if progress < collecting + rewarding_blocks {
+            (
+                ModelIncomeStage::REWARDING,
+                collecting + rewarding_blocks - progress,
+            )
+        } else {
+            (ModelIncomeStage::NORMAL, cycle_blocks - progress)
+        };
+    }
+
+    fn model_income_cycle_index(block: T::BlockNumber) -> T::BlockNumber {
+        block / T::ModelIncomeCyclePeriod::get()
     }
 }
 
