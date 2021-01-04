@@ -2058,6 +2058,8 @@ decl_module! {
             ensure!(T::Membership::is_investor(&account), Error::<T>::AppFinancedNotInvestor);
             print("pass investor check");
 
+            let total_balance = T::Currency::total_issuance_excluding_fund();
+
             let treasury_account: T::AccountId = T::FinTreasuryModuleId::get().into_account();
             T::Currency::transfer(
                 &treasury_account,
@@ -2070,7 +2072,7 @@ decl_module! {
                 amount,
                 exchange,
                 block: current_block,
-                total_balance: T::Currency::total_issuance_excluding_fund(),
+                total_balance,
                 exchanged: 0u32.into(),
                 exchange_end_block: current_block + T::AppFinanceExchangePeriod::get(),
             });
