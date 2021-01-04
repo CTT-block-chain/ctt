@@ -668,7 +668,8 @@ pub struct ModelIncomeCurrentStage<Block> {
 }
 
 #[derive(Encode, Decode, PartialEq, Clone, RuntimeDebug)]
-pub struct ModelCycleIncomeReward<Balance> {
+pub struct ModelCycleIncomeReward<Account, Balance> {
+    account: Account,
     app_id: u32,
     model_id: Vec<u8>,
     reward: Balance,
@@ -1018,7 +1019,7 @@ decl_storage! {
             double_map hasher(twox_64_concat) T::BlockNumber, hasher(twox_64_concat) T::Hash => BalanceOf<T>;
 
         ModelCycleIncomeRewardStore get(fn model_cycle_income_reward_store):
-            map hasher(twox_64_concat) T::BlockNumber => Vec<ModelCycleIncomeReward<BalanceOf<T>>>;
+            map hasher(twox_64_concat) T::BlockNumber => Vec<ModelCycleIncomeReward<T::AccountId, BalanceOf<T>>>;
 
         // total model reward sending count
         ModelIncomeRewardTotal get(fn model_income_reward_total): BalanceOf<T>;
@@ -1856,6 +1857,7 @@ decl_module! {
 
             <ModelCycleIncomeRewardStore<T>>::mutate(cycle_index, |store| {
                 store.push(ModelCycleIncomeReward {
+                    account: who.clone(),
                     app_id,
                     model_id: model_id.clone(),
                     reward
