@@ -1090,7 +1090,7 @@ parameter_types! {
     //pub const ModelIncomeCollectingPeriod: BlockNumber = 28 * DAYS;
     //pub const ModelIncomeRewardingPeriod: BlockNumber = 28 * DAYS;
     // TODO: test
-    pub const ModelIncomeCyclePeriod: BlockNumber = 1 * HOURS;
+    pub const ModelIncomeCyclePeriod: BlockNumber = 30 * MINUTES;
     pub const ModelIncomeCollectingPeriod: BlockNumber = 10 * MINUTES;
     pub const ModelIncomeRewardingPeriod: BlockNumber = 10 * MINUTES;
 }

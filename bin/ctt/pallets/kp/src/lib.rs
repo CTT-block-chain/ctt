@@ -667,6 +667,13 @@ pub struct ModelIncomeCurrentStage<Block> {
     pub left: Block,
 }
 
+#[derive(Encode, Decode, PartialEq, Clone, RuntimeDebug)]
+pub struct ModelCycleIncomeReward<Balance> {
+    app_id: u32,
+    model_id: Vec<u8>,
+    reward: Balance,
+}
+
 /*
 type KnowledgePowerDataOf<T> = KnowledgePowerData<<T as system::Trait>::AccountId>;
 
@@ -1009,6 +1016,9 @@ decl_storage! {
         // cycle_index (app_id, model_id)
         ModelCycleIncomeRewardRecords get(fn model_cycle_income_reward_records):
             double_map hasher(twox_64_concat) T::BlockNumber, hasher(twox_64_concat) T::Hash => BalanceOf<T>;
+
+        ModelCycleIncomeRewardStore get(fn model_cycle_income_reward_store):
+            map hasher(twox_64_concat) T::BlockNumber => Vec<ModelCycleIncomeReward<BalanceOf<T>>>;
 
         // total model reward sending count
         ModelIncomeRewardTotal get(fn model_income_reward_total): BalanceOf<T>;
@@ -1843,6 +1853,14 @@ decl_module! {
 
             // update records
             <ModelCycleIncomeRewardRecords<T>>::insert(cycle_index, &sub_key, reward);
+
+            <ModelCycleIncomeRewardStore<T>>::mutate(cycle_index, |store| {
+                store.push(ModelCycleIncomeReward {
+                    app_id,
+                    model_id: model_id.clone(),
+                    reward
+                })
+            });
 
             Self::deposit_event(RawEvent::ModelIncomeRewarded(who));
             Ok(())

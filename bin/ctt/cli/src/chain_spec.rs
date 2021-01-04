@@ -240,7 +240,6 @@ pub fn testnet_genesis(
     let num_endowed_accounts = endowed_accounts.len();
 
     const INITIAL_VALIDATOR_STAKING: Balance = 5000 * DOLLARS;
-    const INITIAL_APP_ADMIN_BALANCE: Balance = 10_000 * DOLLARS;
 
     // initial staking balance
     let mut balances: Vec<(AccountId, Balance)> = initial_authorities
@@ -260,17 +259,11 @@ pub fn testnet_genesis(
             hex!["6d6f646c70792f61636d6f640000000000000000000000000000000000000000"].into(),
             100_000_000 * DOLLARS,
         ),
-        // initial JIANFA app admin balance
-        (
-            // 5GsdH24tsB3NxtiewWVEeqBWFV6kT2JKCEPig7LxjxUJw4Fc
-            hex!["d4ba0cb32eadac107a7f5482ea17e67b7b89cf7d46ace67227edb5d1bfe5de1d"].into(),
-            INITIAL_APP_ADMIN_BALANCE,
-        ),
         // initial sudo balance
         (
             // 5FcBV9rczxcFLYFhxkuYnWHVi8UTt9DMqxhwkps1xeRgX7dP
             hex!["9cb650c86e586c0c3791df694ac610a0adfaeeacdae856668186bef833dccf59"].into(),
-            1_000_000 * DOLLARS - stash_total - INITIAL_APP_ADMIN_BALANCE,
+            1_000_000 * DOLLARS - stash_total,
         ),
     ];
 
