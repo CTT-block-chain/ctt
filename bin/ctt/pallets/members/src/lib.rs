@@ -28,7 +28,7 @@ type BalanceOf<T> =
     <<T as Trait>::Currency as Currency<<T as frame_system::Trait>::AccountId>>::Balance;
 
 #[derive(Encode, Decode, Clone, Default, RuntimeDebug)]
-pub struct AppData {
+pub struct AppData<Balance> {
     name: Vec<u8>,
     return_rate: u32,
     stake: Balance,
@@ -111,7 +111,7 @@ decl_storage! {
 
         // AppId => AppData
         AppDataMap get(fn app_data_map):
-            map hasher(twox_64_concat) u32 => AppData;
+            map hasher(twox_64_concat) u32 => AppData<BalanceOf<T>>;
 
         // app level platform comment experts, key is app_id, managed by app_admins
         AppPlatformExpertMembers get(fn app_platform_expert_members):
@@ -517,7 +517,7 @@ impl<T: Trait> Module<T> {
     }
 }*/
 
-impl<T: Trait> Membership<T::AccountId, T::Hash> for Module<T> {
+impl<T: Trait> Membership<T::AccountId, T::Hash, BalanceOf<T>> for Module<T> {
     fn is_platform(who: &T::AccountId, app_id: u32) -> bool {
         Self::is_platform_expert(who, app_id)
     }
@@ -529,6 +529,35 @@ impl<T: Trait> Membership<T::AccountId, T::Hash> for Module<T> {
         <AppAdmins<T>>::contains_key(app_id) && <AppAdmins<T>>::get(app_id) == *who
     }
 
+    fn is_investor(who: &T::AccountId) -> bool {
+        Self::is_investor(who)
+    }
+
+    fn set_model_creator(
+        key: &T::Hash,
+        creator: &T::AccountId,
+        is_give_benefit: bool,
+    ) -> BalanceOf<T> {
+        // this interface is only available form pallet internal (from kp to member invoking)
+        <ModelCreators<T>>::insert(key, creator);
+        // give benifit to creator
+
+        let treasury_account: T::AccountId = T::ModTreasuryModuleId::get().into_account();
+        print("set_model_creator");
+
+        if is_give_benefit {
+            let reward = T::ModelCreatorCreateBenefit::get();
+            let _ = T::Currency::transfer(&treasury_account, creator, reward, KeepAlive);
+            return reward;
+        }
+
+        0u32.into()
+    }
+
+    fn is_model_creator(who: &T::AccountId, app_id: u32, model_id: &Vec<u8>) -> bool {
+        Self::is_model_creator(who, app_id, model_id)
+    }
+
     fn config_app_admin(who: &T::AccountId, app_id: u32) {
         <AppAdmins<T>>::insert(app_id, who);
     }
@@ -538,8 +567,8 @@ impl<T: Trait> Membership<T::AccountId, T::Hash> for Module<T> {
         <KeyApps<T>>::insert(&who, app_id);
     }
 
-    fn config_app_setting(app_id: u32, rate: u32, name: Vec<u8>, stake: Balance) {
-        <AppDataMap>::insert(
+    fn config_app_setting(app_id: u32, rate: u32, name: Vec<u8>, stake: BalanceOf<T>) {
+        <AppDataMap<T>>::insert(
             app_id,
             &AppData {
                 return_rate: rate,
@@ -550,36 +579,10 @@ impl<T: Trait> Membership<T::AccountId, T::Hash> for Module<T> {
     }
 
     fn is_valid_app(app_id: u32) -> bool {
-        <AppDataMap>::contains_key(app_id)
+        <AppDataMap<T>>::contains_key(app_id)
     }
 
     fn is_valid_app_key(app_id: u32, app_key: &T::AccountId) -> bool {
         <AppKeys<T>>::contains_key(app_id) && <AppKeys<T>>::get(app_id) == *app_key
-    }
-
-    fn is_investor(who: &T::AccountId) -> bool {
-        Self::is_investor(who)
-    }
-
-    fn set_model_creator(key: &T::Hash, creator: &T::AccountId, is_give_benefit: bool) -> () {
-        // this interface is only available form pallet internal (from kp to member invoking)
-        <ModelCreators<T>>::insert(key, creator);
-        // give benifit to creator
-
-        let treasury_account: T::AccountId = T::ModTreasuryModuleId::get().into_account();
-        print("set_model_creator");
-
-        if is_give_benefit {
-            let _ = T::Currency::transfer(
-                &treasury_account,
-                creator,
-                T::ModelCreatorCreateBenefit::get(),
-                KeepAlive,
-            );
-        }
-    }
-
-    fn is_model_creator(who: &T::AccountId, app_id: u32, model_id: &Vec<u8>) -> bool {
-        Self::is_model_creator(who, app_id, model_id)
     }
 }

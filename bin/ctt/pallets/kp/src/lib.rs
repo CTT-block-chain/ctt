@@ -395,9 +395,10 @@ pub struct KPCommentData<AccountId, Hash> {
     owner: AuthAccountId,
 }
 
-type KPModelDataOf<T> = KPModelData<<T as system::Trait>::AccountId, <T as system::Trait>::Hash>;
+type KPModelDataOf<T> =
+    KPModelData<<T as system::Trait>::AccountId, <T as system::Trait>::Hash, BalanceOf<T>>;
 #[derive(Encode, Decode, Clone, Default, RuntimeDebug)]
-pub struct KPModelData<AccountId, Hash> {
+pub struct KPModelData<AccountId, Hash, Balance> {
     app_id: u32,
     model_id: Vec<u8>,
     expert_id: Vec<u8>,
@@ -407,6 +408,7 @@ pub struct KPModelData<AccountId, Hash> {
     content_hash: Hash,
     sender: AccountId,
     owner: AuthAccountId,
+    create_reward: Balance,
 }
 
 #[derive(Encode, Decode, Clone, Default, Eq, RuntimeDebug)]
@@ -751,7 +753,7 @@ fn power_update<T: system::Trait>(power_data: &KnowledgePowerData<T::AccountId>,
 pub trait Trait: system::Trait {
     // Add other types and constants required to configure this pallet.
     /// Membership control
-    type Membership: Membership<Self::AccountId, Self::Hash>;
+    type Membership: Membership<Self::AccountId, Self::Hash, BalanceOf<Self>>;
 
     /// TechnicalCommittee member ship check
     type TechMembers: Contains<Self::AccountId>;
@@ -1279,6 +1281,14 @@ decl_module! {
             T::Currency::reserve(&user_account, value)?;
             <KPModelDepositMap<T>>::insert(&key, value);
 
+            let type_key = T::Hashing::hash_of(&(app_id, commodity_type));
+            let should_transfer = !<ModelFirstTypeBenefitRecord<T>>::contains_key(&type_key);
+            let create_reward = T::Membership::set_model_creator(&key, &(Self::convert_account(&app_user_account)), should_transfer);
+
+            if should_transfer {
+                <ModelFirstTypeBenefitRecord<T>>::insert(&type_key, true);
+            }
+
             let model = KPModelData {
                 app_id,
                 model_id,
@@ -1289,17 +1299,11 @@ decl_module! {
                 content_hash,
                 sender: who.clone(),
                 owner: app_user_account,
+                create_reward,
             };
 
             <KPModelDataByIdHash<T>>::insert(&key, &model);
             <AppModelCount>::insert(app_id, count + 1);
-
-            let type_key = T::Hashing::hash_of(&(app_id, commodity_type));
-            let should_transfer = !<ModelFirstTypeBenefitRecord<T>>::contains_key(&type_key);
-            T::Membership::set_model_creator(&key, &(Self::convert_account(&model.owner)), should_transfer);
-            if should_transfer {
-                <ModelFirstTypeBenefitRecord<T>>::insert(&type_key, true);
-            }
 
             Self::deposit_event(RawEvent::ModelCreated(who));
             Ok(())
@@ -1986,7 +1990,7 @@ decl_module! {
             // set admin and idenetity key
             T::Membership::config_app_admin(&app_admin_key, app_id);
             T::Membership::config_app_key(&app_key, app_id);
-            T::Membership::config_app_setting(app_id, return_rate, app_name, stake.saturated_into());
+            T::Membership::config_app_setting(app_id, return_rate, app_name, stake);
 
             // config max model
             <AppModelTotalConfig>::insert(app_id, max_models);

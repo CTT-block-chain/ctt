@@ -111,12 +111,12 @@ pub trait AccountSet {
     fn accounts() -> BTreeSet<Self::AccountId>;
 }
 
-pub trait Membership<AccountId, Hash> {
+pub trait Membership<AccountId, Hash, Balance> {
     fn is_platform(who: &AccountId, app_id: u32) -> bool;
     fn is_expert(who: &AccountId, app_id: u32, model_id: &Vec<u8>) -> bool;
     fn is_app_admin(who: &AccountId, app_id: u32) -> bool;
     fn is_investor(who: &AccountId) -> bool;
-    fn set_model_creator(key: &Hash, creator: &AccountId, is_give_benefit: bool) -> ();
+    fn set_model_creator(key: &Hash, creator: &AccountId, is_give_benefit: bool) -> Balance;
     fn is_model_creator(who: &AccountId, app_id: u32, model_id: &Vec<u8>) -> bool;
     fn config_app_admin(who: &AccountId, app_id: u32);
     fn config_app_key(who: &AccountId, app_id: u32);
