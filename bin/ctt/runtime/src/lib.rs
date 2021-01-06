@@ -1084,7 +1084,7 @@ parameter_types! {
     pub const AppLeaderBoardInterval: BlockNumber = 1 * DAYS;
     pub const AppLeaderBoardMaxPos: u32 = 96;
     //pub const AppFinanceExchangePeriod: BlockNumber = 28 * DAYS;
-    pub const AppFinanceExchangePeriod: BlockNumber = 1 * DAYS; // TODO: Test only
+    pub const AppFinanceExchangePeriod: BlockNumber = 30 * MINUTES; // TODO: Test only
 
     //pub const ModelIncomeCyclePeriod: BlockNumber = 365 * DAYS;
     //pub const ModelIncomeCollectingPeriod: BlockNumber = 28 * DAYS;

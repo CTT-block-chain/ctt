@@ -438,6 +438,8 @@ impl PartialOrd for CommodityTypeData {
 #[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
 #[derive(Encode, Decode, Clone, Default, PartialEq, RuntimeDebug)]
 pub struct AppFinancedData<Balance, BlockNumber> {
+    pub app_id: u32,
+    pub proposal_id: Vec<u8>,
     pub amount: Balance,
     pub exchange: Balance,
     pub block: BlockNumber,
@@ -1040,6 +1042,9 @@ decl_storage! {
         // (AppId & ProposalId) -> user accounts set
         AppFinancedUserExchangeSet get(fn app_financed_user_exchange_set):
             map hasher(twox_64_concat) T::Hash => Vec<T::AccountId>;
+
+        AppFinancedBurnTotal get(fn app_financed_burn_total): BalanceOf<T>;
+        AppFinancedCount get(fn app_financed_count): u32;
 
         // App commodity(cart_id) count AppId -> u32
         AppCommodityCount get(fn app_commodity_count):
@@ -2024,7 +2029,7 @@ decl_module! {
                 let last_record = <AppFinancedRecord<T>>::get(&last_key);
                 ensure!(last_record.exchange_end_block < current_block, Error::<T>::AppFinancedLastExchangeNotEnd);
             }
-
+            print("pass period check");
 
             // only tech memebers allow auth
             ensure!(T::TechMembers::contains(&Self::convert_account(&auth_server)), Error::<T>::AuthIdentityNotTechMember);
@@ -2073,6 +2078,8 @@ decl_module! {
             )?;
 
             <AppFinancedRecord<T>>::insert(&key, AppFinancedData::<BalanceOf<T>, T::BlockNumber> {
+                app_id,
+                proposal_id,
                 amount,
                 exchange,
                 block: current_block,
@@ -2083,6 +2090,8 @@ decl_module! {
 
             // recrod it as last
             <AppFinancedLast<T>>::put(&key);
+            // update count
+            <AppFinancedCount>::put(<AppFinancedCount>::get() + 1);
 
             print("done");
             Self::deposit_event(RawEvent::AppFinanced(app_id));
@@ -2198,6 +2207,8 @@ decl_module! {
                 record.status = 2;
                 record.pay_id = pay_id;
             });
+
+            <AppFinancedBurnTotal<T>>::put(<AppFinancedBurnTotal<T>>::get() + record.exchange_amount);
 
             Self::deposit_event(RawEvent::AppFinanceUserExchangeConfirmed(account));
             Ok(())
