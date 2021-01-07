@@ -11,14 +11,13 @@ use frame_support::{
     traits::{Currency, ExistenceRequirement::KeepAlive, Get},
 };
 use frame_system::{self as system, ensure_root, ensure_signed};
-use primitives::{AccountSet, AuthAccountId, Balance, Membership};
+use primitives::{AuthAccountId, Membership};
 use sp_core::sr25519;
 use sp_runtime::{
     print,
     traits::{AccountIdConversion, Hash, Verify},
     ModuleId, MultiSignature, RuntimeDebug,
 };
-use sp_std::collections::btree_set::BTreeSet;
 use sp_std::prelude::*;
 
 #[cfg(test)]

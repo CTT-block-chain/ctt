@@ -679,6 +679,31 @@ pub struct ModelCycleIncomeReward<Account, Balance> {
     reward: Balance,
 }
 
+#[derive(Encode, Decode, PartialEq, Clone, Copy, RuntimeDebug)]
+pub enum TechFundWithdrawType {
+    CHAIN = 0,
+    TCTP,
+    MODEL,
+    KNOWLEDGE,
+}
+
+#[derive(Encode, Decode, PartialEq, Clone, Copy, RuntimeDebug)]
+pub enum TechFundWithdrawLevel {
+    LV1 = 0,
+    LV2,
+    LV3,
+    LV4,
+}
+
+#[derive(Encode, Decode, PartialEq, Clone, RuntimeDebug)]
+pub struct TechFundWithdrawData<Account, Balance, Hash> {
+    account: Account,
+    amount: Balance,
+    dev_level: TechFundWithdrawLevel,
+    dev_type: TechFundWithdrawType,
+    reason: Hash,
+}
+
 /*
 type KnowledgePowerDataOf<T> = KnowledgePowerData<<T as system::Trait>::AccountId>;
 
@@ -1090,6 +1115,8 @@ decl_storage! {
         // Account Created Document Set (double map appid(doc id))
         AccountDocumentSet get(fn account_document_set):
             double_map hasher(twox_64_concat) T::AccountId, hasher(twox_64_concat) u32 => Vec<Vec<u8>>;
+
+        TechFundWithdrawRecords get(fn tech_fund_withdraw_records): Vec<TechFundWithdrawData<T::AccountId, BalanceOf<T>, T::Hash>>;
     }
 }
 
@@ -1120,6 +1147,7 @@ decl_event!(
         AppFinanceUserExchangeStart(AccountId),
         AppFinanceUserExchangeConfirmed(AccountId),
         ModelIncomeRewarded(AccountId),
+        TechFundWithdrawed(AccountId),
     }
 );
 
@@ -1173,6 +1201,7 @@ decl_error! {
         ModelCycleIncomeTotalZero,
         ModelCycleIncomeZero,
         NotModelCreator,
+        TechFundAmountComputeError,
     }
 }
 
@@ -2235,6 +2264,41 @@ decl_module! {
             Self::deposit_event(RawEvent::LeaderBoardsCreated(current_block, app_id, model_id));
             Ok(())
         }
+
+        #[weight = 0]
+        pub fn democracy_tech_fund_withdraw(origin, receiver: T::AccountId, reason: T::Hash, dev_type: TechFundWithdrawType, dev_level: TechFundWithdrawLevel) -> dispatch::DispatchResult {
+            ensure_root(origin)?;
+            ensure!(T::TechMembers::contains(&receiver), Error::<T>::AuthIdentityNotTechMember);
+            print("pass tech member check");
+
+            // compute balance
+            let amount = Self::compute_tech_fund_withdraw(dev_type, dev_level);
+            ensure!(amount > 0u32.into(), Error::<T>::TechFundAmountComputeError);
+            print("pass amount check");
+
+            let treasury_account: T::AccountId = T::TechTreasuryModuleId::get().into_account();
+            T::Currency::transfer(
+                &treasury_account,
+                &receiver,
+                amount,
+                KeepAlive,
+            )?;
+            print("pass transfer");
+
+            // Records it
+            let mut records = <TechFundWithdrawRecords<T>>::get();
+            records.push(TechFundWithdrawData {
+                account: receiver.clone(),
+                amount,
+                dev_level,
+                dev_type,
+                reason,
+            });
+            <TechFundWithdrawRecords<T>>::put(records);
+
+            Self::deposit_event(RawEvent::TechFundWithdrawed(receiver));
+            Ok(())
+        }
     }
 }
 
@@ -2359,6 +2423,30 @@ impl<T: Trait> Module<T> {
     fn convert_account(origin: &AuthAccountId) -> T::AccountId {
         let tmp: [u8; 32] = origin.clone().into();
         T::AccountId::decode(&mut &tmp[..]).unwrap_or_default()
+    }
+
+    fn compute_tech_fund_withdraw(
+        dev_type: TechFundWithdrawType,
+        dev_level: TechFundWithdrawLevel,
+    ) -> BalanceOf<T> {
+        let base: BalanceOf<T> = 1_000_000_00u32.into();
+
+        let type_per = match dev_type {
+            TechFundWithdrawType::CHAIN => Permill::from_rational_approximation(50u32, 100u32),
+            TechFundWithdrawType::TCTP => Permill::from_rational_approximation(30u32, 100u32),
+            TechFundWithdrawType::MODEL => Permill::from_rational_approximation(12u32, 100u32),
+            TechFundWithdrawType::KNOWLEDGE => Permill::from_rational_approximation(8u32, 100u32),
+        };
+
+        let level_per = match dev_level {
+            TechFundWithdrawLevel::LV1 => Permill::from_rational_approximation(8u32, 100u32),
+            TechFundWithdrawLevel::LV2 => Permill::from_rational_approximation(6u32, 100u32),
+            TechFundWithdrawLevel::LV3 => Permill::from_rational_approximation(4u32, 100u32),
+            TechFundWithdrawLevel::LV4 => Permill::from_rational_approximation(1u32, 100u32),
+        };
+
+        let amount = type_per * base;
+        level_per * amount
     }
 
     fn compute_commodity_power(power: &CommodityPowerSet) -> PowerSize {
