@@ -681,10 +681,11 @@ pub struct ModelCycleIncomeReward<Account, Balance> {
 
 #[derive(Encode, Decode, PartialEq, Clone, Copy, RuntimeDebug)]
 pub enum TechFundWithdrawType {
-    CHAIN = 0,
+    CHAIN_DEV = 0,
     TCTP,
     MODEL,
     KNOWLEDGE,
+    CHIAN_ADMIN,
 }
 
 #[derive(Encode, Decode, PartialEq, Clone, Copy, RuntimeDebug)]
@@ -693,6 +694,7 @@ pub enum TechFundWithdrawLevel {
     LV2,
     LV3,
     LV4,
+    LV5,
 }
 
 #[derive(Encode, Decode, PartialEq, Clone, RuntimeDebug)]
@@ -2432,17 +2434,21 @@ impl<T: Trait> Module<T> {
         let base: BalanceOf<T> = 1_000_000_00u32.into();
 
         let type_per = match dev_type {
-            TechFundWithdrawType::CHAIN => Permill::from_rational_approximation(50u32, 100u32),
+            TechFundWithdrawType::CHAIN_DEV => Permill::from_rational_approximation(45u32, 100u32),
             TechFundWithdrawType::TCTP => Permill::from_rational_approximation(30u32, 100u32),
-            TechFundWithdrawType::MODEL => Permill::from_rational_approximation(12u32, 100u32),
-            TechFundWithdrawType::KNOWLEDGE => Permill::from_rational_approximation(8u32, 100u32),
+            TechFundWithdrawType::MODEL => Permill::from_rational_approximation(8u32, 100u32),
+            TechFundWithdrawType::KNOWLEDGE => Permill::from_rational_approximation(5u32, 100u32),
+            TechFundWithdrawType::CHIAN_ADMIN => {
+                Permill::from_rational_approximation(12u32, 100u32)
+            }
         };
 
         let level_per = match dev_level {
-            TechFundWithdrawLevel::LV1 => Permill::from_rational_approximation(8u32, 100u32),
-            TechFundWithdrawLevel::LV2 => Permill::from_rational_approximation(6u32, 100u32),
-            TechFundWithdrawLevel::LV3 => Permill::from_rational_approximation(4u32, 100u32),
+            TechFundWithdrawLevel::LV1 => Permill::from_rational_approximation(25u32, 100u32),
+            TechFundWithdrawLevel::LV2 => Permill::from_rational_approximation(10u32, 100u32),
+            TechFundWithdrawLevel::LV3 => Permill::from_rational_approximation(5u32, 100u32),
             TechFundWithdrawLevel::LV4 => Permill::from_rational_approximation(1u32, 100u32),
+            TechFundWithdrawLevel::LV5 => Permill::from_rational_approximation(2u32, 1000u32),
         };
 
         let amount = type_per * base;
