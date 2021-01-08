@@ -2270,8 +2270,6 @@ decl_module! {
         #[weight = 0]
         pub fn democracy_tech_fund_withdraw(origin, receiver: T::AccountId, reason: T::Hash, dev_type: TechFundWithdrawType, dev_level: TechFundWithdrawLevel) -> dispatch::DispatchResult {
             ensure_root(origin)?;
-            ensure!(T::TechMembers::contains(&receiver), Error::<T>::AuthIdentityNotTechMember);
-            print("pass tech member check");
 
             // compute balance
             let amount = Self::compute_tech_fund_withdraw(dev_type, dev_level);
