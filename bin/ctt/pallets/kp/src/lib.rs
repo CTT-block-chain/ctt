@@ -8,6 +8,7 @@ use frame_support::{
         Contains, Currency, ExistenceRequirement::KeepAlive, Get, LockableCurrency, OnUnbalanced,
         Randomness, ReservableCurrency, WithdrawReason,
     },
+    weights::Weight,
 };
 use rand_chacha::{
     rand_core::{RngCore, SeedableRng},
@@ -901,6 +902,10 @@ pub trait Trait: system::Trait {
     type ModelIncomeCyclePeriod: Get<Self::BlockNumber>;
     type ModelIncomeCollectingPeriod: Get<Self::BlockNumber>;
     type ModelIncomeRewardingPeriod: Get<Self::BlockNumber>;
+
+    // Model dispute slash config
+    type ModelDisputeLv1Slash: Get<BalanceOf<Self>>;
+    type ModelDisputeDelayTime: Get<Self::BlockNumber>;
 }
 
 // This pallet's storage items.
@@ -976,8 +981,8 @@ decl_storage! {
             map hasher(blake2_128_concat) T::AccountId => PowerSize;
 
         // miner documents power (accumulation) (app_id account_id) -> DocumentPower
-        MinerDocumentsAccumulationPower get(fn miner_documents_accumulation_power):
-            map hasher(twox_64_concat) T::Hash => DocumentPower;
+        // MinerDocumentsAccumulationPower get(fn miner_documents_accumulation_power):
+        //    map hasher(twox_64_concat) T::Hash => DocumentPower;
 
         // account attend power (AccountId, AppId) -> PowerSize
         AccountAttendPowerMap get(fn account_attend_power_map):
@@ -999,9 +1004,8 @@ decl_storage! {
         CommentMaxInfoPerAccountMap get(fn comment_max_info_per_account_map):
             map hasher(twox_64_concat) u32 => CommentMaxRecord;
 
-        // AppId -> single account's max goods_price
-        MaxGoodsPricePerAccountMap get(fn max_goods_price_per_account_map):
-            map hasher(twox_64_concat) u32 => PowerSize;
+        // Global max goods_price
+        MaxGoodsPrice get(fn max_goods_price): PowerSize;
 
         // AppId -> document publish params max
         DocumentPublishMaxParams get(fn document_publish_max_params):
@@ -1119,6 +1123,12 @@ decl_storage! {
             double_map hasher(twox_64_concat) T::AccountId, hasher(twox_64_concat) u32 => Vec<Vec<u8>>;
 
         TechFundWithdrawRecords get(fn tech_fund_withdraw_records): Vec<TechFundWithdrawData<T::AccountId, BalanceOf<T>, T::Hash>>;
+
+        // pre-black list of model dispute, this is a collection which reserved balance lower than required 50%
+        ModelPreBlackList get(fn model_black_list_pre): Vec<(u32, Vec<u8>, T::AccountId, T::BlockNumber)>;
+
+        ModelSlashCycleRewardIndex get(fn model_slash_cycle_reward_index):
+            map hasher(twox_64_concat) T::Hash => T::BlockNumber;
     }
 }
 
@@ -1164,7 +1174,7 @@ decl_error! {
         CommentAlreadyExisted,
         ModelAlreadyExisted,
         ModelTypeInvalid,
-        ModelNotFound,
+        ModelNotFoundOrDisabled,
         CommodityTypeExisted,
         ModelOverSizeLimit,
         NotAppAdmin,
@@ -1197,6 +1207,7 @@ decl_error! {
         AuthIdentityNotTechMember,
         ModelCycleIncomeAlreadyExisted,
         ModelCycleRewardAlreadyExisted,
+        ModelCycleRewardSlashed,
         ModelIncomeParamsTooLarge,
         ModelIncomeNotInCollectingStage,
         ModelIncomeNotInRewardingStage,
@@ -1387,9 +1398,8 @@ decl_module! {
             let product_key_hash = T::Hashing::hash_of(&(app_id, &product_id));
             ensure!(!<KPDocumentProductIndexByIdHash<T>>::contains_key(&product_key_hash), Error::<T>::ProductAlreadyExisted);
 
-            // check if model exist
-            let model_key = T::Hashing::hash_of(&(app_id, &model_id));
-            ensure!(<KPModelDataByIdHash<T>>::contains_key(&model_key), Error::<T>::ModelNotFound);
+            // check if model valid
+            ensure!(Self::is_valid_model(app_id, &model_id), Error::<T>::ModelNotFoundOrDisabled);
 
             let doc = KPDocumentData {
                 sender: who.clone(),
@@ -1671,8 +1681,7 @@ decl_module! {
 
             ensure!(!<KPDocumentDataByIdHash<T>>::contains_key(&doc_key_hash), Error::<T>::DocumentAlreadyExisted);
 
-            let model_key = T::Hashing::hash_of(&(app_id, &model_id));
-            ensure!(<KPModelDataByIdHash<T>>::contains_key(&model_key), Error::<T>::ModelNotFound);
+            ensure!(Self::is_valid_model(app_id, &model_id), Error::<T>::ModelNotFoundOrDisabled);
 
             // create doc
             let doc = KPDocumentData {
@@ -1829,14 +1838,20 @@ decl_module! {
                 let model_id = &model_ids[idx];
                 let income = incomes[idx];
 
-                let subkey = T::Hashing::hash_of(&(app_id, model_id));
-                if !<KPModelDataByIdHash<T>>::contains_key(&subkey) {
-                    print("model id not found, ignore");
+                if !Self::is_valid_model(app_id, model_id) {
+                    print("model id not found or disabled, ignore");
+                    continue;
+                }
+
+                // check if last cycle slashed
+                let sub_key = T::Hashing::hash_of(&(app_id, model_id));
+                if <ModelSlashCycleRewardIndex<T>>::contains_key(&sub_key) && <ModelSlashCycleRewardIndex<T>>::get(&sub_key) == cycle_index - 1u32.into() {
+                    print("model last cycle slashed, ignore");
                     continue;
                 }
 
                 // check if it is existed already
-                if <ModelCycleIncome<T>>::contains_key(cycle_index, &subkey) {
+                if <ModelCycleIncome<T>>::contains_key(cycle_index, &sub_key) {
                     print("model income current cycle exist, ignore");
                     continue;
                 }
@@ -1847,7 +1862,7 @@ decl_module! {
                     None => return Err(<Error<T>>::AddOverflow.into()),
                 };
                 <ModelCycleIncomeTotal<T>>::insert(cycle_index, result);
-                <ModelCycleIncome<T>>::insert(cycle_index, &subkey, income);
+                <ModelCycleIncome<T>>::insert(cycle_index, &sub_key, income);
             }
 
             Self::deposit_event(RawEvent::ModelCycleIncome(who));
@@ -1857,6 +1872,8 @@ decl_module! {
         #[weight = 0]
         pub fn request_model_reward(origin, app_id: u32, model_id: Vec<u8>) -> dispatch::DispatchResult {
             let who = ensure_signed(origin)?;
+
+            ensure!(Self::is_valid_model(app_id, &model_id), Error::<T>::ModelNotFoundOrDisabled);
             // make sure who is creaor of this model id
             ensure!(T::Membership::is_model_creator(&who, app_id, &model_id),  Error::<T>::NotModelCreator);
 
@@ -1866,6 +1883,11 @@ decl_module! {
             let cycle_index = Self::model_income_cycle_index(block);
             let sub_key = T::Hashing::hash_of(&(app_id, &model_id));
             ensure!(!<ModelCycleIncomeRewardRecords<T>>::contains_key(cycle_index, &sub_key), Error::<T>::ModelCycleRewardAlreadyExisted);
+
+            // check if it was slashed this cycle
+            if <ModelSlashCycleRewardIndex<T>>::contains_key(&sub_key) {
+                ensure!(<ModelSlashCycleRewardIndex<T>>::get(&sub_key) != cycle_index - 1u32.into(), Error::<T>::ModelCycleRewardSlashed);
+            }
 
             // now compute reward
             let total_reward = T::ModelCycleIncomeRewardTotal::get();
@@ -1937,7 +1959,6 @@ decl_module! {
             let owner_account = Self::convert_account(&doc.owner);
             Self::slash_power(&key_hash, &owner_account);
             Self::remove_leader_board_item(app_id, &model_id, &cart_id);
-            // TODO: send benefit to reporter_account
 
             Self::deposit_event(RawEvent::PowerSlashed(owner_account));
             Ok(())
@@ -1957,21 +1978,14 @@ decl_module! {
             ensure!(T::Membership::is_valid_app(app_id), Error::<T>::AppIdInvalid);
 
             // get model creator account
-            let key = T::Hashing::hash_of(&(app_id, &model_id));
-            ensure!(<KPModelDataByIdHash<T>>::contains_key(&key), Error::<T>::ModelNotFound);
+            ensure!(Self::is_valid_model(app_id, &model_id), Error::<T>::ModelNotFoundOrDisabled);
 
+            let key = T::Hashing::hash_of(&(app_id, &model_id));
             let model = <KPModelDataByIdHash<T>>::get(&key);
             // according dispute type to decide slash
             let owner_account = Self::convert_account(&model.owner);
 
-            // TODO: according dispute type decide punishment
-            match dispute_type {
-                ModelDisputeType::NoneIntendNormal => {}
-                ModelDisputeType::IntendNormal => {}
-                ModelDisputeType::Serious => {}
-            }
-
-            // TODO: send benefit to reporter_account
+            Self::model_dispute(app_id, &model_id, dispute_type, &owner_account);
 
             Self::deposit_event(RawEvent::ModelDisputed(owner_account));
             Ok(())
@@ -2299,6 +2313,40 @@ decl_module! {
             Self::deposit_event(RawEvent::TechFundWithdrawed(receiver));
             Ok(())
         }
+
+        // regular timer based task here
+        fn on_initialize(n: T::BlockNumber) -> Weight {
+            print("kp pallet block on_initialize");
+            let mut pre_black_list = <ModelPreBlackList<T>>::get();
+            let mut is_changed = false;
+
+            pre_black_list.retain(|x| {
+                //let (app_id, model_id, owner, end_block) = x;
+                if x.3 < n {
+                    // check if account reserve balance recover
+                    let balance = T::Currency::reserved_balance(&x.2);
+                    if balance <  T::ModelCreateDeposit::get() / 2u32.into() {
+                        print("kill model");
+                        let key = T::Hashing::hash_of(&(x.0, &x.1));
+                        <KPModelDataByIdHash<T>>::mutate(&key, |model| {
+                            model.status = ModelStatus::DISABLED;
+                        });
+                    }
+
+                    // remove item from list
+                    is_changed = true;
+                    return false;
+                }
+
+                return true;
+            });
+
+            if is_changed {
+                <ModelPreBlackList<T>>::put(pre_black_list);
+            }
+
+            0
+        }
     }
 }
 
@@ -2479,47 +2527,50 @@ impl<T: Trait> Module<T> {
         cart_id: &Vec<u8>,
         owner: &T::AccountId,
     ) {
-        let is_slashed = <KPPurchaseBlackList<T>>::contains_key(key);
-        if !is_slashed {
-            let power = Self::compute_commodity_power(power_set);
-            // read out total power
-            let mut total_power = TotalPower::get();
+        if <KPPurchaseBlackList<T>>::contains_key(key) {
+            print("meet slashed purchase commodity");
+            return;
+        }
 
-            // check if this has been added to total power before
-            if <KPPurchasePowerByIdHash<T>>::contains_key(&key) {
-                let org_power_set = <KPPurchasePowerByIdHash<T>>::get(&key);
-                // only add a diff to total power
-                let org_power = Self::compute_commodity_power(&org_power_set);
+        let power = Self::compute_commodity_power(power_set);
+        // read out total power
+        let mut total_power = TotalPower::get();
+        let mut account_power = <MinerPowerByAccount<T>>::get(owner);
 
-                if total_power >= org_power {
-                    total_power -= org_power;
-                } else {
-                    print("process total power unexpected");
-                    total_power = 0;
-                }
+        // check if this has been added to total power before
+        if <KPPurchasePowerByIdHash<T>>::contains_key(&key) {
+            let org_power_set = <KPPurchasePowerByIdHash<T>>::get(&key);
+            // only add a diff to total power
+            let org_power = Self::compute_commodity_power(&org_power_set);
+
+            // for total power
+            if total_power >= org_power {
+                total_power -= org_power;
+            } else {
+                print("process total power unexpected");
+                total_power = 0;
             }
 
-            total_power += power;
-            TotalPower::put(total_power);
-            <KPPurchasePowerByIdHash<T>>::insert(&key, power_set);
-
-            // update model board
-            Self::update_realtime_power_leader_boards(
-                app_id,
-                model_id,
-                cart_id,
-                power,
-                owner.clone(),
-            );
-            // uupdate app board
-            Self::update_realtime_power_leader_boards(
-                app_id,
-                &vec![],
-                cart_id,
-                power,
-                owner.clone(),
-            );
+            // for account power (account power is collect of user's purchase power sum)
+            if account_power >= org_power {
+                account_power -= org_power;
+            } else {
+                print("process account powser unexpected");
+                account_power = 0;
+            }
         }
+
+        total_power += power;
+        TotalPower::put(total_power);
+        <KPPurchasePowerByIdHash<T>>::insert(&key, power_set);
+
+        account_power += power;
+        <MinerPowerByAccount<T>>::insert(owner, account_power);
+
+        // update model board
+        Self::update_realtime_power_leader_boards(app_id, model_id, cart_id, power, owner.clone());
+        // uupdate app board
+        Self::update_realtime_power_leader_boards(app_id, &vec![], cart_id, power, owner.clone());
     }
 
     fn clear_purchase_power(key: &T::Hash) {
@@ -2684,6 +2735,17 @@ impl<T: Trait> Module<T> {
     ) -> PowerSize {
         (origin_power * document_weight as f64 / RATIO_DIV * top_weight as f64 / RATIO_DIV
             * FLOAT_COMPUTE_PRECISION as f64) as PowerSize
+    }
+
+    fn compute_price_power(commodity_price: PowerSize) -> PowerSize {
+        let max = <MaxGoodsPrice>::get();
+        if max == 0 {
+            0
+        } else {
+            ((T::TopWeightAccountStake::get() as f64 / RATIO_DIV)
+                * (commodity_price as f64 / max as f64)
+                * FLOAT_COMPUTE_PRECISION as f64) as PowerSize
+        }
     }
 
     fn compute_comment_action_rate(
@@ -3062,6 +3124,13 @@ impl<T: Trait> Module<T> {
         Self::add_accumulation_document_power(&power, doc);
     }
 
+    fn update_max_goods_price(price: PowerSize) {
+        let current_max = <MaxGoodsPrice>::get();
+        if price > current_max {
+            <MaxGoodsPrice>::put(price);
+        }
+    }
+
     fn update_document_power(
         doc: &KPDocumentData<T::AccountId, T::Hash>,
         attend_power: PowerSize,
@@ -3070,15 +3139,12 @@ impl<T: Trait> Module<T> {
         // read out original first
         let key = T::Hashing::hash_of(&(doc.app_id, &doc.document_id));
         let mut org_power = <KPDocumentPowerByIdHash<T>>::get(&key);
-        let mut is_need_accumulation = false;
         let commodity_key;
         let mut commodity_power;
         let commodity_owner = Self::convert_account(&doc.owner);
 
         match &doc.document_data {
             DocumentSpecificData::ProductIdentify(data) => {
-                is_need_accumulation = true;
-
                 commodity_key = T::Hashing::hash_of(&(doc.app_id, &data.cart_id));
                 let is_slashed = <KPPurchaseBlackList<T>>::contains_key(&commodity_key);
                 if !is_slashed {
@@ -3102,7 +3168,6 @@ impl<T: Trait> Module<T> {
                 }
             }
             DocumentSpecificData::ProductTry(data) => {
-                is_need_accumulation = true;
                 commodity_key = T::Hashing::hash_of(&(doc.app_id, &data.cart_id));
                 let is_slashed = <KPPurchaseBlackList<T>>::contains_key(&commodity_key);
                 if !is_slashed {
@@ -3125,37 +3190,6 @@ impl<T: Trait> Module<T> {
                 }
             }
             _ => {}
-        }
-
-        if is_need_accumulation {
-            let accumulation_key = T::Hashing::hash_of(&(doc.app_id, &doc.owner));
-            let mut accumulation_power =
-                <MinerDocumentsAccumulationPower<T>>::get(&accumulation_key);
-            // params only > 0 means valid
-            if attend_power > 0 {
-                if accumulation_power.attend >= org_power.attend {
-                    accumulation_power.attend -= org_power.attend;
-                } else {
-                    print("should not happend attend");
-                    print(accumulation_power.attend);
-                    print(org_power.attend);
-                }
-                // accumulation_power.attend = min(0, accumulation_power.attend - org_power.attend);
-                accumulation_power.attend += attend_power;
-            }
-
-            if judge_power > 0 {
-                if accumulation_power.judge >= org_power.judge {
-                    accumulation_power.judge -= org_power.judge;
-                } else {
-                    print("should not happend judge");
-                    print(accumulation_power.judge);
-                    print(org_power.judge);
-                }
-                // accumulation_power.judge = min(0, accumulation_power.judge - org_power.judge);
-                accumulation_power.judge += judge_power;
-            }
-            <MinerDocumentsAccumulationPower<T>>::insert(&accumulation_key, accumulation_power);
         }
 
         if attend_power > 0 {
@@ -3192,6 +3226,9 @@ impl<T: Trait> Module<T> {
 
                 commodity_power = <KPPurchasePowerByIdHash<T>>::get(&commodity_key);
                 commodity_power.1 = new_power.clone();
+                if commodity_power.4 == 0 {
+                    commodity_power.4 = Self::compute_price_power(data.goods_price);
+                }
                 cart_id = data.cart_id.clone();
             }
             DocumentSpecificData::ProductTry(data) => {
@@ -3200,6 +3237,9 @@ impl<T: Trait> Module<T> {
                     !<KPCartProductIdentifyIndexByIdHash<T>>::contains_key(&commodity_key);
                 commodity_power = <KPPurchasePowerByIdHash<T>>::get(&commodity_key);
                 commodity_power.2 = new_power.clone();
+                if commodity_power.4 == 0 {
+                    commodity_power.4 = Self::compute_price_power(data.goods_price);
+                }
                 cart_id = data.cart_id.clone();
             }
             _ => {
@@ -3207,20 +3247,13 @@ impl<T: Trait> Module<T> {
             }
         }
 
-        let mut publish_power = DocumentPower {
-            attend: 0,
-            content: 0,
-            judge: 0,
-        };
-
         if is_need_add_publish {
             // add doc matched publish power
             let publish_doc_key = T::Hashing::hash_of(&(doc.app_id, &doc.product_id));
             let publish_doc_id = <KPDocumentProductIndexByIdHash<T>>::get(&publish_doc_key);
             // read out publish document power
             let publish_power_key = T::Hashing::hash_of(&(doc.app_id, &publish_doc_id));
-            publish_power = <KPDocumentPowerByIdHash<T>>::get(&publish_power_key);
-            commodity_power.0 = publish_power.clone();
+            commodity_power.0 = <KPDocumentPowerByIdHash<T>>::get(&publish_power_key);
         }
 
         let is_slashed = <KPPurchaseBlackList<T>>::contains_key(&commodity_key);
@@ -3235,10 +3268,6 @@ impl<T: Trait> Module<T> {
                 &Self::convert_account(&doc.owner),
             );
         }
-
-        let key = T::Hashing::hash_of(&(doc.app_id, &doc.owner));
-        let current = <MinerDocumentsAccumulationPower<T>>::get(&key);
-        <MinerDocumentsAccumulationPower<T>>::insert(&key, &current + &new_power + publish_power);
 
         Some(0)
     }
@@ -3301,6 +3330,8 @@ impl<T: Trait> Module<T> {
                     T::TopWeightDocumentIdentify::get() as PowerSize,
                     T::DocumentPowerWeightJudge::get(),
                 );
+
+                Self::update_max_goods_price(data.goods_price);
                 Self::insert_document_power(&doc, content_power, initial_judge_power);
             }
             DocumentSpecificData::ProductTry(data) => {
@@ -3325,6 +3356,8 @@ impl<T: Trait> Module<T> {
                     T::TopWeightDocumentTry::get() as PowerSize,
                     T::DocumentPowerWeightJudge::get(),
                 );
+
+                Self::update_max_goods_price(data.goods_price);
                 Self::insert_document_power(&doc, content_power, initial_judge_power);
             }
             DocumentSpecificData::ProductChoose(data) => {
@@ -3627,10 +3660,7 @@ impl<T: Trait> Module<T> {
 
         // now we got new computed power, check if need to update
         if is_need_update_account_power {
-            let power_key_hash = T::Hashing::hash_of(&(doc.app_id, &doc.owner));
-            let doc_power = <MinerDocumentsAccumulationPower<T>>::get(&power_key_hash);
-            // need update
-            <MinerPowerByAccount<T>>::insert(Self::convert_account(&doc.owner), doc_power.total());
+            // <MinerPowerByAccount<T>>::insert(Self::convert_account(&doc.owner), doc_power.total());
         } else {
             // for product choose and model create
             let power_key_hash = T::Hashing::hash_of(&(doc.app_id, &doc.document_id));
@@ -3688,6 +3718,68 @@ impl<T: Trait> Module<T> {
 
     fn model_income_cycle_index(block: T::BlockNumber) -> T::BlockNumber {
         block / T::ModelIncomeCyclePeriod::get()
+    }
+
+    fn is_valid_model(app_id: u32, model_id: &Vec<u8>) -> bool {
+        let key = T::Hashing::hash_of(&(app_id, model_id));
+        if !<KPModelDataByIdHash<T>>::contains_key(&key) {
+            return false;
+        }
+
+        <KPModelDataByIdHash<T>>::get(&key).status == ModelStatus::ENABLED
+    }
+
+    fn model_dispute(
+        app_id: u32,
+        model_id: &Vec<u8>,
+        dispute_type: ModelDisputeType,
+        owner: &T::AccountId,
+    ) {
+        let current_block = <system::Module<T>>::block_number();
+        let key = T::Hashing::hash_of(&(app_id, model_id));
+        let model_target_reserve = T::ModelCreateDeposit::get();
+
+        let cancel_model_cycle_reward = || {
+            <ModelSlashCycleRewardIndex<T>>::insert(
+                &key,
+                Self::model_income_cycle_index(current_block),
+            );
+        };
+
+        match dispute_type {
+            ModelDisputeType::NoneIntendNormal => {
+                // slash 10KPT
+                let slash = T::ModelDisputeLv1Slash::get();
+                T::Slash::on_unbalanced(T::Currency::slash_reserved(owner, slash).0);
+                // check owner account's reserved value if under 50% of target resolving
+                let reserved = T::Currency::reserved_balance(owner);
+
+                if reserved < model_target_reserve / 2u32.into() {
+                    print("model_dispute find account reserve lower than 50%");
+                    // put this model into pre-black list
+                    let mut list = <ModelPreBlackList<T>>::get();
+                    list.push((
+                        app_id,
+                        model_id.clone(),
+                        owner.clone(),
+                        <system::Module<T>>::block_number() + T::ModelDisputeDelayTime::get(),
+                    ));
+                    <ModelPreBlackList<T>>::put(list);
+                }
+            }
+            ModelDisputeType::IntendNormal => {
+                cancel_model_cycle_reward();
+            }
+            ModelDisputeType::Serious => {
+                cancel_model_cycle_reward();
+                <KPModelDataByIdHash<T>>::mutate(&key, |model| {
+                    model.status = ModelStatus::DISABLED;
+                });
+                // slash all owner's model create deposit
+                let amount = T::Currency::reserved_balance(owner).min(model_target_reserve);
+                T::Slash::on_unbalanced(T::Currency::slash_reserved(owner, amount).0);
+            }
+        }
     }
 }
 

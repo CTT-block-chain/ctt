@@ -93,6 +93,7 @@ parameter_types! {
     pub const ModelIncomeCyclePeriod: u32 = 1;
     pub const ModelIncomeCollectingPeriod: u32 = 1;
     pub const ModelIncomeRewardingPeriod: u32 = 1;
+    pub const ModelDisputeDelayTime: u32 = 1;
 }
 impl system::Trait for Test {
     type BaseCallFilter = ();
@@ -174,6 +175,8 @@ impl Trait for Test {
     type ModelIncomeCollectingPeriod = ModelIncomeCollectingPeriod;
     type ModelIncomeCyclePeriod = ModelIncomeCyclePeriod;
     type ModelIncomeRewardingPeriod = ModelIncomeRewardingPeriod;
+    type ModelDisputeLv1Slash = ();
+    type ModelDisputeDelayTime = ModelDisputeDelayTime;
 }
 
 impl pallet_balances::Trait for Test {

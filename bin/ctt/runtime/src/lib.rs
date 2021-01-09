@@ -1093,6 +1093,11 @@ parameter_types! {
     pub const ModelIncomeCyclePeriod: BlockNumber = 30 * MINUTES;
     pub const ModelIncomeCollectingPeriod: BlockNumber = 10 * MINUTES;
     pub const ModelIncomeRewardingPeriod: BlockNumber = 10 * MINUTES;
+
+    pub const ModelDisputeLv1Slash: Balance = 10 * DOLLARS;
+    //pub const ModelDisputeDelayTime: BlockNumber = 28 * DAYS;
+    // TODO: test
+    pub const ModelDisputeDelayTime: BlockNumber = 10 * MINUTES;
 }
 
 impl kp::Trait for Runtime {
@@ -1147,6 +1152,8 @@ impl kp::Trait for Runtime {
     type ModelIncomeCollectingPeriod = ModelIncomeCollectingPeriod;
     type ModelIncomeRewardingPeriod = ModelIncomeRewardingPeriod;
     type ModelCycleIncomeRewardTotal = ModelCycleIncomeRewardTotal;
+    type ModelDisputeLv1Slash = ModelDisputeLv1Slash;
+    type ModelDisputeDelayTime = ModelDisputeDelayTime;
 }
 
 construct_runtime!(
