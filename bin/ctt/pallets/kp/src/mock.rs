@@ -177,6 +177,7 @@ impl Trait for Test {
     type ModelIncomeRewardingPeriod = ModelIncomeRewardingPeriod;
     type ModelDisputeLv1Slash = ();
     type ModelDisputeDelayTime = ModelDisputeDelayTime;
+    type TechMemberOrigin = ();
 }
 
 impl pallet_balances::Trait for Test {

@@ -5,8 +5,8 @@ use frame_support::{
     codec::{Decode, Encode},
     decl_error, decl_event, decl_module, decl_storage, dispatch, ensure,
     traits::{
-        Contains, Currency, ExistenceRequirement::KeepAlive, Get, LockableCurrency, OnUnbalanced,
-        Randomness, ReservableCurrency, WithdrawReason,
+        Contains, Currency, EnsureOrigin, ExistenceRequirement::KeepAlive, Get, LockableCurrency,
+        OnUnbalanced, Randomness, ReservableCurrency, WithdrawReason,
     },
     weights::Weight,
 };
@@ -787,6 +787,9 @@ pub trait Trait: system::Trait {
 
     /// TechnicalCommittee member ship check
     type TechMembers: Contains<Self::AccountId>;
+
+    /// Required origin for perform tech commite operation
+    type TechMemberOrigin: EnsureOrigin<Self::Origin>;
 
     /// Currency type for this module.
     type Currency: ReservableCurrency<Self::AccountId>
@@ -2283,7 +2286,9 @@ decl_module! {
 
         #[weight = 0]
         pub fn democracy_tech_fund_withdraw(origin, receiver: T::AccountId, reason: T::Hash, dev_type: TechFundWithdrawType, dev_level: TechFundWithdrawLevel) -> dispatch::DispatchResult {
-            ensure_root(origin)?;
+            print("democracy_tech_fund_withdraw enter");
+            T::TechMemberOrigin::ensure_origin(origin)?;
+            print("pass origin check");
 
             // compute balance
             let amount = Self::compute_tech_fund_withdraw(dev_type, dev_level);

@@ -35,7 +35,7 @@ use frame_support::{
     },
     RuntimeDebug,
 };
-use frame_system::{EnsureOneOf, EnsureRoot};
+use frame_system::{EnsureOneOf, EnsureRoot, Trait};
 use kp::{
     AppFinancedData, AppFinancedUserExchangeData, DocumentPowerInfo, LeaderBoardResult,
     ModelIncomeCurrentStage,
@@ -1037,6 +1037,12 @@ impl members::Trait for Runtime {
     type ModTreasuryModuleId = AccountModModuleId;
 }
 
+type EnsureRootOrHalfTech = EnsureOneOf<
+    AccountId,
+    EnsureRoot<AccountId>,
+    pallet_collective::EnsureProportionMoreThan<_1, _2, AccountId, TechnicalCollective>,
+>;
+
 parameter_types! {
     pub const DocumentPowerWeightAttend: u8 = 40;
     pub const DocumentPowerWeightContent: u8 = 30;
@@ -1154,6 +1160,7 @@ impl kp::Trait for Runtime {
     type ModelCycleIncomeRewardTotal = ModelCycleIncomeRewardTotal;
     type ModelDisputeLv1Slash = ModelDisputeLv1Slash;
     type ModelDisputeDelayTime = ModelDisputeDelayTime;
+    type TechMemberOrigin = EnsureRootOrHalfTech;
 }
 
 construct_runtime!(
