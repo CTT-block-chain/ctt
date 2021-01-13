@@ -178,6 +178,7 @@ impl Trait for Test {
     type ModelDisputeLv1Slash = ();
     type ModelDisputeDelayTime = ModelDisputeDelayTime;
     type TechMemberOrigin = ();
+    type TechFundBase = ();
 }
 
 impl pallet_balances::Trait for Test {

@@ -909,6 +909,9 @@ pub trait Trait: system::Trait {
     // Model dispute slash config
     type ModelDisputeLv1Slash: Get<BalanceOf<Self>>;
     type ModelDisputeDelayTime: Get<Self::BlockNumber>;
+
+    // Base Balance of tech fund
+    type TechFundBase: Get<BalanceOf<Self>>;
 }
 
 // This pallet's storage items.
@@ -2482,7 +2485,7 @@ impl<T: Trait> Module<T> {
         dev_type: TechFundWithdrawType,
         dev_level: TechFundWithdrawLevel,
     ) -> BalanceOf<T> {
-        let base: BalanceOf<T> = 1_000_000_00u32.into();
+        let base: BalanceOf<T> = T::TechFundBase::get();
 
         let type_per = match dev_type {
             TechFundWithdrawType::CHAIN_DEV => Permill::from_rational_approximation(45u32, 100u32),

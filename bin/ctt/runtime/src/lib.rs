@@ -1104,6 +1104,8 @@ parameter_types! {
     //pub const ModelDisputeDelayTime: BlockNumber = 28 * DAYS;
     // TODO: test
     pub const ModelDisputeDelayTime: BlockNumber = 10 * MINUTES;
+
+    pub const TechFundBase: Balance = 1_000_000_00 * DOLLARS;
 }
 
 impl kp::Trait for Runtime {
@@ -1161,6 +1163,7 @@ impl kp::Trait for Runtime {
     type ModelDisputeLv1Slash = ModelDisputeLv1Slash;
     type ModelDisputeDelayTime = ModelDisputeDelayTime;
     type TechMemberOrigin = EnsureRootOrHalfTech;
+    type TechFundBase = TechFundBase;
 }
 
 construct_runtime!(
