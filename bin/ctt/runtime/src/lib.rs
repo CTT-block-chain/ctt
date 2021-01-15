@@ -35,7 +35,7 @@ use frame_support::{
     },
     RuntimeDebug,
 };
-use frame_system::{EnsureOneOf, EnsureRoot, Trait};
+use frame_system::{EnsureOneOf, EnsureRoot};
 use kp::{
     AppFinancedData, AppFinancedUserExchangeData, DocumentPowerInfo, LeaderBoardResult,
     ModelIncomeCurrentStage,
@@ -448,8 +448,10 @@ pallet_staking_reward_curve::build! {
 
 parameter_types! {
     pub const SessionsPerEra: sp_staking::SessionIndex = 6;
-    pub const BondingDuration: pallet_staking::EraIndex = 24 * 28;
-    pub const SlashDeferDuration: pallet_staking::EraIndex = 24 * 7; // 1/4 the bonding duration.
+    // pub const BondingDuration: pallet_staking::EraIndex = 24 * 28;
+    pub const BondingDuration: pallet_staking::EraIndex = 3;
+    // pub const SlashDeferDuration: pallet_staking::EraIndex = 24 * 7; // 1/4 the bonding duration.
+    pub const SlashDeferDuration: pallet_staking::EraIndex = 1; // 1/4 the bonding duration.
     pub const RewardCurve: &'static PiecewiseLinear<'static> = &REWARD_CURVE;
     pub const MaxNominatorRewardedPerValidator: u32 = 64;
     pub const ElectionLookahead: BlockNumber = EPOCH_DURATION_IN_BLOCKS / 4;
@@ -664,7 +666,7 @@ impl pallet_treasury::Trait<pallet_treasury::Instance1> for Runtime {
     type ApproveOrigin = EnsureOneOf<
         AccountId,
         EnsureRoot<AccountId>,
-        pallet_collective::EnsureMembers<_4, AccountId, CouncilCollective>,
+        pallet_collective::EnsureMembers<_2, AccountId, CouncilCollective>,
     >;
     type RejectOrigin = EnsureOneOf<
         AccountId,

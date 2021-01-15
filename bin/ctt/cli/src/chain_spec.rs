@@ -94,39 +94,39 @@ fn staging_testnet_config_genesis() -> GenesisConfig {
         AuthorityDiscoveryId,
     )> = vec![
         (
+            // 5HNSzWPh9jJngEbwN35qPaZ1L2cQvyMrGEkwFYLwazeenJEH
+            hex!["eab58b85646653025a7aa2fbfbd566a99230d65289675a4d1fa5cfbbd16cc812"].into(),
             // 5HdvEEyHXxKHWt15LizRBEWkL8N3BozGwziXa23k5xEGS7xw
             hex!["f681e9cdbaea0fbd7f9e1a081eb78a5c2316829a82ff48eb3e4d9a44aefc5e14"].into(),
-            // 5GhHSAJ55F3YLXc74DxgPpy6xou6i1RbS5YsuE3LW6dAAnGe
-            hex!["ccd6ccd6df4aec7f337e23ebd8ce4e4700c916fb03380ec7bb1149fb86328014"].into(),
-            // 5FQcpSTVDT6R1zVKsMwe68TP6qTCqfXnbogStanHgHWwfPN5
-            hex!["93e4a5c7660f0037ba31cdd1c382ac0937a53f9d57e6fc7ef49523a411aabb26"]
+            // 5Gj94uPbYGgvzFh42mxdsHbEPeDB6MR56adBoLZ5EciZty8L
+            hex!["ce412076e386503425654aed46a42a72b4afb2bdbf63f955c69c41892f87cb8f"]
                 .unchecked_into(),
-            // 5HdvEEyHXxKHWt15LizRBEWkL8N3BozGwziXa23k5xEGS7xw
-            hex!["f681e9cdbaea0fbd7f9e1a081eb78a5c2316829a82ff48eb3e4d9a44aefc5e14"]
+            // 5HNSzWPh9jJngEbwN35qPaZ1L2cQvyMrGEkwFYLwazeenJEH
+            hex!["eab58b85646653025a7aa2fbfbd566a99230d65289675a4d1fa5cfbbd16cc812"]
                 .unchecked_into(),
-            // 5HdvEEyHXxKHWt15LizRBEWkL8N3BozGwziXa23k5xEGS7xw
-            hex!["f681e9cdbaea0fbd7f9e1a081eb78a5c2316829a82ff48eb3e4d9a44aefc5e14"]
+            // 5HNSzWPh9jJngEbwN35qPaZ1L2cQvyMrGEkwFYLwazeenJEH
+            hex!["eab58b85646653025a7aa2fbfbd566a99230d65289675a4d1fa5cfbbd16cc812"]
                 .unchecked_into(),
-            // 5HdvEEyHXxKHWt15LizRBEWkL8N3BozGwziXa23k5xEGS7xw
-            hex!["f681e9cdbaea0fbd7f9e1a081eb78a5c2316829a82ff48eb3e4d9a44aefc5e14"]
+            // 5HNSzWPh9jJngEbwN35qPaZ1L2cQvyMrGEkwFYLwazeenJEH
+            hex!["eab58b85646653025a7aa2fbfbd566a99230d65289675a4d1fa5cfbbd16cc812"]
                 .unchecked_into(),
         ),
         (
+            // 5E9T6mVvgrBhfbDJN1Hau1xoGZxquFroEvukDKpAoJAQgdwz
+            hex!["5c17048ae329f3d5ddae8532d30ef5d574d1a4dd0a20c4881fc805931971a03f"].into(),
             // 5DZLq7gpzHfSpNruFamZKpUVnreNjB7z4E8uSLApJ36xjCWD
             hex!["42139158e68737d34d6db85cc12dce1f14a5d9a4d11192c156bf04e905022f16"].into(),
-            // 5DPPJhJEcYuoYAR4mnkRcwxxZ7jPDV9p44DzmWrebLJmo2Hh
-            hex!["3a7b727021600ebac24a24736810cfa4952f0061ef35489ac8396468f1b51e11"].into(),
-            // 5F98ch1UYA4eDi8933qWhpjChdx9g1XcYRzXivPdNW3EhQLy
-            hex!["8815073795842d027079840d77c9539c8a9a344ffdb7a783eac54fc3e8829812"]
+            // 5EbhjmyJwmfMcjwvCdAfhe3isMTArPHV6i68cnrUjsEXb1QB
+            hex!["701caca5609146c095c83634bda9011edc6b1df134d8fb2e32f2557faaa4b2dd"]
                 .unchecked_into(),
-            // 5DZLq7gpzHfSpNruFamZKpUVnreNjB7z4E8uSLApJ36xjCWD
-            hex!["42139158e68737d34d6db85cc12dce1f14a5d9a4d11192c156bf04e905022f16"]
+            // 5E9T6mVvgrBhfbDJN1Hau1xoGZxquFroEvukDKpAoJAQgdwz
+            hex!["5c17048ae329f3d5ddae8532d30ef5d574d1a4dd0a20c4881fc805931971a03f"]
                 .unchecked_into(),
-            // 5DZLq7gpzHfSpNruFamZKpUVnreNjB7z4E8uSLApJ36xjCWD
-            hex!["42139158e68737d34d6db85cc12dce1f14a5d9a4d11192c156bf04e905022f16"]
+            // 5E9T6mVvgrBhfbDJN1Hau1xoGZxquFroEvukDKpAoJAQgdwz
+            hex!["5c17048ae329f3d5ddae8532d30ef5d574d1a4dd0a20c4881fc805931971a03f"]
                 .unchecked_into(),
-            // 5DZLq7gpzHfSpNruFamZKpUVnreNjB7z4E8uSLApJ36xjCWD
-            hex!["42139158e68737d34d6db85cc12dce1f14a5d9a4d11192c156bf04e905022f16"]
+            // 5E9T6mVvgrBhfbDJN1Hau1xoGZxquFroEvukDKpAoJAQgdwz
+            hex!["5c17048ae329f3d5ddae8532d30ef5d574d1a4dd0a20c4881fc805931971a03f"]
                 .unchecked_into(),
         ),
     ];
@@ -239,7 +239,8 @@ pub fn testnet_genesis(
     });
     let num_endowed_accounts = endowed_accounts.len();
 
-    const INITIAL_VALIDATOR_STAKING: Balance = 5000 * DOLLARS;
+    const INITIAL_VALIDATOR_STAKING: Balance = 4000 * DOLLARS;
+    const INITIAL_VALIDATOR_CONTROLLER: Balance = 1000 * DOLLARS;
 
     // initial staking balance
     let mut balances: Vec<(AccountId, Balance)> = initial_authorities
@@ -247,7 +248,13 @@ pub fn testnet_genesis(
         .map(|x| (x.0.clone(), INITIAL_VALIDATOR_STAKING))
         .collect();
 
-    let stash_total = initial_authorities.len() as Balance * INITIAL_VALIDATOR_STAKING;
+    let balances_ctrl: Vec<(AccountId, Balance)> = initial_authorities
+        .iter()
+        .map(|x| (x.1.clone(), INITIAL_VALIDATOR_CONTROLLER))
+        .collect();
+
+    let stash_total = initial_authorities.len() as Balance
+        * (INITIAL_VALIDATOR_STAKING + INITIAL_VALIDATOR_CONTROLLER);
 
     let individual_balances: Vec<(AccountId, Balance)> = vec![
         // fund balances
@@ -270,6 +277,7 @@ pub fn testnet_genesis(
     balances = balances
         .iter()
         .cloned()
+        .chain(balances_ctrl)
         .chain(individual_balances.iter().cloned())
         .collect();
 
@@ -293,14 +301,14 @@ pub fn testnet_genesis(
                 .collect::<Vec<_>>(),
         }),
         pallet_staking: Some(StakingConfig {
-            validator_count: initial_authorities.len() as u32 * 2,
+            validator_count: initial_authorities.len() as u32,
             minimum_validator_count: initial_authorities.len() as u32,
             stakers: initial_authorities
                 .iter()
                 .map(|x| {
                     (
-                        x.0.clone(),
-                        x.1.clone(),
+                        x.0.clone(), // Stash
+                        x.1.clone(), // Controller
                         INITIAL_VALIDATOR_STAKING,
                         StakerStatus::Validator,
                     )
