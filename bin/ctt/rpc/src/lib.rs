@@ -50,6 +50,7 @@ use sp_block_builder::BlockBuilder;
 use sp_blockchain::{Error as BlockChainError, HeaderBackend, HeaderMetadata};
 use sp_consensus::SelectChain;
 use sp_consensus_babe::BabeApi;
+use sp_core::sr25519;
 use sp_transaction_pool::TransactionPool;
 
 /// Light client extra dependencies.
@@ -120,7 +121,7 @@ where
     C::Api: pallet_transaction_payment_rpc::TransactionPaymentRuntimeApi<Block, Balance>,
     C::Api: BabeApi<Block>,
     C::Api: BlockBuilder<Block>,
-    C::Api: kp_rpc::KpRuntimeRpcApi<Block, AuthAccountId, Balance, BlockNumber>,
+    C::Api: kp_rpc::KpRuntimeRpcApi<Block, AuthAccountId, Balance, BlockNumber, sr25519::Signature>,
     C::Api: members_rpc::MembersRuntimeRpcApi<Block, AccountId>,
     P: TransactionPool + 'static,
     SC: SelectChain<Block> + 'static,

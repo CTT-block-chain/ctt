@@ -53,6 +53,7 @@ use sp_api::impl_runtime_apis;
 use sp_authority_discovery::AuthorityId as AuthorityDiscoveryId;
 use sp_core::{
     crypto::KeyTypeId,
+    sr25519,
     u32_trait::{_1, _2, _3, _4},
     OpaqueMetadata,
 };
@@ -1049,9 +1050,9 @@ parameter_types! {
     pub const DocumentPowerWeightAttend: u8 = 40;
     pub const DocumentPowerWeightContent: u8 = 30;
     pub const DocumentPowerWeightJudge: u8 = 30;
-    pub const CommentPowerWeightCount: u8 = 65;
-    pub const CommentPowerWeightCost: u8 = 20;
-    pub const CommentPowerWeightPerCost: u8 = 10;
+    pub const CommentPowerWeightCount: u8 = 35;
+    pub const CommentPowerWeightCost: u8 = 40;
+    pub const CommentPowerWeightPerCost: u8 = 20;
     pub const CommentPowerWeightPositive: u8 = 5;
     pub const CommentPowerWeight: u8 = 40;
     pub const DocumentPublishWeightParamsRate: u8 = 60;
@@ -1255,7 +1256,7 @@ pub type Executive = frame_executive::Executive<
 >;
 
 impl_runtime_apis! {
-    impl kp_runtime_api::KpApi<Block, AuthAccountId, Balance, BlockNumber> for Runtime {
+    impl kp_runtime_api::KpApi<Block, AuthAccountId, Balance, BlockNumber, sr25519::Signature> for Runtime {
         fn total_power() -> PowerSize {
             Kp::kp_total_power()
         }
@@ -1298,6 +1299,10 @@ impl_runtime_apis! {
 
         fn model_income_current_stage() -> ModelIncomeCurrentStage<BlockNumber> {
             Kp::model_income_current_stage()
+        }
+
+        fn is_tech_member_sign(account: AccountId, msg: Vec<u8>, sign: sr25519::Signature) -> u8 {
+            Kp::is_tech_member_sign(account, msg, sign)
         }
     }
 

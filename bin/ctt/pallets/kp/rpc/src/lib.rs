@@ -8,7 +8,7 @@ pub use kp_runtime_api::KpApi as KpRuntimeRpcApi;
 use primitives::{AuthAccountId, Balance, BlockNumber, PowerSize};
 use sp_api::ProvideRuntimeApi;
 use sp_blockchain::HeaderBackend;
-use sp_core::Bytes;
+use sp_core::{sr25519, Bytes};
 use sp_runtime::{
     generic::BlockId,
     traits::{Block as BlockT, SaturatedConversion},
@@ -129,8 +129,17 @@ pub struct ModelIncomeCurrentStageRPC {
     left: BlockNumber,
 }
 
+#[derive(Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+#[serde(deny_unknown_fields)]
+pub struct TechMemberSignParams {
+    account: AuthAccountId,
+    msg: Bytes,
+    sign: sr25519::Signature,
+}
+
 #[rpc]
-pub trait KpApi<BlockHash, AccountId, Balance, BlockNumber> {
+pub trait KpApi<BlockHash, AccountId, Balance, BlockNumber, Signature> {
     #[rpc(name = "kp_totalPower")]
     fn total_power(&self, at: Option<BlockHash>) -> Result<PowerSize>;
 
@@ -198,6 +207,13 @@ pub trait KpApi<BlockHash, AccountId, Balance, BlockNumber> {
         &self,
         at: Option<BlockHash>,
     ) -> Result<ModelIncomeCurrentStageRPC>;
+
+    #[rpc(name = "kp_isTechMemberSign")]
+    fn is_tech_member_sign(
+        &self,
+        params: TechMemberSignParams,
+        at: Option<BlockHash>,
+    ) -> Result<u8>;
 }
 
 /// A struct that implements the `KpApi`.
@@ -241,13 +257,15 @@ fn convert_balance(source: Balance) -> u64 {
     reduce.saturated_into()
 }
 
-impl<C, Block> KpApi<<Block as BlockT>::Hash, AuthAccountId, Balance, BlockNumber> for Kp<C, Block>
+impl<C, Block>
+    KpApi<<Block as BlockT>::Hash, AuthAccountId, Balance, BlockNumber, sr25519::Signature>
+    for Kp<C, Block>
 where
     Block: BlockT,
     C: Send + Sync + 'static,
     C: ProvideRuntimeApi<Block>,
     C: HeaderBackend<Block>,
-    C::Api: KpRuntimeRpcApi<Block, AuthAccountId, Balance, BlockNumber>,
+    C::Api: KpRuntimeRpcApi<Block, AuthAccountId, Balance, BlockNumber, sr25519::Signature>,
 {
     fn total_power(&self, at: Option<<Block as BlockT>::Hash>) -> Result<PowerSize> {
         let api = self.client.runtime_api();
@@ -546,5 +564,25 @@ where
                 })
             }
         }
+    }
+
+    fn is_tech_member_sign(
+        &self,
+        query: TechMemberSignParams,
+        at: Option<<Block as BlockT>::Hash>,
+    ) -> Result<u8> {
+        let api = self.client.runtime_api();
+        let at = BlockId::hash(at.unwrap_or_else(||
+            // If the block hash is not supplied assume the best block.
+            self.client.info().best_hash));
+
+        let TechMemberSignParams { account, msg, sign } = query;
+
+        let runtime_api_result = api.is_tech_member_sign(&at, account, msg.to_vec(), sign);
+        runtime_api_result.map_err(|e| RpcError {
+            code: ErrorCode::ServerError(9876), // No real reason for this value
+            message: "Something wrong".into(),
+            data: Some(format!("{:?}", e).into()),
+        })
     }
 }
