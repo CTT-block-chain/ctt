@@ -213,7 +213,7 @@ pub trait KpApi<BlockHash, AccountId, Balance, BlockNumber, Signature> {
         &self,
         params: TechMemberSignParams,
         at: Option<BlockHash>,
-    ) -> Result<u8>;
+    ) -> Result<bool>;
 }
 
 /// A struct that implements the `KpApi`.
@@ -570,7 +570,7 @@ where
         &self,
         query: TechMemberSignParams,
         at: Option<<Block as BlockT>::Hash>,
-    ) -> Result<u8> {
+    ) -> Result<bool> {
         let api = self.client.runtime_api();
         let at = BlockId::hash(at.unwrap_or_else(||
             // If the block hash is not supplied assume the best block.

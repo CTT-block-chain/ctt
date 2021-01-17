@@ -1301,7 +1301,7 @@ impl_runtime_apis! {
             Kp::model_income_current_stage()
         }
 
-        fn is_tech_member_sign(account: AccountId, msg: Vec<u8>, sign: sr25519::Signature) -> u8 {
+        fn is_tech_member_sign(account: AccountId, msg: Vec<u8>, sign: sr25519::Signature) -> bool {
             Kp::is_tech_member_sign(account, msg, sign)
         }
     }

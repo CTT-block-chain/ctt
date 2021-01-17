@@ -2466,18 +2466,14 @@ impl<T: Trait> Module<T> {
         account: AuthAccountId,
         msg: Vec<u8>,
         sign: sr25519::Signature,
-    ) -> u8 {
+    ) -> bool {
         // check account tech member
         if !T::TechMembers::contains(&Self::convert_account(&account)) {
-            return 0;
+            return false;
         }
 
         let ms: MultiSignature = sign.into();
-        if ms.verify(&*msg, &account) {
-            1
-        } else {
-            0
-        }
+        ms.verify(&*msg, &account)
     }
 
     fn leader_record_key(app_id: u32, block: T::BlockNumber, model_id: &Vec<u8>) -> T::Hash {
