@@ -8,7 +8,7 @@ pub use kp_runtime_api::KpApi as KpRuntimeRpcApi;
 use primitives::{AuthAccountId, Balance, BlockNumber, PowerSize};
 use sp_api::ProvideRuntimeApi;
 use sp_blockchain::HeaderBackend;
-use sp_core::{sr25519, Bytes};
+use sp_core::Bytes;
 use sp_runtime::{
     generic::BlockId,
     traits::{Block as BlockT, SaturatedConversion},
@@ -135,11 +135,11 @@ pub struct ModelIncomeCurrentStageRPC {
 pub struct TechMemberSignParams {
     account: AuthAccountId,
     msg: Bytes,
-    sign: sr25519::Signature,
+    sign: Bytes,
 }
 
 #[rpc]
-pub trait KpApi<BlockHash, AccountId, Balance, BlockNumber, Signature> {
+pub trait KpApi<BlockHash, AccountId, Balance, BlockNumber> {
     #[rpc(name = "kp_totalPower")]
     fn total_power(&self, at: Option<BlockHash>) -> Result<PowerSize>;
 
@@ -257,15 +257,13 @@ fn convert_balance(source: Balance) -> u64 {
     reduce.saturated_into()
 }
 
-impl<C, Block>
-    KpApi<<Block as BlockT>::Hash, AuthAccountId, Balance, BlockNumber, sr25519::Signature>
-    for Kp<C, Block>
+impl<C, Block> KpApi<<Block as BlockT>::Hash, AuthAccountId, Balance, BlockNumber> for Kp<C, Block>
 where
     Block: BlockT,
     C: Send + Sync + 'static,
     C: ProvideRuntimeApi<Block>,
     C: HeaderBackend<Block>,
-    C::Api: KpRuntimeRpcApi<Block, AuthAccountId, Balance, BlockNumber, sr25519::Signature>,
+    C::Api: KpRuntimeRpcApi<Block, AuthAccountId, Balance, BlockNumber>,
 {
     fn total_power(&self, at: Option<<Block as BlockT>::Hash>) -> Result<PowerSize> {
         let api = self.client.runtime_api();
@@ -578,7 +576,7 @@ where
 
         let TechMemberSignParams { account, msg, sign } = query;
 
-        let runtime_api_result = api.is_tech_member_sign(&at, account, msg.to_vec(), sign);
+        let runtime_api_result = api.is_tech_member_sign(&at, account, msg.to_vec(), sign.to_vec());
         runtime_api_result.map_err(|e| RpcError {
             code: ErrorCode::ServerError(9876), // No real reason for this value
             message: "Something wrong".into(),

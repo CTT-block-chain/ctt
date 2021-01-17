@@ -12,7 +12,7 @@ use sp_std::prelude::*;
 // Here we declare the runtime API. It is implemented it the `impl` block in
 // runtime amalgamator file (the `runtime/src/lib.rs`)
 sp_api::decl_runtime_apis! {
-    pub trait KpApi<AccountId, Balance, BlockNumber, Signature> where AccountId: Codec, Balance: Codec, BlockNumber: Codec, Signature: Codec {
+    pub trait KpApi<AccountId, Balance, BlockNumber> where AccountId: Codec, Balance: Codec, BlockNumber: Codec {
         fn total_power() -> PowerSize;
         fn account_power(account: AccountId) -> PowerSize;
         fn commodity_power(app_id: u32, cart_id: Vec<u8>) -> PowerSize;
@@ -24,6 +24,6 @@ sp_api::decl_runtime_apis! {
         fn app_finance_exchange_accounts(app_id: u32, proposal_id: Vec<u8>) -> Vec<AccountId>;
         fn app_finance_exchange_data(app_id: u32, proposal_id: Vec<u8>, account: AccountId) -> AppFinancedUserExchangeData<Balance>;
         fn model_income_current_stage() -> ModelIncomeCurrentStage<BlockNumber>;
-        fn is_tech_member_sign(account: AccountId, msg: Vec<u8>, sign: Signature) -> bool;
+        fn is_tech_member_sign(account: AccountId, msg: Vec<u8>, sign: Vec<u8>) -> bool;
     }
 }

@@ -68,7 +68,7 @@ use sp_runtime::transaction_validity::{
 };
 use sp_runtime::{
     create_runtime_str, generic, impl_opaque_keys, ApplyExtrinsicResult, FixedPointNumber,
-    ModuleId, Perbill, Percent, Permill, Perquintill,
+    ModuleId, MultiSignature, Perbill, Percent, Permill, Perquintill,
 };
 #[cfg(any(feature = "std", test))]
 use sp_version::NativeVersion;
@@ -1256,7 +1256,7 @@ pub type Executive = frame_executive::Executive<
 >;
 
 impl_runtime_apis! {
-    impl kp_runtime_api::KpApi<Block, AuthAccountId, Balance, BlockNumber, sr25519::Signature> for Runtime {
+    impl kp_runtime_api::KpApi<Block, AuthAccountId, Balance, BlockNumber> for Runtime {
         fn total_power() -> PowerSize {
             Kp::kp_total_power()
         }
@@ -1301,7 +1301,7 @@ impl_runtime_apis! {
             Kp::model_income_current_stage()
         }
 
-        fn is_tech_member_sign(account: AccountId, msg: Vec<u8>, sign: sr25519::Signature) -> bool {
+        fn is_tech_member_sign(account: AccountId, msg: Vec<u8>, sign: Vec<u8>) -> bool {
             Kp::is_tech_member_sign(account, msg, sign)
         }
     }

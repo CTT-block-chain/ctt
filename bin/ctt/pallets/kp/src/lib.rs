@@ -20,11 +20,14 @@ use serde::{Deserialize, Serialize};
 // #[macro_use]
 // extern crate sp_std;
 
+use core::convert::TryInto;
 use sp_std::cmp::*;
 use sp_std::collections::btree_map::BTreeMap;
 use sp_std::convert::From;
 use sp_std::ops::Add;
 use sp_std::prelude::*;
+
+use hex::decode;
 
 /// Knowledge power pallet  with necessary imports
 
@@ -2462,17 +2465,18 @@ impl<T: Trait> Module<T> {
         <AppLeaderBoardRcord<T>>::get(&lottery_record_key)
     }
 
-    pub fn is_tech_member_sign(
-        account: AuthAccountId,
-        msg: Vec<u8>,
-        sign: sr25519::Signature,
-    ) -> bool {
+    pub fn is_tech_member_sign(account: AuthAccountId, msg: Vec<u8>, sign: Vec<u8>) -> bool {
         // check account tech member
         if !T::TechMembers::contains(&Self::convert_account(&account)) {
             return false;
         }
 
-        let ms: MultiSignature = sign.into();
+        let convert = hex::decode(sign).expect("Decoding failed");
+
+        let buf: &[u8] = &convert;
+        let sr25519_sign: sr25519::Signature = buf.try_into().unwrap_or_default();
+
+        let ms: MultiSignature = sr25519_sign.into();
         ms.verify(&*msg, &account)
     }
 
