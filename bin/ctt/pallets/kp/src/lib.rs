@@ -1944,18 +1944,21 @@ decl_module! {
             comment_id: Vec<u8>,
             reporter_account: T::AccountId
             ) -> dispatch::DispatchResult {
-
+            print("enter democracy_slash_commodity_power");
             ensure_root(origin)?;
-
+            print("root check pass");
             ensure!(T::Membership::is_valid_app(app_id), Error::<T>::AppIdInvalid);
+            print("app check pass");
 
             // read out comment to get related document owner
             let comment_key = T::Hashing::hash_of(&(app_id, &comment_id));
             ensure!(<KPCommentDataByIdHash<T>>::contains_key(&comment_key), Error::<T>::CommentNotFound);
+            print("commnet check pass");
             let comment = <KPCommentDataByIdHash<T>>::get(&comment_key);
 
             let doc_key = T::Hashing::hash_of(&(app_id, &comment.document_id));
             ensure!(!<KPDocumentDataByIdHash<T>>::contains_key(&doc_key), Error::<T>::DocumentNotFound);
+            print("document check pass");
             let doc = <KPDocumentDataByIdHash<T>>::get(&doc_key);
 
             // get model id from publish doc
@@ -3601,6 +3604,8 @@ impl<T: Trait> Module<T> {
     fn slash_power(cart_key: &T::Hash, power_owner: &T::AccountId) {
         Self::clear_purchase_power(cart_key);
         let cart_power = Self::get_purchase_power(cart_key);
+        print("slash_power");
+        print(cart_power);
         if cart_power > 0 {
             // reduce account power
             <MinerPowerByAccount<T>>::mutate(power_owner, |pow| {
