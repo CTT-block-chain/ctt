@@ -27,8 +27,6 @@ use sp_std::convert::From;
 use sp_std::ops::Add;
 use sp_std::prelude::*;
 
-use hex::decode;
-
 /// Knowledge power pallet  with necessary imports
 
 /// Feel free to remove or edit this file as needed.
@@ -3362,32 +3360,39 @@ impl<T: Trait> Module<T> {
         let mut account_attend_weight: PowerSize = 0;
         let mut comment_power_weight: PowerSize = 0;
         let mut doc_comment_top_weight: PowerSize = 0;
+        let mut doc_judge_weight: u8 = 0;
+
         // according doc type to decide weight
         match doc.document_type {
             DocumentType::ProductPublish => {
                 account_attend_weight = T::TopWeightAccountAttend::get() as PowerSize;
                 comment_power_weight = T::DocumentPowerWeightAttend::get() as PowerSize;
                 doc_comment_top_weight = T::TopWeightProductPublish::get() as PowerSize;
+                doc_judge_weight = T::DocumentPowerWeightJudge::get()
             }
             DocumentType::ProductIdentify => {
                 account_attend_weight = T::TopWeightAccountAttend::get() as PowerSize;
                 comment_power_weight = T::DocumentPowerWeightAttend::get() as PowerSize;
                 doc_comment_top_weight = T::TopWeightDocumentIdentify::get() as PowerSize;
+                doc_judge_weight = T::DocumentPowerWeightJudge::get()
             }
             DocumentType::ProductTry => {
                 account_attend_weight = T::TopWeightAccountAttend::get() as PowerSize;
                 comment_power_weight = T::DocumentPowerWeightAttend::get() as PowerSize;
                 doc_comment_top_weight = T::TopWeightDocumentTry::get() as PowerSize;
+                doc_judge_weight = T::DocumentPowerWeightJudge::get()
             }
             DocumentType::ProductChoose => {
                 account_attend_weight = T::CMPowerAccountAttend::get() as PowerSize;
                 comment_power_weight = T::DocumentCMPowerWeightAttend::get() as PowerSize;
                 doc_comment_top_weight = 100 as PowerSize;
+                doc_judge_weight = T::DocumentCMPowerWeightJudge::get();
             }
             DocumentType::ModelCreate => {
                 account_attend_weight = T::CMPowerAccountAttend::get() as PowerSize;
                 comment_power_weight = T::DocumentCMPowerWeightAttend::get() as PowerSize;
                 doc_comment_top_weight = 100 as PowerSize;
+                doc_judge_weight = T::DocumentCMPowerWeightJudge::get();
             }
             _ => {}
         }
@@ -3443,15 +3448,21 @@ impl<T: Trait> Module<T> {
             && T::Membership::is_expert(&comment.sender, doc.app_id, &doc.model_id)
         {
             doc.expert_trend = comment.comment_trend.into();
-            platform_comment_power =
-                (Self::compute_doc_trend_power(&doc) * FLOAT_COMPUTE_PRECISION as f64) as PowerSize;
+            platform_comment_power = Self::compute_judge_power(
+                Self::compute_doc_trend_power(&doc),
+                doc_comment_top_weight,
+                doc_judge_weight,
+            );
         }
         if doc.platform_trend == CommentTrend::Empty
             && T::Membership::is_platform(&comment.sender, doc.app_id)
         {
             doc.platform_trend = comment.comment_trend.into();
-            platform_comment_power =
-                (Self::compute_doc_trend_power(&doc) * FLOAT_COMPUTE_PRECISION as f64) as PowerSize;
+            platform_comment_power = Self::compute_judge_power(
+                Self::compute_doc_trend_power(&doc),
+                doc_comment_top_weight,
+                doc_judge_weight,
+            );
         }
 
         // below are write actions
