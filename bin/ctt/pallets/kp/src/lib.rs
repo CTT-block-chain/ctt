@@ -3602,11 +3602,12 @@ impl<T: Trait> Module<T> {
     }
 
     fn slash_power(cart_key: &T::Hash, power_owner: &T::AccountId) {
-        Self::clear_purchase_power(cart_key);
         let cart_power = Self::get_purchase_power(cart_key);
         print("slash_power");
         print(cart_power);
         if cart_power > 0 {
+            // clear power
+            Self::clear_purchase_power(cart_key);
             // reduce account power
             <MinerPowerByAccount<T>>::mutate(power_owner, |pow| {
                 if *pow > cart_power {
