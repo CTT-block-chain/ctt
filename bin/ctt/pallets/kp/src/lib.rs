@@ -1957,7 +1957,7 @@ decl_module! {
             let comment = <KPCommentDataByIdHash<T>>::get(&comment_key);
 
             let doc_key = T::Hashing::hash_of(&(app_id, &comment.document_id));
-            ensure!(!<KPDocumentDataByIdHash<T>>::contains_key(&doc_key), Error::<T>::DocumentNotFound);
+            ensure!(<KPDocumentDataByIdHash<T>>::contains_key(&doc_key), Error::<T>::DocumentNotFound);
             print("document check pass");
             let doc = <KPDocumentDataByIdHash<T>>::get(&doc_key);
 
