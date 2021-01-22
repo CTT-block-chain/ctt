@@ -1167,6 +1167,7 @@ decl_event!(
         AppFinanceUserExchangeConfirmed(AccountId),
         ModelIncomeRewarded(AccountId),
         TechFundWithdrawed(AccountId),
+        ModelDepositAdded(AccountId),
     }
 );
 
@@ -1360,6 +1361,20 @@ decl_module! {
             <AppModelCount>::insert(app_id, count + 1);
 
             Self::deposit_event(RawEvent::ModelCreated(who));
+            Ok(())
+        }
+
+        #[weight = 0]
+        pub fn add_model_deposit(origin, app_id: u32, model_id: Vec<u8>, amount: BalanceOf<T>) -> dispatch::DispatchResult {
+            let who = ensure_signed(origin)?;
+
+            // make sure who is model creator
+            ensure!(T::Membership::is_model_creator(&who, app_id, &model_id),  Error::<T>::NotModelCreator);
+
+            // add deposit
+            T::Currency::reserve(&who, amount)?;
+
+            Self::deposit_event(RawEvent::ModelDepositAdded(who));
             Ok(())
         }
 
