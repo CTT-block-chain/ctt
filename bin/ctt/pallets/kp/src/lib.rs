@@ -2392,14 +2392,18 @@ impl<T: Trait> Module<T> {
     }
 
     pub fn kp_account_power_ratio(account: &T::AccountId) -> f64 {
-        let account_power = <MinerPowerByAccount<T>>::get(account);
-        return if account_power == 0 {
-            0.1
-        } else if account_power <= FLOAT_COMPUTE_PRECISION {
-            account_power as f64 / (FLOAT_COMPUTE_PRECISION as f64)
-        } else {
-            account_power.integer_sqrt() as f64 / 100.0
+        let p = <MinerPowerByAccount<T>>::get(account) as f64 / (FLOAT_COMPUTE_PRECISION as f64);
+
+        print("kp_account_power_ratio");
+        print((p * 10000.0) as u64);
+
+        let converted = match p {
+            0.0..=10.0 => 1.0 + (3.0 / 20.0) * p,
+            _ => (176.0 * p + 2960.0) / (11.0 * p + 1778.0),
         };
+
+        print((converted * 10000.0) as u64);
+        converted
     }
 
     pub fn kp_staking_to_vote(account: &T::AccountId, stake: BalanceOf<T>) -> BalanceOf<T> {
