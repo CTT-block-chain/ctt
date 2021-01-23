@@ -2448,6 +2448,11 @@ impl<T: Trait> Module<T> {
         Self::get_purchase_power(&key)
     }
 
+    pub fn kp_misc_document_power(app_id: u32, document_id: Vec<u8>) -> PowerSize {
+        let key = T::Hashing::hash_of(&(app_id, &document_id));
+        <KPMiscDocumentPowerByIdHash<T>>::get(&key)
+    }
+
     pub fn kp_is_commodity_power_exist(app_id: u32, cart_id: Vec<u8>) -> bool {
         let key = T::Hashing::hash_of(&(app_id, &cart_id));
         <KPPurchasePowerByIdHash<T>>::contains_key(&key)

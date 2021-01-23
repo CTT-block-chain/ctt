@@ -138,6 +138,14 @@ pub struct TechMemberSignParams {
     sign: Bytes,
 }
 
+#[derive(Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+#[serde(deny_unknown_fields)]
+pub struct MiscDocumentPowerParams {
+    app_id: u32,
+    document_id: Bytes,
+}
+
 #[rpc]
 pub trait KpApi<BlockHash, AccountId, Balance, BlockNumber> {
     #[rpc(name = "kp_totalPower")]
@@ -214,6 +222,13 @@ pub trait KpApi<BlockHash, AccountId, Balance, BlockNumber> {
         params: TechMemberSignParams,
         at: Option<BlockHash>,
     ) -> Result<bool>;
+
+    #[rpc(name = "kp_miscDocumentPower")]
+    fn misc_document_power(
+        &self,
+        params: MiscDocumentPowerParams,
+        at: Option<BlockHash>,
+    ) -> Result<PowerSize>;
 }
 
 /// A struct that implements the `KpApi`.
@@ -577,6 +592,29 @@ where
         let TechMemberSignParams { account, msg, sign } = query;
 
         let runtime_api_result = api.is_tech_member_sign(&at, account, msg.to_vec(), sign.to_vec());
+        runtime_api_result.map_err(|e| RpcError {
+            code: ErrorCode::ServerError(9876), // No real reason for this value
+            message: "Something wrong".into(),
+            data: Some(format!("{:?}", e).into()),
+        })
+    }
+
+    fn misc_document_power(
+        &self,
+        query: MiscDocumentPowerParams,
+        at: Option<<Block as BlockT>::Hash>,
+    ) -> Result<PowerSize> {
+        let api = self.client.runtime_api();
+        let at = BlockId::hash(at.unwrap_or_else(||
+            // If the block hash is not supplied assume the best block.
+            self.client.info().best_hash));
+
+        let MiscDocumentPowerParams {
+            app_id,
+            document_id,
+        } = query;
+
+        let runtime_api_result = api.misc_document_power(&at, app_id, document_id.to_vec());
         runtime_api_result.map_err(|e| RpcError {
             code: ErrorCode::ServerError(9876), // No real reason for this value
             message: "Something wrong".into(),
