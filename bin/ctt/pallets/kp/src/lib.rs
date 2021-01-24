@@ -680,11 +680,11 @@ pub struct ModelCycleIncomeReward<Account, Balance> {
 
 #[derive(Encode, Decode, PartialEq, Clone, Copy, RuntimeDebug)]
 pub enum TechFundWithdrawType {
-    CHAIN_DEV = 0,
-    TCTP,
-    MODEL,
-    KNOWLEDGE,
-    CHIAN_ADMIN,
+    ChainDev = 0,
+    Tctp,
+    Model,
+    Knowledge,
+    ChainAdmin,
 }
 
 #[derive(Encode, Decode, PartialEq, Clone, Copy, RuntimeDebug)]
@@ -2528,13 +2528,11 @@ impl<T: Trait> Module<T> {
         let base: BalanceOf<T> = T::TechFundBase::get();
 
         let type_per = match dev_type {
-            TechFundWithdrawType::CHAIN_DEV => Permill::from_rational_approximation(45u32, 100u32),
-            TechFundWithdrawType::TCTP => Permill::from_rational_approximation(30u32, 100u32),
-            TechFundWithdrawType::MODEL => Permill::from_rational_approximation(8u32, 100u32),
-            TechFundWithdrawType::KNOWLEDGE => Permill::from_rational_approximation(5u32, 100u32),
-            TechFundWithdrawType::CHIAN_ADMIN => {
-                Permill::from_rational_approximation(12u32, 100u32)
-            }
+            TechFundWithdrawType::ChainDev => Permill::from_rational_approximation(45u32, 100u32),
+            TechFundWithdrawType::Tctp => Permill::from_rational_approximation(30u32, 100u32),
+            TechFundWithdrawType::Model => Permill::from_rational_approximation(8u32, 100u32),
+            TechFundWithdrawType::Knowledge => Permill::from_rational_approximation(5u32, 100u32),
+            TechFundWithdrawType::ChainAdmin => Permill::from_rational_approximation(12u32, 100u32),
         };
 
         let level_per = match dev_level {
