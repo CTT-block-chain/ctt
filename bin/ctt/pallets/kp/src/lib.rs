@@ -40,10 +40,7 @@ use primitives::{AuthAccountId, Membership, PowerSize};
 use sp_core::sr25519;
 use sp_runtime::{
     print,
-    traits::{
-        AccountIdConversion, Hash, IntegerSquareRoot, SaturatedConversion, TrailingZeroInput,
-        Verify,
-    },
+    traits::{AccountIdConversion, Hash, SaturatedConversion, TrailingZeroInput, Verify},
     ModuleId, MultiSignature, Permill, RuntimeDebug,
 };
 
@@ -2398,7 +2395,7 @@ impl<T: Trait> Module<T> {
         print((p * 10000.0) as u64);
 
         let converted = match p {
-            0.0..=10.0 => 1.0 + (3.0 / 20.0) * p,
+            x if x >= 0.0 && x <= 10.0 => 1.0 + (3.0 / 20.0) * x,
             _ => (176.0 * p + 2960.0) / (11.0 * p + 1778.0),
         };
 

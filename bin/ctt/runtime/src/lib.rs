@@ -53,7 +53,6 @@ use sp_api::impl_runtime_apis;
 use sp_authority_discovery::AuthorityId as AuthorityDiscoveryId;
 use sp_core::{
     crypto::KeyTypeId,
-    sr25519,
     u32_trait::{_1, _2, _3, _4},
     OpaqueMetadata,
 };
@@ -68,7 +67,7 @@ use sp_runtime::transaction_validity::{
 };
 use sp_runtime::{
     create_runtime_str, generic, impl_opaque_keys, ApplyExtrinsicResult, FixedPointNumber,
-    ModuleId, MultiSignature, Perbill, Percent, Permill, Perquintill,
+    ModuleId, Perbill, Percent, Permill, Perquintill,
 };
 #[cfg(any(feature = "std", test))]
 use sp_version::NativeVersion;
