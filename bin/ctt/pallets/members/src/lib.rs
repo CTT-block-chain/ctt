@@ -10,7 +10,7 @@ use frame_support::{
     ensure,
     traits::{Currency, ExistenceRequirement::KeepAlive, Get},
 };
-use frame_system::{self as system, ensure_root, ensure_signed};
+use frame_system::{self as system, ensure_signed};
 use primitives::{AuthAccountId, Membership};
 use sp_core::sr25519;
 use sp_runtime::{
@@ -64,12 +64,21 @@ pub struct ModelExpertDelMemberParams<Account> {
     member: Account,
 }
 
+#[derive(Encode, Decode, Clone, Default, PartialEq, RuntimeDebug)]
+pub struct AppKeyManageParams<Account> {
+    admin: AuthAccountId,
+    app_id: u32,
+    member: Account,
+}
+
 pub trait Trait: system::Trait {
     type Event: From<Event<Self>> + Into<<Self as system::Trait>::Event>;
     type Currency: Currency<Self::AccountId>;
     type ModelCreatorCreateBenefit: Get<BalanceOf<Self>>;
     type ModTreasuryModuleId: Get<ModuleId>;
 }
+
+const MAX_APP_KEYS: usize = 16;
 
 decl_event!(
     pub enum Event<T>
@@ -82,6 +91,7 @@ decl_event!(
         /// Removed a member
         MemberRemoved(AccountId),
         AppAdminSet(AccountId),
+        AppKeysSet(AccountId),
         ModleCreatorAdded(AccountId),
         NewUserBenefitDrpped(AccountId, Balance),
         StableExchanged(AccountId),
@@ -98,15 +108,11 @@ decl_storage! {
 
         // app level admin members key is app_id
         AppAdmins get(fn app_admins):
-            map hasher(twox_64_concat) u32 => T::AccountId;
+            map hasher(twox_64_concat) u32 => Vec<T::AccountId>;
 
-        // App ID => App Key
+        // App ID => App Keys
         AppKeys get(fn app_keys):
-            map hasher(twox_64_concat) u32 => T::AccountId;
-
-        // App Key => App ID
-        KeyApps get(fn key_apps):
-            map hasher(twox_64_concat) T::AccountId => u32;
+            map hasher(twox_64_concat) u32 => Vec<T::AccountId>;
 
         // AppId => AppData
         AppDataMap get(fn app_data_map):
@@ -149,6 +155,7 @@ decl_error! {
         /// Cannot give up membership because you are not currently a member
         NotMember,
         NotAppAdmin,
+        NotAppIdentity,
         NotModelCreator,
         BenefitAlreadyDropped,
         NotEnoughFund,
@@ -160,6 +167,8 @@ decl_error! {
         SignVerifyError,
         AppIdInvalid,
         AuthIdentityNotAppAdmin,
+        AppKeysLimitReached,
+        AppKeysOnlyOne,
     }
 }
 
@@ -224,12 +233,153 @@ decl_module! {
         }
 
         #[weight = 0]
-        pub fn set_app_admin(origin, app_id: u32, admin: T::AccountId) -> DispatchResult {
-            let _who = ensure_root(origin)?;
+        pub fn add_app_admin(origin, params: AppKeyManageParams<T::AccountId>, sign: sr25519::Signature) -> DispatchResult {
+            let who = ensure_signed(origin)?;
 
-            Self::config_app_admin(&admin, app_id);
-            Self::deposit_event(RawEvent::AppAdminSet(admin));
-            Ok(())
+            let sign_buf = params.encode();
+            let AppKeyManageParams {
+                app_id,
+                member,
+                admin,
+            } = params;
+
+            // check if valid app
+            ensure!(Self::is_valid_app(app_id), Error::<T>::AppIdInvalid);
+            // check if admin member
+            ensure!(Self::is_app_admin(&Self::convert_account(&admin), app_id), Error::<T>::NotAppAdmin);
+            // check if identity member
+            ensure!(Self::is_app_identity(&who, app_id), Error::<T>::NotAppIdentity);
+
+            let mut members = <AppAdmins<T>>::get(app_id);
+            // check max length
+            ensure!(members.len() < MAX_APP_KEYS, Error::<T>::AppKeysLimitReached);
+            // check sign
+            ensure!(Self::verify_sign(&admin, sign, &sign_buf), Error::<T>::SignVerifyError);
+            // all pass now add
+            match members.binary_search(&member) {
+                // If the search succeeds, the caller is already a member, so just return
+                Ok(_) => Err(Error::<T>::AlreadyMember.into()),
+                // If the search fails, the caller is not a member and we learned the index where
+                // they should be inserted
+                Err(index) => {
+                    members.insert(index, member.clone());
+                    <AppAdmins<T>>::insert(app_id, members);
+                    Self::deposit_event(RawEvent::AppAdminSet(member));
+                    Ok(())
+                }
+            }
+        }
+
+         #[weight = 0]
+        pub fn remove_app_admin(origin, params: AppKeyManageParams<T::AccountId>, sign: sr25519::Signature) -> DispatchResult {
+            let who = ensure_signed(origin)?;
+
+            let sign_buf = params.encode();
+            let AppKeyManageParams {
+                app_id,
+                member,
+                admin,
+            } = params;
+
+            // check if valid app
+            ensure!(Self::is_valid_app(app_id), Error::<T>::AppIdInvalid);
+            // check if admin member
+            ensure!(Self::is_app_admin(&Self::convert_account(&admin), app_id), Error::<T>::NotAppAdmin);
+            // check if identity member
+            ensure!(Self::is_app_identity(&who, app_id), Error::<T>::NotAppIdentity);
+
+            let mut members = <AppAdmins<T>>::get(app_id);
+            // check max length
+            ensure!(members.len() > 1, Error::<T>::AppKeysOnlyOne);
+            // check sign
+            ensure!(Self::verify_sign(&admin, sign, &sign_buf), Error::<T>::SignVerifyError);
+            // all pass now add
+            match members.binary_search(&member) {
+                // If the search succeeds, the caller is already a member, so just return
+                Ok(index) => {
+                    members.remove(index);
+                    <AppAdmins<T>>::insert(app_id, members);
+                    Self::deposit_event(RawEvent::MemberRemoved(member));
+                    Ok(())
+                },
+                // If the search fails, the caller is not a member, so just return
+                Err(_) => Err(Error::<T>::NotMember.into()),
+            }
+        }
+
+        #[weight = 0]
+        pub fn add_app_key(origin, params: AppKeyManageParams<T::AccountId>, sign: sr25519::Signature) -> DispatchResult {
+            let who = ensure_signed(origin)?;
+
+            let sign_buf = params.encode();
+            let AppKeyManageParams {
+                app_id,
+                member,
+                admin,
+            } = params;
+
+            // check if valid app
+            ensure!(Self::is_valid_app(app_id), Error::<T>::AppIdInvalid);
+            // check if admin member
+            ensure!(Self::is_app_admin(&Self::convert_account(&admin), app_id), Error::<T>::NotAppAdmin);
+            // check if identity member
+            ensure!(Self::is_app_identity(&who, app_id), Error::<T>::NotAppIdentity);
+
+            let mut members = <AppKeys<T>>::get(app_id);
+            // check max length
+            ensure!(members.len() < MAX_APP_KEYS, Error::<T>::AppKeysLimitReached);
+            // check sign
+            ensure!(Self::verify_sign(&admin, sign, &sign_buf), Error::<T>::SignVerifyError);
+            // all pass now add
+            match members.binary_search(&member) {
+                // If the search succeeds, the caller is already a member, so just return
+                Ok(_) => Err(Error::<T>::AlreadyMember.into()),
+                // If the search fails, the caller is not a member and we learned the index where
+                // they should be inserted
+                Err(index) => {
+                    members.insert(index, member.clone());
+                    <AppKeys<T>>::insert(app_id, members);
+                    Self::deposit_event(RawEvent::AppKeysSet(member));
+                    Ok(())
+                }
+            }
+        }
+
+         #[weight = 0]
+        pub fn remove_app_key(origin, params: AppKeyManageParams<T::AccountId>, sign: sr25519::Signature) -> DispatchResult {
+            let who = ensure_signed(origin)?;
+
+            let sign_buf = params.encode();
+            let AppKeyManageParams {
+                app_id,
+                member,
+                admin,
+            } = params;
+
+            // check if valid app
+            ensure!(Self::is_valid_app(app_id), Error::<T>::AppIdInvalid);
+            // check if admin member
+            ensure!(Self::is_app_admin(&Self::convert_account(&admin), app_id), Error::<T>::NotAppAdmin);
+            // check if identity member
+            ensure!(Self::is_app_identity(&who, app_id), Error::<T>::NotAppIdentity);
+
+            let mut members = <AppKeys<T>>::get(app_id);
+            // check max length
+            ensure!(members.len() > 1, Error::<T>::AppKeysOnlyOne);
+            // check sign
+            ensure!(Self::verify_sign(&admin, sign, &sign_buf), Error::<T>::SignVerifyError);
+            // all pass now add
+            match members.binary_search(&member) {
+                // If the search succeeds, the caller is already a member, so just return
+                Ok(index) => {
+                    members.remove(index);
+                    <AppKeys<T>>::insert(app_id, members);
+                    Self::deposit_event(RawEvent::MemberRemoved(member));
+                    Ok(())
+                },
+                // If the search fails, the caller is not a member, so just return
+                Err(_) => Err(Error::<T>::NotMember.into()),
+            }
         }
 
         #[weight = 0]
@@ -239,7 +389,7 @@ decl_module! {
             ensure!(Self::is_valid_app(app_id), Error::<T>::AppIdInvalid);
 
             // check if origin is app_id's admin
-            ensure!(<AppAdmins<T>>::get(app_id) == who,  Error::<T>::NotAppAdmin);
+            ensure!(Self::is_app_admin(&who, app_id),  Error::<T>::NotAppAdmin);
 
             let mut members = <AppPlatformExpertMembers<T>>::get(app_id);
 
@@ -264,7 +414,7 @@ decl_module! {
             ensure!(Self::is_valid_app(app_id), Error::<T>::AppIdInvalid);
 
             // check if origin is app_id's admin
-            ensure!(<AppAdmins<T>>::get(app_id) == who,  Error::<T>::NotAppAdmin);
+            ensure!(Self::is_app_admin(&who, app_id),  Error::<T>::NotAppAdmin);
 
             let mut members = <AppPlatformExpertMembers<T>>::get(app_id);
 
@@ -452,7 +602,7 @@ decl_module! {
             ensure!(Self::is_valid_app(app_id), Error::<T>::AppIdInvalid);
 
             // check if origin is app_id's admin
-            ensure!(<AppAdmins<T>>::get(app_id) == who,  Error::<T>::NotAppAdmin);
+            ensure!(Self::is_app_admin(&who, app_id),  Error::<T>::NotAppAdmin);
 
             <AppRedeemAccount<T>>::insert(app_id, &account);
 
@@ -504,17 +654,27 @@ impl<T: Trait> Module<T> {
     }
 
     pub fn is_app_admin(who: &T::AccountId, app_id: u32) -> bool {
-        <AppAdmins<T>>::get(app_id) == *who
+        let members = <AppAdmins<T>>::get(app_id);
+
+        match members.binary_search(who) {
+            // If the search succeeds, the caller is already a member, so just return
+            Ok(_index) => true,
+            // If the search fails, the caller is not a member, so just return
+            Err(_) => false,
+        }
+    }
+
+    pub fn is_app_identity(who: &T::AccountId, app_id: u32) -> bool {
+        let members = <AppKeys<T>>::get(app_id);
+
+        match members.binary_search(who) {
+            // If the search succeeds, the caller is already a member, so just return
+            Ok(_index) => true,
+            // If the search fails, the caller is not a member, so just return
+            Err(_) => false,
+        }
     }
 }
-
-/*impl<T: Trait> AccountSet for Module<T> {
-    type AccountId = T::AccountId;
-
-    fn accounts() -> BTreeSet<T::AccountId> {
-        ()
-    }
-}*/
 
 impl<T: Trait> Membership<T::AccountId, T::Hash, BalanceOf<T>> for Module<T> {
     fn is_platform(who: &T::AccountId, app_id: u32) -> bool {
@@ -525,7 +685,7 @@ impl<T: Trait> Membership<T::AccountId, T::Hash, BalanceOf<T>> for Module<T> {
     }
 
     fn is_app_admin(who: &T::AccountId, app_id: u32) -> bool {
-        <AppAdmins<T>>::contains_key(app_id) && <AppAdmins<T>>::get(app_id) == *who
+        Self::is_app_admin(who, app_id)
     }
 
     fn is_investor(who: &T::AccountId) -> bool {
@@ -557,13 +717,18 @@ impl<T: Trait> Membership<T::AccountId, T::Hash, BalanceOf<T>> for Module<T> {
         Self::is_model_creator(who, app_id, model_id)
     }
 
+    // only used for app register
     fn config_app_admin(who: &T::AccountId, app_id: u32) {
-        <AppAdmins<T>>::insert(app_id, who);
+        let mut members = <AppAdmins<T>>::get(app_id);
+        members.push(who.clone());
+        <AppAdmins<T>>::insert(app_id, members);
     }
 
+    // only used for app register
     fn config_app_key(who: &T::AccountId, app_id: u32) {
-        <AppKeys<T>>::insert(app_id, who);
-        <KeyApps<T>>::insert(&who, app_id);
+        let mut members = <AppKeys<T>>::get(app_id);
+        members.push(who.clone());
+        <AppKeys<T>>::insert(app_id, members);
     }
 
     fn config_app_setting(app_id: u32, rate: u32, name: Vec<u8>, stake: BalanceOf<T>) {
@@ -582,6 +747,6 @@ impl<T: Trait> Membership<T::AccountId, T::Hash, BalanceOf<T>> for Module<T> {
     }
 
     fn is_valid_app_key(app_id: u32, app_key: &T::AccountId) -> bool {
-        <AppKeys<T>>::contains_key(app_id) && <AppKeys<T>>::get(app_id) == *app_key
+        Self::is_app_identity(app_key, app_id)
     }
 }
