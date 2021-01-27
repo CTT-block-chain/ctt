@@ -44,6 +44,14 @@ pub struct QueryCommodityPowerParams {
 #[derive(Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 #[serde(deny_unknown_fields)]
+pub struct QueryModelParams {
+    app_id: u32,
+    model_id: Bytes,
+}
+
+#[derive(Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+#[serde(deny_unknown_fields)]
 pub struct QueryDocumentPowerParams {
     app_id: u32,
     doc_id: Bytes,
@@ -229,6 +237,9 @@ pub trait KpApi<BlockHash, AccountId, Balance, BlockNumber> {
         params: MiscDocumentPowerParams,
         at: Option<BlockHash>,
     ) -> Result<PowerSize>;
+
+    #[rpc(name = "kp_modelDeposit")]
+    fn model_deposit(&self, params: QueryModelParams, at: Option<BlockHash>) -> Result<u64>;
 }
 
 /// A struct that implements the `KpApi`.
@@ -620,5 +631,31 @@ where
             message: "Something wrong".into(),
             data: Some(format!("{:?}", e).into()),
         })
+    }
+
+    fn model_deposit(
+        &self,
+        query: QueryModelParams,
+        at: Option<<Block as BlockT>::Hash>,
+    ) -> Result<u64> {
+        let api = self.client.runtime_api();
+        let at = BlockId::hash(at.unwrap_or_else(||
+            // If the block hash is not supplied assume the best block.
+            self.client.info().best_hash));
+
+        let QueryModelParams { app_id, model_id } = query;
+
+        let runtime_api_result = api.model_deposit(&at, app_id, model_id.to_vec());
+        // convert result
+        match runtime_api_result {
+            Ok(v) => Ok(convert_balance(v)),
+            Err(e) => {
+                Err(RpcError {
+                    code: ErrorCode::ServerError(9876), // No real reason for this value
+                    message: "Something wrong".into(),
+                    data: Some(format!("{:?}", e).into()),
+                })
+            }
+        }
     }
 }

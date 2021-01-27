@@ -2479,6 +2479,11 @@ impl<T: Trait> Module<T> {
         <AccountAttendPowerMap<T>>::get(&key)
     }
 
+    pub fn model_deposit(app_id: u32, model_id: Vec<u8>) -> BalanceOf<T> {
+        let key = T::Hashing::hash_of(&(app_id, &model_id));
+        <KPModelDepositMap<T>>::get(&key)
+    }
+
     pub fn kp_get_commodity_types() -> Vec<CommodityTypeData> {
         CommodityTypeSets::get()
     }

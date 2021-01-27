@@ -1307,6 +1307,10 @@ impl_runtime_apis! {
         fn misc_document_power(app_id: u32, document_id: Vec<u8>) -> PowerSize {
             Kp::kp_misc_document_power(app_id, document_id)
         }
+
+        fn model_deposit(app_id: u32, model_id: Vec<u8>) -> Balance {
+            Kp::model_deposit(app_id, model_id)
+        }
     }
 
     impl members_runtime_api::MembersApi<Block, AccountId> for Runtime {
