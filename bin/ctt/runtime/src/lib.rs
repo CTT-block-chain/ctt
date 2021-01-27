@@ -1321,6 +1321,10 @@ impl_runtime_apis! {
         fn is_model_creator(account: AccountId, app_id: u32, model_id: Vec<u8>) -> bool {
             Members::is_model_creator(&account, app_id, &model_id)
         }
+
+        fn model_experts(app_id: u32, model_id: Vec<u8>) -> Vec<AccountId> {
+            Members::model_experts(app_id, model_id)
+        }
     }
 
     impl sp_api::Core<Block> for Runtime {

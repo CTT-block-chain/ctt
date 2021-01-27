@@ -674,6 +674,11 @@ impl<T: Trait> Module<T> {
             Err(_) => false,
         }
     }
+
+    pub fn model_experts(app_id: u32, model_id: Vec<u8>) -> Vec<T::AccountId> {
+        let key = T::Hashing::hash_of(&(app_id, &model_id));
+        <ExpertMembers<T>>::get(&key)
+    }
 }
 
 impl<T: Trait> Membership<T::AccountId, T::Hash, BalanceOf<T>> for Module<T> {

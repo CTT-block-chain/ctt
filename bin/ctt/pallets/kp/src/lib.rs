@@ -1370,6 +1370,11 @@ decl_module! {
 
             // add deposit
             T::Currency::reserve(&who, amount)?;
+            // update record
+            let key = T::Hashing::hash_of(&(app_id, &model_id));
+            <KPModelDepositMap<T>>::mutate(&key, |value| {
+                *value += amount;
+            });
 
             Self::deposit_event(RawEvent::ModelDepositAdded(who));
             Ok(())
@@ -3703,6 +3708,13 @@ impl<T: Trait> Module<T> {
                 // slash 10KPT
                 let slash = T::ModelDisputeLv1Slash::get();
                 T::Slash::on_unbalanced(T::Currency::slash_reserved(owner, slash).0);
+
+                // update record
+                let key = T::Hashing::hash_of(&(app_id, model_id));
+                <KPModelDepositMap<T>>::mutate(&key, |value| {
+                    *value -= slash;
+                });
+
                 // check owner account's reserved value if under 50% of target resolving
                 let reserved = T::Currency::reserved_balance(owner);
 
