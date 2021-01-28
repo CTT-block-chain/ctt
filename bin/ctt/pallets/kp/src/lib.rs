@@ -705,6 +705,15 @@ pub struct TechFundWithdrawData<Account, Balance, Hash> {
     reason: Hash,
 }
 
+#[derive(Encode, Decode, PartialEq, Clone, RuntimeDebug)]
+pub struct ModelDisputeRecord<Block> {
+    app_id: u32,
+    model_id: Vec<u8>,
+    comment_id: Vec<u8>,
+    dispute_type: ModelDisputeType,
+    block: Block,
+}
+
 /*
 type KnowledgePowerDataOf<T> = KnowledgePowerData<<T as system::Trait>::AccountId>;
 
