@@ -37,8 +37,8 @@ use frame_support::{
 };
 use frame_system::{EnsureOneOf, EnsureRoot};
 use kp::{
-    AppFinancedData, AppFinancedUserExchangeData, DocumentPowerInfo, LeaderBoardResult,
-    ModelIncomeCurrentStage,
+    AppFinancedData, AppFinancedUserExchangeData, CommoditySlashRecord, DocumentPowerInfo,
+    LeaderBoardResult, ModelDisputeRecord, ModelIncomeCurrentStage,
 };
 pub use node_primitives::{AccountId, AuthAccountId, PowerSize, Signature};
 use node_primitives::{AccountIndex, Balance, BlockNumber, Hash, Index, Moment};
@@ -1310,6 +1310,14 @@ impl_runtime_apis! {
 
         fn model_deposit(app_id: u32, model_id: Vec<u8>) -> Balance {
             Kp::model_deposit(app_id, model_id)
+        }
+
+        fn model_dispute_record(app_id: u32, comment_id: Vec<u8>) -> ModelDisputeRecord<BlockNumber> {
+            Kp::model_dispute_record(app_id, comment_id)
+        }
+
+        fn commodity_power_slash_record(app_id: u32, comment_id: Vec<u8>) -> CommoditySlashRecord<BlockNumber> {
+            Kp::commodity_power_slash_record(app_id, comment_id)
         }
     }
 

@@ -165,7 +165,8 @@ impl From<DocumentType> for u8 {
     }
 }
 
-#[derive(Encode, Decode, PartialEq, Clone, RuntimeDebug)]
+#[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
+#[derive(Encode, Decode, PartialEq, Clone, Copy, RuntimeDebug)]
 pub enum ModelDisputeType {
     NoneIntendNormal = 0,
     IntendNormal,
@@ -705,13 +706,23 @@ pub struct TechFundWithdrawData<Account, Balance, Hash> {
     reason: Hash,
 }
 
-#[derive(Encode, Decode, PartialEq, Clone, RuntimeDebug)]
+#[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
+#[derive(Encode, Decode, PartialEq, Clone, Default, RuntimeDebug)]
 pub struct ModelDisputeRecord<Block> {
-    app_id: u32,
-    model_id: Vec<u8>,
-    comment_id: Vec<u8>,
-    dispute_type: ModelDisputeType,
-    block: Block,
+    pub app_id: u32,
+    pub model_id: Vec<u8>,
+    pub comment_id: Vec<u8>,
+    pub dispute_type: ModelDisputeType,
+    pub block: Block,
+}
+
+#[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
+#[derive(Encode, Decode, PartialEq, Clone, Default, RuntimeDebug)]
+pub struct CommoditySlashRecord<Block> {
+    pub app_id: u32,
+    pub comment_id: Vec<u8>,
+    pub cart_id: Vec<u8>,
+    pub block: Block,
 }
 
 /*
@@ -1142,6 +1153,14 @@ decl_storage! {
 
         ModelSlashCycleRewardIndex get(fn model_slash_cycle_reward_index):
             map hasher(twox_64_concat) T::Hash => T::BlockNumber;
+
+        // (app_id, comment_id)
+        ModelDisputeRecords get(fn model_dispute_records):
+            map hasher(twox_64_concat) T::Hash => ModelDisputeRecord<T::BlockNumber>;
+
+        // (app_id, comment_id)
+        CommoditySlashRecords get(fn commodity_slash_record):
+            map hasher(twox_64_concat) T::Hash => CommoditySlashRecord<T::BlockNumber>;
     }
 }
 
@@ -1996,6 +2015,8 @@ decl_module! {
             Self::slash_power(&key_hash, &owner_account);
             Self::remove_leader_board_item(app_id, &model_id, &cart_id);
 
+            Self::add_commodity_power_slash_record(app_id, &comment_id, &cart_id);
+
             Self::deposit_event(RawEvent::PowerSlashed(owner_account));
             Ok(())
         }
@@ -2022,6 +2043,9 @@ decl_module! {
             let owner_account = Self::convert_account(&model.owner);
 
             Self::model_dispute(app_id, &model_id, dispute_type, &owner_account);
+
+            // update store
+            Self::add_model_dispute_record(app_id, &model_id, &comment_id, dispute_type);
 
             Self::deposit_event(RawEvent::ModelDisputed(owner_account));
             Ok(())
@@ -2521,6 +2545,23 @@ impl<T: Trait> Module<T> {
         ms.verify(&*msg, &account)
     }
 
+    pub fn model_dispute_record(
+        app_id: u32,
+        comment_id: Vec<u8>,
+    ) -> ModelDisputeRecord<T::BlockNumber> {
+        let key = T::Hashing::hash_of(&(app_id, &comment_id));
+        <ModelDisputeRecords<T>>::get(&key)
+    }
+
+    pub fn commodity_power_slash_record(
+        app_id: u32,
+        comment_id: Vec<u8>,
+    ) -> CommoditySlashRecord<T::BlockNumber> {
+        let key = T::Hashing::hash_of(&(app_id, &comment_id));
+        <CommoditySlashRecords<T>>::get(&key)
+    }
+
+    // belows are internal using
     fn leader_record_key(app_id: u32, block: T::BlockNumber, model_id: &Vec<u8>) -> T::Hash {
         let buf: Vec<T::BlockNumber> = vec![app_id.into(), block];
         T::Hashing::hash_of(&(buf, model_id))
@@ -3758,6 +3799,36 @@ impl<T: Trait> Module<T> {
                 T::Slash::on_unbalanced(T::Currency::slash_reserved(owner, amount).0);
             }
         }
+    }
+
+    fn add_model_dispute_record(
+        app_id: u32,
+        model_id: &Vec<u8>,
+        comment_id: &Vec<u8>,
+        dispute_type: ModelDisputeType,
+    ) {
+        let record = ModelDisputeRecord {
+            app_id,
+            model_id: model_id.clone(),
+            comment_id: comment_id.clone(),
+            dispute_type,
+            block: <system::Module<T>>::block_number(),
+        };
+
+        let key = T::Hashing::hash_of(&(app_id, comment_id));
+        <ModelDisputeRecords<T>>::insert(&key, record);
+    }
+
+    fn add_commodity_power_slash_record(app_id: u32, comment_id: &Vec<u8>, cart_id: &Vec<u8>) {
+        let record = CommoditySlashRecord {
+            app_id,
+            comment_id: comment_id.clone(),
+            cart_id: cart_id.clone(),
+            block: <system::Module<T>>::block_number(),
+        };
+
+        let key = T::Hashing::hash_of(&(app_id, comment_id));
+        <CommoditySlashRecords<T>>::insert(&key, record);
     }
 }
 

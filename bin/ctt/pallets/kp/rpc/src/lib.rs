@@ -3,6 +3,7 @@
 pub use self::gen_client::Client as KpClient;
 use jsonrpc_core::{Error as RpcError, ErrorCode, Result};
 use jsonrpc_derive::rpc;
+use kp::{CommoditySlashRecord, ModelDisputeRecord};
 use kp_runtime_api::KpApi as KpRuntimeApi;
 pub use kp_runtime_api::KpApi as KpRuntimeRpcApi;
 use primitives::{AuthAccountId, Balance, BlockNumber, PowerSize};
@@ -154,6 +155,14 @@ pub struct MiscDocumentPowerParams {
     document_id: Bytes,
 }
 
+#[derive(Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+#[serde(deny_unknown_fields)]
+pub struct AppCommentKeyParams {
+    app_id: u32,
+    comment_id: Bytes,
+}
+
 #[rpc]
 pub trait KpApi<BlockHash, AccountId, Balance, BlockNumber> {
     #[rpc(name = "kp_totalPower")]
@@ -240,6 +249,20 @@ pub trait KpApi<BlockHash, AccountId, Balance, BlockNumber> {
 
     #[rpc(name = "kp_modelDeposit")]
     fn model_deposit(&self, params: QueryModelParams, at: Option<BlockHash>) -> Result<u64>;
+
+    #[rpc(name = "kp_modelDepositRecord")]
+    fn model_dispute_record(
+        &self,
+        params: AppCommentKeyParams,
+        at: Option<BlockHash>,
+    ) -> Result<ModelDisputeRecord<BlockNumber>>;
+
+    #[rpc(name = "kp_commodityPowerSlashRecord")]
+    fn commodity_power_slash_record(
+        &self,
+        params: AppCommentKeyParams,
+        at: Option<BlockHash>,
+    ) -> Result<CommoditySlashRecord<BlockNumber>>;
 }
 
 /// A struct that implements the `KpApi`.
@@ -657,5 +680,47 @@ where
                 })
             }
         }
+    }
+
+    fn model_dispute_record(
+        &self,
+        query: AppCommentKeyParams,
+        at: Option<<Block as BlockT>::Hash>,
+    ) -> Result<ModelDisputeRecord<BlockNumber>> {
+        let api = self.client.runtime_api();
+        let at = BlockId::hash(at.unwrap_or_else(||
+            // If the block hash is not supplied assume the best block.
+            self.client.info().best_hash));
+
+        let AppCommentKeyParams { app_id, comment_id } = query;
+
+        let runtime_api_result = api.model_dispute_record(&at, app_id, comment_id.to_vec());
+        // convert result
+        runtime_api_result.map_err(|e| RpcError {
+            code: ErrorCode::ServerError(9876), // No real reason for this value
+            message: "Something wrong".into(),
+            data: Some(format!("{:?}", e).into()),
+        })
+    }
+
+    fn commodity_power_slash_record(
+        &self,
+        query: AppCommentKeyParams,
+        at: Option<<Block as BlockT>::Hash>,
+    ) -> Result<CommoditySlashRecord<BlockNumber>> {
+        let api = self.client.runtime_api();
+        let at = BlockId::hash(at.unwrap_or_else(||
+            // If the block hash is not supplied assume the best block.
+            self.client.info().best_hash));
+
+        let AppCommentKeyParams { app_id, comment_id } = query;
+
+        let runtime_api_result = api.commodity_power_slash_record(&at, app_id, comment_id.to_vec());
+        // convert result
+        runtime_api_result.map_err(|e| RpcError {
+            code: ErrorCode::ServerError(9876), // No real reason for this value
+            message: "Something wrong".into(),
+            data: Some(format!("{:?}", e).into()),
+        })
     }
 }
