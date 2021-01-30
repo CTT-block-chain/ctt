@@ -949,7 +949,7 @@ decl_storage! {
             map hasher(twox_64_concat) T::Hash => KPModelDataOf<T>;
 
         // (AppId, ModelId) -> BalanceOf<T>  deposit value of create model
-        KPModelDepositMap get(fn kp_model_):
+        KPModelDepositMap get(fn kp_model_deposit_map):
             map hasher(twox_64_concat) T::Hash => BalanceOf<T>;
 
         // (AppId, AuthAccountId) -> KPCommentAccountRecord
