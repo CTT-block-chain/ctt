@@ -2497,6 +2497,11 @@ impl<T: Trait> Module<T> {
         <KPPurchasePowerByIdHash<T>>::contains_key(&key)
     }
 
+    pub fn is_commodity_in_black_list(app_id: u32, cart_id: Vec<u8>) -> bool {
+        let key = T::Hashing::hash_of(&(app_id, &cart_id));
+        <KPPurchaseBlackList<T>>::contains_key(key)
+    }
+
     pub fn kp_document_power(app_id: u32, document_id: Vec<u8>) -> DocumentPowerInfo {
         let key = T::Hashing::hash_of(&(app_id, &document_id));
         let power = <KPDocumentPowerByIdHash<T>>::get(&key).total();

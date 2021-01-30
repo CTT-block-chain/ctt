@@ -29,5 +29,6 @@ sp_api::decl_runtime_apis! {
         fn model_deposit(app_id: u32, model_id: Vec<u8>) -> Balance;
         fn model_dispute_record(app_id: u32, comment_id: Vec<u8>) -> ModelDisputeRecord<BlockNumber>;
         fn commodity_power_slash_record(app_id: u32, comment_id: Vec<u8>) -> CommoditySlashRecord<BlockNumber>;
+        fn is_commodity_in_black_list(app_id: u32, cart_id: Vec<u8>) -> bool;
     }
 }

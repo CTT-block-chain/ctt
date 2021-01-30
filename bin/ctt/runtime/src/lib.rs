@@ -1319,6 +1319,10 @@ impl_runtime_apis! {
         fn commodity_power_slash_record(app_id: u32, comment_id: Vec<u8>) -> CommoditySlashRecord<BlockNumber> {
             Kp::commodity_power_slash_record(app_id, comment_id)
         }
+
+        fn is_commodity_in_black_list(app_id: u32, cart_id: Vec<u8>) -> bool {
+            Kp::is_commodity_in_black_list(app_id, cart_id)
+        }
     }
 
     impl members_runtime_api::MembersApi<Block, AccountId> for Runtime {

@@ -263,6 +263,13 @@ pub trait KpApi<BlockHash, AccountId, Balance, BlockNumber> {
         params: AppCommentKeyParams,
         at: Option<BlockHash>,
     ) -> Result<CommoditySlashRecord<BlockNumber>>;
+
+    #[rpc(name = "kp_isCommodityInBlackList")]
+    fn is_commodity_in_black_list(
+        &self,
+        params: QueryCommodityPowerParams,
+        at: Option<BlockHash>,
+    ) -> Result<bool>;
 }
 
 /// A struct that implements the `KpApi`.
@@ -411,6 +418,26 @@ where
         let QueryCommodityPowerParams { app_id, cart_id } = query;
 
         let runtime_api_result = api.is_commodity_power_exist(&at, app_id, cart_id.to_vec());
+        runtime_api_result.map_err(|e| RpcError {
+            code: ErrorCode::ServerError(9876), // No real reason for this value
+            message: "Something wrong".into(),
+            data: Some(format!("{:?}", e).into()),
+        })
+    }
+
+    fn is_commodity_in_black_list(
+        &self,
+        query: QueryCommodityPowerParams,
+        at: Option<<Block as BlockT>::Hash>,
+    ) -> Result<bool> {
+        let api = self.client.runtime_api();
+        let at = BlockId::hash(at.unwrap_or_else(||
+            // If the block hash is not supplied assume the best block.
+            self.client.info().best_hash));
+
+        let QueryCommodityPowerParams { app_id, cart_id } = query;
+
+        let runtime_api_result = api.is_commodity_in_black_list(&at, app_id, cart_id.to_vec());
         runtime_api_result.map_err(|e| RpcError {
             code: ErrorCode::ServerError(9876), // No real reason for this value
             message: "Something wrong".into(),
