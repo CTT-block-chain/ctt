@@ -1,6 +1,8 @@
 #![recursion_limit = "256"]
 #![cfg_attr(not(feature = "std"), no_std)]
 
+use substrate_fixed::types::U32F32;
+
 use frame_support::{
     codec::{Decode, Encode},
     decl_error, decl_event, decl_module, decl_storage, dispatch, ensure,
@@ -45,14 +47,13 @@ use sp_runtime::{
 };
 
 pub trait PowerVote<AccountId> {
-    fn account_power_ratio(_account: &AccountId) -> f64 {
-        // default return 1.0
-        1.0
+    fn account_power_ratio(_account: &AccountId) -> (u32, Permill) {
+        // default return 1
+        (1u32, Permill::from_percent(100))
     }
 }
 
 const FLOAT_COMPUTE_PRECISION: PowerSize = 10000;
-const RATIO_DIV: f64 = 100.0;
 
 type BalanceOf<T> =
     <<T as Trait>::Currency as Currency<<T as frame_system::Trait>::AccountId>>::Balance;
@@ -2426,28 +2427,42 @@ impl<T: Trait> Module<T> {
         Self::kp_account_power(account_id)
     }
 
-    pub fn kp_account_power_ratio(account: &T::AccountId) -> f64 {
-        let p = <MinerPowerByAccount<T>>::get(account) as f64 / (FLOAT_COMPUTE_PRECISION as f64);
+    fn power_factor(p: u32) -> (u32, Permill) {
+        match p {
+            0..=100000 => (
+                3u32 * p + 20u32 * FLOAT_COMPUTE_PRECISION as u32,
+                Permill::from_rational_approximation(1, 20_0000u32),
+            ), //1.0 + (3.0 / 20.0) * x,
+            _ => (
+                176u32 * p + 2960u32 * FLOAT_COMPUTE_PRECISION as u32,
+                Permill::from_rational_approximation(
+                    1u32,
+                    11u32 * p + 1778u32 * FLOAT_COMPUTE_PRECISION as u32,
+                ),
+            ), //(176.0 * p + 2960.0) / (11.0 * p + 1778.0),
+        }
+    }
 
-        print("kp_account_power_ratio");
-        print((p * 10000.0) as u64);
+    fn balance_apply_power(b: BalanceOf<T>, factor: (u32, Permill)) -> BalanceOf<T> {
+        let mut converted: BalanceOf<T>;
 
-        let converted = match p {
-            x if x >= 0.0 && x <= 10.0 => 1.0 + (3.0 / 20.0) * x,
-            _ => (176.0 * p + 2960.0) / (11.0 * p + 1778.0),
-        };
+        match factor {
+            (num, frac) => {
+                converted = frac * b;
+                converted = converted * num.into();
+            }
+        }
 
-        print((converted * 10000.0) as u64);
         converted
     }
 
+    pub fn kp_account_power_ratio(account: &T::AccountId) -> (u32, Permill) {
+        let p = <MinerPowerByAccount<T>>::get(account) as u32;
+        Self::power_factor(p)
+    }
+
     pub fn kp_staking_to_vote(account: &T::AccountId, stake: BalanceOf<T>) -> BalanceOf<T> {
-        let ratio = Self::kp_account_power_ratio(account);
-
-        let math_covert: u64 = stake.saturated_into::<u64>();
-        let adjusted = (math_covert as f64 * ratio) as u64;
-
-        return adjusted.saturated_into();
+        Self::balance_apply_power(stake, Self::kp_account_power_ratio(account))
     }
 
     pub fn model_income_current_stage() -> ModelIncomeCurrentStage<T::BlockNumber> {
@@ -2775,77 +2790,121 @@ impl<T: Trait> Module<T> {
     }
 
     fn compute_publish_product_content_power(
-        para_issue_rate: f64,
-        self_issue_rate: f64,
+        para_issue_rate: Permill,
+        self_issue_rate: Permill,
     ) -> PowerSize {
-        ((para_issue_rate * T::DocumentPublishWeightParamsRate::get() as f64 / RATIO_DIV
-            + self_issue_rate * T::DocumentPublishWeightParamsSelfRate::get() as f64 / RATIO_DIV)
-            * T::DocumentPowerWeightContent::get() as f64
-            / RATIO_DIV
-            * T::TopWeightProductPublish::get() as f64
-            / RATIO_DIV
-            * FLOAT_COMPUTE_PRECISION as f64) as PowerSize
+        let mut base = Permill::from_percent(T::TopWeightDocumentIdentify::get() as u32)
+            * FLOAT_COMPUTE_PRECISION;
+
+        base = Permill::from_percent(T::DocumentPowerWeightContent::get() as u32) * base;
+
+        let mut sub1 = para_issue_rate * base;
+        sub1 = Permill::from_percent(T::DocumentPublishWeightParamsRate::get() as u32) * sub1;
+
+        let mut sub2 = self_issue_rate * base;
+        sub2 = Permill::from_percent(T::DocumentPublishWeightParamsSelfRate::get() as u32) * sub2;
+
+        sub1 + sub2
     }
 
-    fn compute_identify_content_power(ident_rate: f64, ident_consistence: f64) -> PowerSize {
-        ((ident_rate * T::DocumentIdentifyWeightParamsRate::get() as f64 / RATIO_DIV
-            + ident_consistence * T::DocumentIdentifyWeightCheckRate::get() as f64 / RATIO_DIV)
-            * T::DocumentPowerWeightContent::get() as f64
-            / RATIO_DIV
-            * T::TopWeightDocumentIdentify::get() as f64
-            / RATIO_DIV
-            * FLOAT_COMPUTE_PRECISION as f64) as PowerSize
+    fn compute_identify_content_power(
+        ident_rate: Permill,
+        ident_consistence: Permill,
+    ) -> PowerSize {
+        let mut base = Permill::from_percent(T::TopWeightDocumentIdentify::get() as u32)
+            * FLOAT_COMPUTE_PRECISION;
+
+        base = Permill::from_percent(T::DocumentPowerWeightContent::get() as u32) * base;
+
+        let mut sub1 = ident_rate * base;
+        sub1 = Permill::from_percent(T::DocumentIdentifyWeightParamsRate::get() as u32) * sub1;
+
+        let mut sub2 = ident_consistence * base;
+        sub2 = Permill::from_percent(T::DocumentIdentifyWeightCheckRate::get() as u32) * sub2;
+
+        sub1 + sub2
     }
 
-    fn compute_try_content_power(offset_rate: f64, true_rate: f64) -> PowerSize {
-        ((offset_rate * T::DocumentTryWeightBiasRate::get() as f64 / RATIO_DIV
-            + true_rate * T::DocumentTryWeightTrueRate::get() as f64 / RATIO_DIV)
-            * T::DocumentPowerWeightContent::get() as f64
-            / RATIO_DIV
-            * T::TopWeightDocumentTry::get() as f64
-            / RATIO_DIV
-            * FLOAT_COMPUTE_PRECISION as f64) as PowerSize
+    fn compute_try_content_power(offset_rate: Permill, true_rate: Permill) -> PowerSize {
+        let mut base = Permill::from_percent(T::TopWeightDocumentIdentify::get() as u32)
+            * FLOAT_COMPUTE_PRECISION;
+
+        base = Permill::from_percent(T::DocumentPowerWeightContent::get() as u32) * base;
+
+        let mut sub1 = offset_rate * base;
+        sub1 = Permill::from_percent(T::DocumentTryWeightBiasRate::get() as u32) * sub1;
+
+        let mut sub2 = true_rate * base;
+        sub2 = Permill::from_percent(T::DocumentTryWeightTrueRate::get() as u32) * sub2;
+
+        sub1 + sub2
     }
 
-    fn compute_choose_content_power(sell_count_rate: f64, try_count_rate: f64) -> PowerSize {
-        ((sell_count_rate * T::DocumentChooseWeightSellCount::get() as f64 / RATIO_DIV
-            + try_count_rate * T::DocumentChooseWeightTryCount::get() as f64 / RATIO_DIV)
-            * T::DocumentCMPowerWeightContent::get() as f64
-            / RATIO_DIV
-            * FLOAT_COMPUTE_PRECISION as f64) as PowerSize
+    fn compute_choose_content_power(
+        sell_count_rate: Permill,
+        try_count_rate: Permill,
+    ) -> PowerSize {
+        let base = Permill::from_percent(T::DocumentCMPowerWeightContent::get() as u32)
+            * FLOAT_COMPUTE_PRECISION;
+
+        let mut sub1 = sell_count_rate * base;
+        sub1 = Permill::from_percent(T::DocumentChooseWeightSellCount::get() as u32) * sub1;
+
+        let mut sub2 = try_count_rate * base;
+        sub2 = Permill::from_percent(T::DocumentChooseWeightTryCount::get() as u32) * sub2;
+
+        sub1 + sub2
     }
 
-    fn compute_model_content_power(producer_count_rate: f64, product_count_rate: f64) -> PowerSize {
-        ((producer_count_rate * T::DocumentModelWeightProducerCount::get() as f64 / RATIO_DIV
-            + product_count_rate * T::DocumentModelWeightProductCount::get() as f64 / RATIO_DIV)
-            * T::DocumentCMPowerWeightContent::get() as f64
-            / RATIO_DIV
-            * FLOAT_COMPUTE_PRECISION as f64) as PowerSize
+    fn compute_model_content_power(
+        producer_count_rate: Permill,
+        product_count_rate: Permill,
+    ) -> PowerSize {
+        let base = Permill::from_percent(T::DocumentCMPowerWeightContent::get() as u32)
+            * FLOAT_COMPUTE_PRECISION;
+
+        let mut sub1 = producer_count_rate * base;
+        sub1 = Permill::from_percent(T::DocumentModelWeightProducerCount::get() as u32) * sub1;
+
+        let mut sub2 = product_count_rate * base;
+        sub2 = Permill::from_percent(T::DocumentModelWeightProductCount::get() as u32) * sub2;
+
+        sub1 + sub2
     }
 
     fn compute_attend_power(
-        rates: (f64, f64, f64, f64),
+        rates: (Permill, Permill, Permill, Permill),
         second_weight: PowerSize,
         top_weight: PowerSize,
     ) -> PowerSize {
-        ((rates.0 * T::CommentPowerWeightCount::get() as f64 / RATIO_DIV
-            + rates.1 * T::CommentPowerWeightCost::get() as f64 / RATIO_DIV
-            + rates.2 * T::CommentPowerWeightPerCost::get() as f64 / RATIO_DIV
-            + rates.3 * T::CommentPowerWeightPositive::get() as f64 / RATIO_DIV)
-            * second_weight as f64
-            / RATIO_DIV
-            * top_weight as f64
-            / RATIO_DIV
-            * FLOAT_COMPUTE_PRECISION as f64) as PowerSize
+        let mut base = Permill::from_percent(top_weight as u32) * FLOAT_COMPUTE_PRECISION;
+
+        base = Permill::from_percent(second_weight as u32) * base;
+
+        let mut sub1 = rates.0 * base;
+        sub1 = Permill::from_percent(T::CommentPowerWeightCount::get() as u32) * sub1;
+
+        let mut sub2 = rates.1 * base;
+        sub2 = Permill::from_percent(T::CommentPowerWeightCost::get() as u32) * sub2;
+
+        let mut sub3 = rates.2 * base;
+        sub3 = Permill::from_percent(T::CommentPowerWeightPerCost::get() as u32) * sub3;
+
+        let mut sub4 = rates.3 * base;
+        sub4 = Permill::from_percent(T::CommentPowerWeightPositive::get() as u32) * sub4;
+
+        sub1 + sub2 + sub3 + sub4
     }
 
     fn compute_judge_power(
-        origin_power: f64,
+        origin_power: Permill,
         top_weight: PowerSize,
         document_weight: u8,
     ) -> PowerSize {
-        (origin_power * document_weight as f64 / RATIO_DIV * top_weight as f64 / RATIO_DIV
-            * FLOAT_COMPUTE_PRECISION as f64) as PowerSize
+        let mut base = Permill::from_percent(top_weight as u32) * FLOAT_COMPUTE_PRECISION;
+        base = Permill::from_percent(document_weight as u32) * base;
+
+        origin_power * base
     }
 
     fn compute_price_power(commodity_price: PowerSize) -> PowerSize {
@@ -2853,9 +2912,9 @@ impl<T: Trait> Module<T> {
         if max == 0 {
             0
         } else {
-            ((T::TopWeightAccountStake::get() as f64 / RATIO_DIV)
-                * (commodity_price as f64 / max as f64)
-                * FLOAT_COMPUTE_PRECISION as f64) as PowerSize
+            let base = Permill::from_percent(T::TopWeightAccountStake::get() as u32)
+                * FLOAT_COMPUTE_PRECISION;
+            Permill::from_rational_approximation(commodity_price as u32, max as u32) * base
         }
     }
 
@@ -2865,20 +2924,22 @@ impl<T: Trait> Module<T> {
         fee: PowerSize,
         positive: PowerSize,
         unit_fee: PowerSize,
-    ) -> (f64, f64, f64, f64) {
-        let mut positive_rate: f64 = 0.0;
-        let count_rate = (count as f64 / max.max_count as f64).min(1.0);
-        let cost_rate = (fee as f64 / max.max_fee as f64).min(1.0);
-        let unit_cost_rate = (unit_fee as f64 / max.max_unit_fee as f64).min(1.0);
+    ) -> (Permill, Permill, Permill, Permill) {
+        let mut positive_rate = Permill::from_percent(0);
+        let count_rate = Permill::from_rational_approximation(count as u32, max.max_count as u32);
+        let cost_rate = Permill::from_rational_approximation(fee as u32, max.max_fee as u32);
+        let unit_cost_rate =
+            Permill::from_rational_approximation(unit_fee as u32, max.max_unit_fee as u32);
 
         if max.max_positive > 0 {
-            positive_rate = (positive as f64 / max.max_positive as f64).min(1.0);
+            positive_rate =
+                Permill::from_rational_approximation(positive as u32, max.max_positive as u32);
         }
 
         (count_rate, cost_rate, unit_cost_rate, positive_rate)
     }
 
-    fn update_max<F>(rate: PowerSize, mut max: PowerSize, updater: F) -> f64
+    fn update_max<F>(rate: PowerSize, mut max: PowerSize, updater: F) -> Permill
     where
         F: Fn(PowerSize) -> (),
     {
@@ -2888,10 +2949,10 @@ impl<T: Trait> Module<T> {
         }
 
         if rate > 0 {
-            return rate as f64 / max as f64;
+            return Permill::from_rational_approximation(rate, max);
         }
 
-        0.0
+        Permill::from_percent(0)
     }
 
     fn update_comment_max(
@@ -2923,7 +2984,7 @@ impl<T: Trait> Module<T> {
         is_updated
     }
 
-    fn compute_doc_trend_power(doc: &KPDocumentData<T::AccountId, T::Hash>) -> f64 {
+    fn compute_doc_trend_power(doc: &KPDocumentData<T::AccountId, T::Hash>) -> Permill {
         match doc {
             KPDocumentData {
                 expert_trend,
@@ -2935,26 +2996,26 @@ impl<T: Trait> Module<T> {
 
                 match et ^ pt {
                     // 01 10, 10 01  single negative
-                    0b11 => 0.25,
+                    0b11 => Permill::from_percent(25), //0.25,
                     // 00 00, 01 01, 10 10
                     0b00 => match et & pt {
-                        0b00 => 1.0,
-                        0b01 => 0.0,
-                        0b10 => 0.375,
+                        0b00 => Permill::from_percent(100), //1.0,
+                        0b01 => Permill::from_percent(0),   //0.0,
+                        0b10 => Permill::from_rational_approximation(375u32, 1000u32), //0.375,
                         // unexpected!!!
                         _ => {
                             print("unexpected");
-                            0.0
+                            Permill::from_percent(0)
                         }
                     },
                     // 00 01, 01 00 positive and negative
-                    0b01 => 0.5,
+                    0b01 => Permill::from_percent(50), //0.5,
                     // 00 10, 10 00 single positive
-                    0b10 => 0.75,
+                    0b10 => Permill::from_percent(75), //0.75,
                     // unexpected!!!
                     _ => {
                         print("unexpected");
-                        0.0
+                        Permill::from_percent(0)
                     }
                 }
             }
@@ -3124,14 +3185,23 @@ impl<T: Trait> Module<T> {
                 <DocumentCommentsAccountPool<T>>::get(&T::Hashing::hash_of(&(app_id, doc_id)));
             // go through comment set to compute lottery weight
             for comment_data in comment_set {
-                let mut weight = (comment_data.cash_cost as f64 / max.max_fee as f64) * 0.88
-                    + (comment_data.position as f64 / max.max_count as f64) * 0.08;
-                if is_pub {
-                    weight *= 0.5;
-                }
-                print("lottery");
+                let mut weight1 = Permill::from_rational_approximation(
+                    comment_data.cash_cost as u32,
+                    max.max_fee as u32,
+                ) * 100u32;
+                weight1 = Permill::from_percent(88) * weight1;
+                let mut weight2 = Permill::from_rational_approximation(
+                    comment_data.position as u32,
+                    max.max_count as u32,
+                ) * 100u32;
+                weight2 = Permill::from_percent(8) * weight2;
 
-                let weight = (weight * 100.0) as usize;
+                if is_pub {
+                    weight1 = Permill::from_percent(50) * weight1;
+                    weight2 = Permill::from_percent(50) * weight2;
+                }
+                let weight = (weight1 + weight2) as usize;
+
                 print(weight);
                 // now we start random choose 1 - 100
                 let hit = pick_usize(&mut rng, 100);
@@ -3838,7 +3908,7 @@ impl<T: Trait> Module<T> {
 }
 
 impl<T: Trait> PowerVote<T::AccountId> for Module<T> {
-    fn account_power_ratio(account: &T::AccountId) -> f64 {
+    fn account_power_ratio(account: &T::AccountId) -> (u32, Permill) {
         Self::kp_account_power_ratio(account)
     }
 }
