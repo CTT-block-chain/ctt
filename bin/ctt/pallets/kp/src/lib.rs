@@ -43,13 +43,13 @@ use sp_core::sr25519;
 use sp_runtime::{
     print,
     traits::{AccountIdConversion, Hash, SaturatedConversion, TrailingZeroInput, Verify},
-    ModuleId, MultiSignature, Permill, RuntimeDebug,
+    ModuleId, MultiSignature, Perbill, Percent, Permill, RuntimeDebug,
 };
 
 pub trait PowerVote<AccountId> {
-    fn account_power_ratio(_account: &AccountId) -> (u32, Permill) {
+    fn account_power_ratio(_account: &AccountId) -> (u128, Percent) {
         // default return 1
-        (1u32, Permill::from_percent(100))
+        (1u128, Percent::one())
     }
 }
 
@@ -2427,37 +2427,38 @@ impl<T: Trait> Module<T> {
         Self::kp_account_power(account_id)
     }
 
-    fn power_factor(p: u32) -> (u32, Permill) {
+    pub fn power_factor(p: u128) -> (u128, Percent) {
         match p {
             0..=100000 => (
-                3u32 * p + 20u32 * FLOAT_COMPUTE_PRECISION as u32,
-                Permill::from_rational_approximation(1, 20_0000u32),
+                3u128 * p + 20u128 * FLOAT_COMPUTE_PRECISION as u128,
+                Percent::from_rational_approximation::<u128>(1, 20_0000),
             ), //1.0 + (3.0 / 20.0) * x,
             _ => (
-                176u32 * p + 2960u32 * FLOAT_COMPUTE_PRECISION as u32,
-                Permill::from_rational_approximation(
-                    1u32,
-                    11u32 * p + 1778u32 * FLOAT_COMPUTE_PRECISION as u32,
+                176u128 * p + 2960u128 * FLOAT_COMPUTE_PRECISION as u128,
+                Percent::from_rational_approximation::<u128>(
+                    1u128,
+                    11u128 * p + 1778u128 * FLOAT_COMPUTE_PRECISION as u128,
                 ),
             ), //(176.0 * p + 2960.0) / (11.0 * p + 1778.0),
         }
     }
 
-    fn balance_apply_power(b: BalanceOf<T>, factor: (u32, Permill)) -> BalanceOf<T> {
+    pub fn balance_apply_power(b: BalanceOf<T>, factor: (u128, Percent)) -> BalanceOf<T> {
         let mut converted: BalanceOf<T>;
 
         match factor {
             (num, frac) => {
-                converted = frac * b;
-                converted = converted * num.into();
+                let int_balance: BalanceOf<T> = (num as u32).into();
+                converted = int_balance * b;
+                converted = frac * converted;
             }
         }
 
         converted
     }
 
-    pub fn kp_account_power_ratio(account: &T::AccountId) -> (u32, Permill) {
-        let p = <MinerPowerByAccount<T>>::get(account) as u32;
+    pub fn kp_account_power_ratio(account: &T::AccountId) -> (u128, Percent) {
+        let p = <MinerPowerByAccount<T>>::get(account) as u128;
         Self::power_factor(p)
     }
 
@@ -3908,7 +3909,7 @@ impl<T: Trait> Module<T> {
 }
 
 impl<T: Trait> PowerVote<T::AccountId> for Module<T> {
-    fn account_power_ratio(account: &T::AccountId) -> (u32, Permill) {
+    fn account_power_ratio(account: &T::AccountId) -> (u128, Percent) {
         Self::kp_account_power_ratio(account)
     }
 }
