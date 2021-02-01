@@ -1248,6 +1248,7 @@ decl_error! {
         ModelCycleIncomeZero,
         NotModelCreator,
         TechFundAmountComputeError,
+        CartIdInBalckList,
     }
 }
 
@@ -1995,6 +1996,9 @@ decl_module! {
             ensure!(T::Membership::is_valid_app(app_id), Error::<T>::AppIdInvalid);
             print("app check pass");
 
+            // check if this cart id already in blacklist
+            ensure!(!Self::is_commodity_in_black_list(app_id, cart_id.clone()), Error::<T>::CartIdInBalckList);
+
             // read out comment to get related document owner
             let comment_key = T::Hashing::hash_of(&(app_id, &comment_id));
             ensure!(<KPCommentDataByIdHash<T>>::contains_key(&comment_key), Error::<T>::CommentNotFound);
@@ -2004,6 +2008,7 @@ decl_module! {
             let doc_key = T::Hashing::hash_of(&(app_id, &comment.document_id));
             ensure!(<KPDocumentDataByIdHash<T>>::contains_key(&doc_key), Error::<T>::DocumentNotFound);
             print("document check pass");
+
             let doc = <KPDocumentDataByIdHash<T>>::get(&doc_key);
 
             // get model id from publish doc

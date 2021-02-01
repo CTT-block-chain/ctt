@@ -246,9 +246,9 @@ decl_module! {
             // check if valid app
             ensure!(Self::is_valid_app(app_id), Error::<T>::AppIdInvalid);
             // check if admin member
-            /*ensure!(Self::is_app_admin(&Self::convert_account(&admin), app_id), Error::<T>::NotAppAdmin);
+            ensure!(Self::is_app_admin(&Self::convert_account(&admin), app_id), Error::<T>::NotAppAdmin);
             // check if identity member
-            ensure!(Self::is_app_identity(&who, app_id), Error::<T>::NotAppIdentity);*/
+            ensure!(Self::is_app_identity(&who, app_id), Error::<T>::NotAppIdentity);
 
             let mut members = <AppAdmins<T>>::get(app_id);
             // check max length
@@ -321,9 +321,9 @@ decl_module! {
             // check if valid app
             ensure!(Self::is_valid_app(app_id), Error::<T>::AppIdInvalid);
             // check if admin member
-            /*ensure!(Self::is_app_admin(&Self::convert_account(&admin), app_id), Error::<T>::NotAppAdmin);
+            ensure!(Self::is_app_admin(&Self::convert_account(&admin), app_id), Error::<T>::NotAppAdmin);
             // check if identity member
-            ensure!(Self::is_app_identity(&who, app_id), Error::<T>::NotAppIdentity);*/
+            ensure!(Self::is_app_identity(&who, app_id), Error::<T>::NotAppIdentity);
 
             let mut members = <AppKeys<T>>::get(app_id);
             // check max length
