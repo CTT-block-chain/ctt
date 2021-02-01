@@ -1323,6 +1323,11 @@ impl_runtime_apis! {
         fn is_commodity_in_black_list(app_id: u32, cart_id: Vec<u8>) -> bool {
             Kp::is_commodity_in_black_list(app_id, cart_id)
         }
+
+        fn power_ratio(account: AccountId) -> u64 {
+            let r = Kp::kp_account_power_ratio(&account);
+            (r * 10000.0) as u64
+        }
     }
 
     impl members_runtime_api::MembersApi<Block, AccountId> for Runtime {

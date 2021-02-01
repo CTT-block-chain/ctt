@@ -270,6 +270,9 @@ pub trait KpApi<BlockHash, AccountId, Balance, BlockNumber> {
         params: QueryCommodityPowerParams,
         at: Option<BlockHash>,
     ) -> Result<bool>;
+
+    #[rpc(name = "kp_powerRatio")]
+    fn power_ratio(&self, account: AccountId, at: Option<BlockHash>) -> Result<u64>;
 }
 
 /// A struct that implements the `KpApi`.
@@ -346,6 +349,24 @@ where
             self.client.info().best_hash));
 
         let runtime_api_result = api.account_power(&at, account);
+        runtime_api_result.map_err(|e| RpcError {
+            code: ErrorCode::ServerError(9876), // No real reason for this value
+            message: "Something wrong".into(),
+            data: Some(format!("{:?}", e).into()),
+        })
+    }
+
+    fn power_ratio(
+        &self,
+        account: AuthAccountId,
+        at: Option<<Block as BlockT>::Hash>,
+    ) -> Result<u64> {
+        let api = self.client.runtime_api();
+        let at = BlockId::hash(at.unwrap_or_else(||
+            // If the block hash is not supplied assume the best block.
+            self.client.info().best_hash));
+
+        let runtime_api_result = api.power_ratio(&at, account);
         runtime_api_result.map_err(|e| RpcError {
             code: ErrorCode::ServerError(9876), // No real reason for this value
             message: "Something wrong".into(),
