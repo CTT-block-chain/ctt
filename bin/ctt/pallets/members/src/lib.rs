@@ -248,13 +248,13 @@ decl_module! {
             // check if admin member
             /*ensure!(Self::is_app_admin(&Self::convert_account(&admin), app_id), Error::<T>::NotAppAdmin);
             // check if identity member
-            ensure!(Self::is_app_identity(&who, app_id), Error::<T>::NotAppIdentity);
+            ensure!(Self::is_app_identity(&who, app_id), Error::<T>::NotAppIdentity);*/
 
             let mut members = <AppAdmins<T>>::get(app_id);
             // check max length
             ensure!(members.len() < MAX_APP_KEYS, Error::<T>::AppKeysLimitReached);
             // check sign
-            ensure!(Self::verify_sign(&admin, sign, &sign_buf), Error::<T>::SignVerifyError);*/
+            ensure!(Self::verify_sign(&admin, sign, &sign_buf), Error::<T>::SignVerifyError);
             // all pass now add
             match members.binary_search(&member) {
                 // If the search succeeds, the caller is already a member, so just return
@@ -323,13 +323,13 @@ decl_module! {
             // check if admin member
             /*ensure!(Self::is_app_admin(&Self::convert_account(&admin), app_id), Error::<T>::NotAppAdmin);
             // check if identity member
-            ensure!(Self::is_app_identity(&who, app_id), Error::<T>::NotAppIdentity);
+            ensure!(Self::is_app_identity(&who, app_id), Error::<T>::NotAppIdentity);*/
 
             let mut members = <AppKeys<T>>::get(app_id);
             // check max length
             ensure!(members.len() < MAX_APP_KEYS, Error::<T>::AppKeysLimitReached);
             // check sign
-            ensure!(Self::verify_sign(&admin, sign, &sign_buf), Error::<T>::SignVerifyError);*/
+            ensure!(Self::verify_sign(&admin, sign, &sign_buf), Error::<T>::SignVerifyError);
             // all pass now add
             match members.binary_search(&member) {
                 // If the search succeeds, the caller is already a member, so just return
