@@ -1,13 +1,16 @@
 // Creating mock runtime here
 
 use frame_support::{
-    impl_outer_event, impl_outer_origin, parameter_types, traits::TestRandomness, weights::Weight,
+    impl_outer_event, impl_outer_origin, ord_parameter_types, parameter_types,
+    traits::{Contains, TestRandomness},
+    weights::Weight,
 };
+use frame_system::{EnsureRoot, EnsureSignedBy};
 use sp_core::H256;
 use sp_runtime::{
     testing::Header,
     traits::{BlakeTwo256, IdentityLookup},
-    Perbill,
+    ModuleId, Perbill,
 };
 use sp_std::prelude::*;
 
@@ -94,7 +97,10 @@ parameter_types! {
     pub const ModelIncomeCollectingPeriod: u32 = 1;
     pub const ModelIncomeRewardingPeriod: u32 = 1;
     pub const ModelDisputeDelayTime: u32 = 1;
+
+    pub const TreasuryModuleId: ModuleId = ModuleId(*b"py/trsry");
 }
+
 impl system::Trait for Test {
     type BaseCallFilter = ();
     type Origin = Origin;
@@ -121,6 +127,22 @@ impl system::Trait for Test {
     type OnNewAccount = ();
     type OnKilledAccount = ();
     type SystemWeightInfo = ();
+}
+
+pub struct MockContains;
+impl Contains<u64> for MockContains {
+    fn sorted_members() -> Vec<u64> {
+        vec![0]
+    }
+}
+
+ord_parameter_types! {
+    pub const One: u64 = 1;
+    pub const Two: u64 = 2;
+    pub const Three: u64 = 3;
+    pub const Four: u64 = 4;
+    pub const Five: u64 = 5;
+    pub const Six: u64 = 6;
 }
 
 impl Trait for Test {
@@ -166,18 +188,18 @@ impl Trait for Test {
     type AppLeaderBoardInterval = AppLeaderBoardInterval;
     type AppLeaderBoardMaxPos = AppLeaderBoardMaxPos;
     type Randomness = TestRandomness;
-    type FinTreasuryModuleId = ();
-    type ModTreasuryModuleId = ();
-    type TechTreasuryModuleId = ();
+    type FinTreasuryModuleId = TreasuryModuleId;
+    type ModTreasuryModuleId = TreasuryModuleId;
+    type TechTreasuryModuleId = TreasuryModuleId;
     type BurnDestination = ();
-    type TechMembers = ();
+    type TechMembers = MockContains;
     type AppFinanceExchangePeriod = AppFinanceExchangePeriod;
     type ModelIncomeCollectingPeriod = ModelIncomeCollectingPeriod;
     type ModelIncomeCyclePeriod = ModelIncomeCyclePeriod;
     type ModelIncomeRewardingPeriod = ModelIncomeRewardingPeriod;
     type ModelDisputeLv1Slash = ();
     type ModelDisputeDelayTime = ModelDisputeDelayTime;
-    type TechMemberOrigin = ();
+    type TechMemberOrigin = EnsureSignedBy<Two, u64>;
     type TechFundBase = ();
 }
 
@@ -195,7 +217,7 @@ impl members::Trait for Test {
     type Event = TestEvent;
     type Currency = Balances;
     type ModelCreatorCreateBenefit = ();
-    type ModTreasuryModuleId = ();
+    type ModTreasuryModuleId = TreasuryModuleId;
 }
 pub type System = system::Module<Test>;
 pub type Balances = pallet_balances::Module<Test>;
