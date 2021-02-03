@@ -1325,8 +1325,7 @@ impl_runtime_apis! {
         }
 
         fn power_ratio(account: AccountId) -> u64 {
-            let r = Kp::kp_account_power_ratio(&account);
-            (r * 10000.0) as u64
+            Kp::kp_account_power_ratio_by_mini(&account)
         }
     }
 

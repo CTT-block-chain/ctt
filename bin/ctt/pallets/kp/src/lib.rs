@@ -1,8 +1,6 @@
 #![recursion_limit = "256"]
 #![cfg_attr(not(feature = "std"), no_std)]
 
-use substrate_fixed::types::U32F32;
-
 use frame_support::{
     codec::{Decode, Encode},
     decl_error, decl_event, decl_module, decl_storage, dispatch, ensure,
@@ -43,7 +41,7 @@ use sp_core::sr25519;
 use sp_runtime::{
     print,
     traits::{AccountIdConversion, Hash, SaturatedConversion, TrailingZeroInput, Verify},
-    ModuleId, MultiSignature, Perbill, Percent, Permill, RuntimeDebug,
+    ModuleId, MultiSignature, Perbill, Permill, RuntimeDebug,
 };
 
 const FLOAT_COMPUTE_PRECISION: PowerSize = 10000;
@@ -2440,12 +2438,12 @@ impl<T: Trait> Module<T> {
                 1u32,
                 Perbill::from_rational_approximation::<u128>(3, 20_0000),
                 p as u32,
-            ), //1.0 + (3.0 / 20.0) * x,
+            ), //1 + (3 / 20) * x,
             _ => (
                 0u32,
                 Perbill::from_rational_approximation::<u128>(p + 17_0000u128, p + 162_0000u128),
                 16u32,
-            ), //(176.0 * p + 2960.0) / (11.0 * p + 1778.0),
+            ), // 16 * (x + 17) / (x + 162),
         }
     }
 
@@ -2466,6 +2464,13 @@ impl<T: Trait> Module<T> {
     pub fn kp_account_power_ratio(account: &T::AccountId) -> PowerRatioType {
         let p = <MinerPowerByAccount<T>>::get(account) as u128;
         Self::power_factor(p)
+    }
+
+    pub fn kp_account_power_ratio_by_mini(account: &T::AccountId) -> u64 {
+        let factor = Self::kp_account_power_ratio(account);
+        // 1 unit convert to how much
+        let converted = Self::balance_apply_power(T::Currency::minimum_balance(), factor);
+        converted.saturated_into::<u64>()
     }
 
     pub fn kp_staking_to_vote(account: &T::AccountId, stake: BalanceOf<T>) -> BalanceOf<T> {
