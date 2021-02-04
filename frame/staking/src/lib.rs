@@ -2191,20 +2191,20 @@ impl<T: Trait> Module<T> {
 
 	/// internal impl of [`slashable_balance_of`] that returns [`VoteWeight`].
 	fn slashable_balance_of_vote_weight(stash: &T::AccountId) -> VoteWeight {
-    // CTT: read out account kp power ratio, multiply with slashable account balance vote
-    let stash_balance = Self::slashable_balance_of(stash);
-    let mut converted: BalanceOf<T>;
+	    // CTT: read out account kp power ratio, multiply with slashable account balance vote
+	    let stash_balance = Self::slashable_balance_of(stash);
+	    let mut converted: BalanceOf<T>;
 
-    match T::PowerVote::account_power_ratio(stash) {
-      (num, frac, frac_cond) => {
-			  converted = stash_balance * num.into();
-        let divided = frac * stash_balance;
-        converted += divided * frac_cond.into();
-      }
-    }
+	    match T::PowerVote::account_power_ratio(stash) {
+			(num, frac, frac_cond) => {
+				converted = stash_balance * num.into();
+				let divided = frac * stash_balance;
+				converted += divided * frac_cond.into();
+			}
+	    }
 
-    <T::CurrencyToVote as Convert<BalanceOf<T>, VoteWeight>>::convert(converted)
-  }
+	    <T::CurrencyToVote as Convert<BalanceOf<T>, VoteWeight>>::convert(converted)
+	}
 
 	/// Dump the list of validators and nominators into vectors and keep them on-chain.
 	///
