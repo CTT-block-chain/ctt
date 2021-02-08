@@ -704,8 +704,14 @@ impl<T: Trait> Membership<T::AccountId, T::Hash, BalanceOf<T>> for Module<T> {
     ) -> BalanceOf<T> {
         // this interface is only available form pallet internal (from kp to member invoking)
         <ModelCreators<T>>::insert(key, creator);
-        // give benifit to creator
 
+        // insert creator into ExpertMembers
+        let mut members = <ExpertMembers<T>>::get(key);
+        // members should be empty now
+        members.push(creator.clone());
+        <ExpertMembers<T>>::insert(key, members);
+
+        // give benifit to creator
         let treasury_account: T::AccountId = T::ModTreasuryModuleId::get().into_account();
         print("set_model_creator");
 
