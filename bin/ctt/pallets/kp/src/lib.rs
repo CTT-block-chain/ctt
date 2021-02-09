@@ -41,7 +41,7 @@ use sp_core::sr25519;
 use sp_runtime::{
     print,
     traits::{AccountIdConversion, Hash, SaturatedConversion, TrailingZeroInput, Verify},
-    ModuleId, MultiSignature, Perbill, Permill, RuntimeDebug,
+    ModuleId, MultiSignature, Perbill, Percent, Permill, RuntimeDebug,
 };
 
 const FLOAT_COMPUTE_PRECISION: PowerSize = 10000;
@@ -2334,12 +2334,12 @@ decl_module! {
             let current_block = <system::Module<T>>::block_number();
             // read out last time block number and check distance
             let last_key = T::Hashing::hash_of(&(app_id, &model_id));
-            /* TODO: disable for test
+
             if <AppLeaderBoardLastTime<T>>::contains_key(&last_key) {
                 let last_block = <AppLeaderBoardLastTime<T>>::get(&last_key);
                 let diff = current_block - last_block;
                 ensure!(diff > T::AppLeaderBoardInterval::get(), Error::<T>::LeaderBoardCreateNotPermit);
-            }*/
+            }
 
             Self::leader_board_lottery(current_block, app_id, &model_id);
 
@@ -3195,22 +3195,24 @@ impl<T: Trait> Module<T> {
         let mut attend_lottery = |doc_id: &Vec<u8>, is_pub: bool| {
             let comment_set =
                 <DocumentCommentsAccountPool<T>>::get(&T::Hashing::hash_of(&(app_id, doc_id)));
+            //let mut hit_count = 0;
+            let hit_max = Percent::from_percent(30) * comment_set.len();
             // go through comment set to compute lottery weight
             for comment_data in comment_set {
-                let mut weight1 = Permill::from_rational_approximation(
+                let mut weight1 = Percent::from_rational_approximation(
                     comment_data.cash_cost as u32,
                     max.max_fee as u32,
                 ) * 100u32;
-                weight1 = Permill::from_percent(88) * weight1;
-                let mut weight2 = Permill::from_rational_approximation(
+                weight1 = Percent::from_percent(88) * weight1;
+                let mut weight2 = Percent::from_rational_approximation(
                     comment_data.position as u32,
                     max.max_count as u32,
                 ) * 100u32;
-                weight2 = Permill::from_percent(8) * weight2;
+                weight2 = Percent::from_percent(8) * weight2;
 
                 if is_pub {
-                    weight1 = Permill::from_percent(50) * weight1;
-                    weight2 = Permill::from_percent(50) * weight2;
+                    weight1 = Percent::from_percent(50) * weight1;
+                    weight2 = Percent::from_percent(50) * weight2;
                 }
                 let weight = (weight1 + weight2) as usize;
 

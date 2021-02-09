@@ -1089,7 +1089,9 @@ parameter_types! {
     pub const ModelCycleIncomeRewardTotal: Balance = 10000 * DOLLARS;
     pub const KptExchangeMinRate: Permill = Permill::from_percent(10);
 
-    pub const AppLeaderBoardInterval: BlockNumber = 1 * DAYS;
+    // TODO: test
+    //pub const AppLeaderBoardInterval: BlockNumber = 1 * DAYS;
+    pub const AppLeaderBoardInterval: BlockNumber = 5 * MINUTES;
     pub const AppLeaderBoardMaxPos: u32 = 96;
     //pub const AppFinanceExchangePeriod: BlockNumber = 28 * DAYS;
     pub const AppFinanceExchangePeriod: BlockNumber = 30 * MINUTES; // TODO: Test only
