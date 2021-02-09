@@ -1307,6 +1307,7 @@ decl_module! {
 
         const ModelCreateDeposit: BalanceOf<T> = T::ModelCreateDeposit::get();
         const KptExchangeMinRate: Permill = T::KptExchangeMinRate::get();
+        const AppLeaderBoardInterval: T::BlockNumber = T::AppLeaderBoardInterval::get();
 
         #[weight = 0]
         pub fn create_model(origin,
