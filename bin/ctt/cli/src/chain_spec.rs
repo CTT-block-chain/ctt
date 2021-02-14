@@ -381,7 +381,7 @@ pub fn testnet_genesis(
                 ),
                 (
                     b"commodity_special".to_vec(),
-                    (100300000, 1_000_000 * DOLLARS, 0, 0, 10),
+                    (100030000, 1_000_000 * DOLLARS, 0, 0, 10),
                 ),
                 (
                     b"service_education".to_vec(),

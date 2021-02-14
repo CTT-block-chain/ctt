@@ -1347,6 +1347,10 @@ impl_runtime_apis! {
         fn model_experts(app_id: u32, model_id: Vec<u8>) -> Vec<AccountId> {
             Members::model_experts(app_id, model_id)
         }
+
+        fn model_creator(app_id: u32, model_id: Vec<u8>) -> AccountId {
+            Members::model_creator(app_id, model_id)
+        }
     }
 
     impl sp_api::Core<Block> for Runtime {

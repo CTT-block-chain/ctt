@@ -60,6 +60,13 @@ pub trait MembersApi<BlockHash, AccountId> {
         query: QueryModelExpertParams,
         at: Option<BlockHash>,
     ) -> Result<Vec<AccountId>>;
+
+    #[rpc(name = "members_modelCreator")]
+    fn model_creator(
+        &self,
+        query: QueryModelExpertParams,
+        at: Option<BlockHash>,
+    ) -> Result<AccountId>;
 }
 
 /// A struct that implements the `MembersApi`.
@@ -181,6 +188,26 @@ where
         let QueryModelExpertParams { app_id, model_id } = query;
 
         let runtime_api_result = api.model_experts(&at, app_id, model_id.to_vec());
+        runtime_api_result.map_err(|e| RpcError {
+            code: ErrorCode::ServerError(9876), // No real reason for this value
+            message: "Something wrong".into(),
+            data: Some(format!("{:?}", e).into()),
+        })
+    }
+
+    fn model_creator(
+        &self,
+        query: QueryModelExpertParams,
+        at: Option<<Block as BlockT>::Hash>,
+    ) -> Result<AccountId> {
+        let api = self.client.runtime_api();
+        let at = BlockId::hash(at.unwrap_or_else(||
+            // If the block hash is not supplied assume the best block.
+            self.client.info().best_hash));
+
+        let QueryModelExpertParams { app_id, model_id } = query;
+
+        let runtime_api_result = api.model_creator(&at, app_id, model_id.to_vec());
         runtime_api_result.map_err(|e| RpcError {
             code: ErrorCode::ServerError(9876), // No real reason for this value
             message: "Something wrong".into(),
