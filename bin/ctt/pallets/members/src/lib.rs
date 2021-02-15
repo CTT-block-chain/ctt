@@ -758,6 +758,11 @@ impl<T: Trait> Membership<T::AccountId, T::Hash, BalanceOf<T>> for Module<T> {
         );
     }
 
+    fn get_app_setting(app_id: u32) -> (u32, Vec<u8>, BalanceOf<T>) {
+        let setting = <AppDataMap<T>>::get(app_id);
+        (setting.return_rate, setting.name, setting.stake)
+    }
+
     fn is_valid_app(app_id: u32) -> bool {
         <AppDataMap<T>>::contains_key(app_id)
     }

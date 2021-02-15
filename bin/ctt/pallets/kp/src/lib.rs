@@ -473,6 +473,31 @@ pub struct AppFinancedUserExchangeData<Balance> {
     pub pay_id: Vec<u8>,
 }
 
+#[derive(Encode, Decode, Clone, Default, PartialEq, RuntimeDebug)]
+pub struct AppIncomeCycleRecord<Balance, Block> {
+    pub initial: Balance,
+    pub balance: Balance,
+    pub cycle: Block,
+    pub app_id: u32,
+    pub income: u64,
+}
+
+#[derive(Encode, Decode, Clone, Default, PartialEq, RuntimeDebug)]
+pub struct AppIncomeRedeemParams<AccountId, Balance, Block> {
+    account: AccountId,
+    app_id: u32,
+    cycle: Block,
+    exchange_amount: Balance,
+}
+
+#[derive(Encode, Decode, Clone, Default, PartialEq, RuntimeDebug)]
+pub struct AppIncomeRedeemConfirmParams<AccountId, Block> {
+    account: AccountId,
+    app_id: u32,
+    pay_id: Vec<u8>,
+    cycle: Block,
+}
+
 #[derive(Encode, Decode, Clone, Default, RuntimeDebug)]
 pub struct AccountStatistics {
     create_commodity_num: u32,
@@ -725,78 +750,6 @@ pub struct CommoditySlashRecord<Block> {
     pub cart_id: Vec<u8>,
     pub block: Block,
 }
-
-/*
-type KnowledgePowerDataOf<T> = KnowledgePowerData<<T as system::Trait>::AccountId>;
-
-#[derive(Encode, Decode, Clone, Default, RuntimeDebug)]
-pub struct KnowledgePowerData<AccountId> {
-    app_id: Vec<u8>,
-    knowledge_id: Vec<u8>,
-    owner: AccountId,
-    power: u32,
-    // A: knowledge owner total profit
-    owner_profit: u32,
-    // B: comment total count
-    comment_total_count: u32,
-    // C: total user number of attending comment action
-    comment_total_user: u32,
-    // D: total cost of comments
-    comment_total_cost: u32,
-    // E: max cost of comment
-    comment_max_cost: u32,
-    // F: comments which repeated users count, for example: AABBBCD, 2 + 3
-    comment_repeat_user_count: u32,
-    // G: comment cost increase count
-    comment_cost_increase_count: u32,
-    // H: comment count of (user = knowledge owner)
-    comment_self_count: u32,
-}
-
-/// our power compute algo is:
-/// p = (comment_total_user * comment_total_cost) * (1 + comment_cost_increase_count / comment_total_count)
-/// 	/ (owner_profit * (comment_self_count / comment_total_count + comment_repeat_user_count / comment_total_count) )
-/// 	* comment_max_cost / comment_cost_increase_count
-/// 	* (extra_compute_param / 100)
-///
-/// With simple symbol:
-/// p = ((C * D) * (1 + G / B) / (A * (H / B + F / B))) * (E / G) * (ep / 100)
-/// Simplified to:
-/// p = ((C * D * E * (B + G)) / (A * G * (H + F)) * (ep / 100)
-fn power_update<T: system::Trait>(power_data: &KnowledgePowerData<T::AccountId>, ep: u32) -> u32 {
-    match power_data {
-        KnowledgePowerData {
-            app_id: _,
-            knowledge_id: _,
-            owner: _,
-            power: _,
-            owner_profit: a,
-            comment_total_count: b,
-            comment_total_user: c,
-            comment_total_cost: d,
-            comment_max_cost: e,
-            comment_repeat_user_count: f,
-            comment_cost_increase_count: g,
-            comment_self_count: h,
-        } => {
-            if *a == 0 || *g == 0 {
-                print("Power compute 0, because has 0 value in den !");
-                return 0;
-            }
-
-            // TODO: overflow check
-            // c * d * e * (b + g) / (a * g * (h + f)) * (ep / 100)
-            let step1 = c * d * e * (b + g);
-            let mut step2 = a * g;
-            if h + f > 0 {
-                step2 *= h + f;
-            }
-
-            let result: u32 = step1 * ep / step2 / 100;
-            result
-        }
-    }
-}*/
 
 /// The pallet's configuration trait.
 pub trait Trait: system::Trait {
@@ -1070,6 +1023,20 @@ decl_storage! {
         ModelCycleIncome get(fn model_cycle_income):
             double_map hasher(twox_64_concat) T::BlockNumber, hasher(twox_64_concat) T::Hash => u64;
 
+        AppCycleIncome get(fn app_cycle_income):
+            double_map hasher(twox_64_concat) T::BlockNumber, hasher(twox_64_concat) u32 => AppIncomeCycleRecord<BalanceOf<T>, T::BlockNumber>;
+
+        // app_id, cycle, account
+        AppCycleIncomeExchangeRecords get(fn app_cycle_income_exchange_records):
+            map hasher(twox_64_concat) T::Hash => AppFinancedUserExchangeData<BalanceOf<T>>;
+
+        // (AppId & cycle index) -> user accounts set
+        AppCycleIncomeExchangeSet get(fn app_cycle_income_exchange_set):
+            map hasher(twox_64_concat) T::Hash => Vec<T::AccountId>;
+
+        AppCycleIncomeBurnTotal get(fn app_cycle_income_burn_total): BalanceOf<T>;
+        AppCycleIncomeCount get(fn app_cycle_income_count): u32;
+
         // cycle number => total income
         ModelCycleIncomeTotal get(fn model_cycle_income_total):
             map hasher(twox_64_concat) T::BlockNumber => u64;
@@ -1191,7 +1158,9 @@ decl_event!(
         AppRedeemed(AccountId),
         AppFinanceUserExchangeStart(AccountId),
         AppFinanceUserExchangeConfirmed(AccountId),
+        AppCycleIncomeUserExchangeConfirmed(AccountId),
         ModelIncomeRewarded(AccountId),
+        AppCycleIncomeRedeem(AccountId),
         TechFundWithdrawed(AccountId),
         ModelDepositAdded(AccountId),
     }
@@ -1247,6 +1216,8 @@ decl_error! {
         ModelIncomeNotInRewardingStage,
         ModelCycleIncomeTotalZero,
         ModelCycleIncomeZero,
+        AppCycleIncomeZero,
+        AppCycleIncomeRateZero,
         NotModelCreator,
         TechFundAmountComputeError,
         CartIdInBalckList,
@@ -1918,6 +1889,13 @@ decl_module! {
                 };
                 <ModelCycleIncomeTotal<T>>::insert(cycle_index, result);
                 <ModelCycleIncome<T>>::insert(cycle_index, &sub_key, income);
+
+                // update app cycle total
+                <AppCycleIncome<T>>::mutate(cycle_index, app_id, |record| {
+                    record.income += income;
+                    record.cycle = cycle_index;
+                    record.app_id = app_id;
+                });
             }
 
             Self::deposit_event(RawEvent::ModelCycleIncome(who));
@@ -1982,6 +1960,145 @@ decl_module! {
             });
 
             Self::deposit_event(RawEvent::ModelIncomeRewarded(who));
+            Ok(())
+        }
+
+        #[weight = 0]
+        pub fn app_income_redeem_request(origin, params: AppIncomeRedeemParams<T::AccountId, BalanceOf<T>, T::BlockNumber>,
+            app_user_account: AuthAccountId,
+            app_user_sign: sr25519::Signature,
+
+            auth_server: AuthAccountId,
+            auth_sign: sr25519::Signature) -> dispatch::DispatchResult {
+
+            let who = ensure_signed(origin)?;
+
+            let buf = params.encode();
+            ensure!(Self::verify_sign(&app_user_account, app_user_sign, &buf), Error::<T>::SignVerifyErrorUser);
+            ensure!(Self::verify_sign(&auth_server, auth_sign, &buf), Error::<T>::SignVerifyErrorAuth);
+
+            let AppIncomeRedeemParams {
+                account,
+                app_id,
+                cycle,
+                exchange_amount,
+            } = params;
+
+            ensure!(T::Membership::is_valid_app(app_id), Error::<T>::AppIdInvalid);
+            ensure!(T::Membership::is_app_admin(&Self::convert_account(&auth_server), app_id), Error::<T>::NotAppAdmin);
+
+            // check if current model cycle match
+            let block = <system::Module<T>>::block_number();
+            ensure!(Self::model_income_stage(block).0 == ModelIncomeStage::REWARDING, Error::<T>::ModelIncomeNotInRewardingStage);
+
+            // check if user has performed this exchange
+            let ukey = Self::app_income_exchange_record_key(app_id, cycle, &account);
+            ensure!(!<AppCycleIncomeExchangeRecords<T>>::contains_key(&ukey),
+                Error::<T>::AppFinancedUserExchangeAlreadyPerformed);
+
+            // read app cycle income record
+            let mut record = <AppCycleIncome<T>>::get(cycle, app_id);
+            // make sure has enough income counted
+            ensure!(record.income > 0, Error::<T>::AppCycleIncomeZero);
+            // first caller will trigger balance setup
+            if record.initial == 0u32.into() {
+                // read out app income rate
+                match T::Membership::get_app_setting(app_id) {
+                    (rate, ..) => {
+                        // compute initial balance
+                        ensure!(rate > 0, Error::<T>::AppCycleIncomeRateZero);
+                        let per = Permill::from_rational_approximation(rate, 10000);
+                        let cent: BalanceOf<T> = ((per * record.income) as u32).into();
+                        // got cent, needs to convert to balance
+                        record.initial = cent * 100000000000u128.saturated_into();
+                        record.balance = record.initial;
+
+                        // update count
+                        <AppCycleIncomeCount>::put(<AppCycleIncomeCount>::get() + 1);
+                    }
+                }
+            }
+
+            // make sure balance is enough
+            ensure!(record.balance >= exchange_amount, Error::<T>::AppFinancedUserExchangeOverflow);
+
+            // reserve exchange_amount from user account
+            T::Currency::reserve(&account, exchange_amount)?;
+            record.balance -= exchange_amount;
+
+            <AppCycleIncome<T>>::insert(cycle, app_id, &record);
+
+            // record user exchange record AppCycleIncomeExchangeRecords
+            <AppCycleIncomeExchangeRecords<T>>::insert(&ukey, AppFinancedUserExchangeData {
+                exchange_amount,
+                status: 1,
+                ..Default::default()
+            });
+
+            let fkey = T::Hashing::hash_of(&(app_id, cycle));
+            let mut accounts = <AppCycleIncomeExchangeSet<T>>::get(&fkey);
+            accounts.push(account.clone());
+            <AppCycleIncomeExchangeSet<T>>::insert(&fkey, accounts);
+
+            Self::deposit_event(RawEvent::AppCycleIncomeRedeem(who));
+            Ok(())
+        }
+
+        #[weight = 0]
+        pub fn app_income_redeem_confirm(origin, params: AppIncomeRedeemConfirmParams<T::AccountId, T::BlockNumber>,
+            app_user_account: AuthAccountId,
+            app_user_sign: sr25519::Signature,
+
+            auth_server: AuthAccountId,
+            auth_sign: sr25519::Signature) -> dispatch::DispatchResult {
+
+            let who = ensure_signed(origin)?;
+            ensure!(T::TechMembers::contains(&who), Error::<T>::AuthIdentityNotTechMember);
+
+            let AppIncomeRedeemConfirmParams {
+                account,
+                app_id,
+                cycle,
+                pay_id
+            } = params;
+
+            ensure!(T::Membership::is_valid_app(app_id), Error::<T>::AppIdInvalid);
+
+            let ukey = Self::app_income_exchange_record_key(app_id, cycle, &account);
+            // make sure record exist
+            ensure!(<AppCycleIncomeExchangeRecords<T>>::contains_key(&ukey),
+                Error::<T>::AppFinancedUserExchangeRecordNotExist);
+
+            // make sure state is 1
+            let record = <AppCycleIncomeExchangeRecords<T>>::get(&ukey);
+            ensure!(record.status == 1, Error::<T>::AppFinancedUserExchangeStateWrong);
+
+            // unreserve account balance
+            T::Currency::unreserve(&account, record.exchange_amount);
+            // burn process
+            let (debit, credit) = T::Currency::pair(record.exchange_amount);
+            T::BurnDestination::on_unbalanced(credit);
+
+            if let Err(problem) = T::Currency::settle(
+                &account,
+                debit,
+                WithdrawReason::Transfer.into(),
+                KeepAlive,
+            ) {
+                print("Inconsistent state - couldn't settle imbalance");
+                // Nothing else to do here.
+                drop(problem);
+            }
+
+            // update store
+            <AppCycleIncomeExchangeRecords<T>>::mutate(&ukey, |record| {
+                record.status = 2;
+                record.pay_id = pay_id;
+            });
+
+            <AppCycleIncomeBurnTotal<T>>::put(<AppCycleIncomeBurnTotal<T>>::get() + record.exchange_amount);
+
+            Self::deposit_event(RawEvent::AppCycleIncomeUserExchangeConfirmed(account));
             Ok(())
         }
 
@@ -2655,6 +2772,15 @@ impl<T: Trait> Module<T> {
         account: &T::AccountId,
     ) -> T::Hash {
         let fkey = T::Hashing::hash_of(&(app_id, proposal_id));
+        T::Hashing::hash_of(&(fkey, account))
+    }
+
+    fn app_income_exchange_record_key(
+        app_id: u32,
+        cycle: T::BlockNumber,
+        account: &T::AccountId,
+    ) -> T::Hash {
+        let fkey = T::Hashing::hash_of(&(app_id, cycle));
         T::Hashing::hash_of(&(fkey, account))
     }
 

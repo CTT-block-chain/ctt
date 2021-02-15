@@ -121,6 +121,7 @@ pub trait Membership<AccountId, Hash, Balance> {
     fn config_app_admin(who: &AccountId, app_id: u32);
     fn config_app_key(who: &AccountId, app_id: u32);
     fn config_app_setting(app_id: u32, rate: u32, name: Vec<u8>, stake: Balance);
+    fn get_app_setting(app_id: u32) -> (u32, Vec<u8>, Balance);
     fn is_valid_app(app_id: u32) -> bool;
     fn is_valid_app_key(app_id: u32, app_key: &AccountId) -> bool;
 }
