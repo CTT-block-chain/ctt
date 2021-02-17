@@ -1279,6 +1279,9 @@ decl_module! {
         const ModelCreateDeposit: BalanceOf<T> = T::ModelCreateDeposit::get();
         const KptExchangeMinRate: Permill = T::KptExchangeMinRate::get();
         const AppLeaderBoardInterval: T::BlockNumber = T::AppLeaderBoardInterval::get();
+        const ModelIncomeCyclePeriod: T::BlockNumber = T::ModelIncomeCyclePeriod::get();
+        const ModelIncomeCollectingPeriod: T::BlockNumber = T::ModelIncomeCollectingPeriod::get();
+        const ModelIncomeRewardingPeriod: T::BlockNumber = T::ModelIncomeRewardingPeriod::get();
 
         #[weight = 0]
         pub fn create_model(origin,
@@ -2045,12 +2048,7 @@ decl_module! {
         }
 
         #[weight = 0]
-        pub fn app_income_redeem_confirm(origin, params: AppIncomeRedeemConfirmParams<T::AccountId, T::BlockNumber>,
-            app_user_account: AuthAccountId,
-            app_user_sign: sr25519::Signature,
-
-            auth_server: AuthAccountId,
-            auth_sign: sr25519::Signature) -> dispatch::DispatchResult {
+        pub fn app_income_redeem_confirm(origin, params: AppIncomeRedeemConfirmParams<T::AccountId, T::BlockNumber>) -> dispatch::DispatchResult {
 
             let who = ensure_signed(origin)?;
             ensure!(T::TechMembers::contains(&who), Error::<T>::AuthIdentityNotTechMember);
