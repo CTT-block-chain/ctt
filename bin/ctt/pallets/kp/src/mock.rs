@@ -62,10 +62,13 @@ parameter_types! {
     pub const CommentPowerWeight: u8 = 40;
     pub const DocumentPublishWeightParamsRate: u8 = 60;
     pub const DocumentPublishWeightParamsSelfRate: u8 = 40;
+    pub const DocumentPublishWeightParamsAttendRate: u8 = 45;
     pub const DocumentIdentifyWeightParamsRate: u8 = 50;
     pub const DocumentIdentifyWeightCheckRate: u8 = 50;
+    pub const DocumentIdentifyWeightConsistentRate: u8 = 45;
     pub const DocumentTryWeightBiasRate: u8 = 60;
     pub const DocumentTryWeightTrueRate: u8 = 40;
+    pub const DocumentTryWeightConsistentRate: u8 = 45;
     pub const TopWeightProductPublish: u8 = 15;
     pub const TopWeightDocumentIdentify: u8 = 25;
     pub const TopWeightDocumentTry: u8 = 35;
@@ -164,11 +167,13 @@ impl Trait for Test {
     type CommentPowerWeight = CommentPowerWeight;
     type DocumentPublishWeightParamsRate = DocumentPublishWeightParamsRate;
     type DocumentPublishWeightParamsSelfRate = DocumentPublishWeightParamsSelfRate;
+    type DocumentPublishWeightParamsAttendRate = DocumentPublishWeightParamsAttendRate;
     type DocumentIdentifyWeightParamsRate = DocumentIdentifyWeightParamsRate;
     type DocumentIdentifyWeightCheckRate = DocumentIdentifyWeightCheckRate;
+    type DocumentIdentifyWeightConsistentRate = DocumentIdentifyWeightConsistentRate;
     type DocumentTryWeightBiasRate = DocumentTryWeightBiasRate;
     type DocumentTryWeightTrueRate = DocumentTryWeightTrueRate;
-
+    type DocumentTryWeightConsistentRate = DocumentTryWeightConsistentRate;
     type DocumentChooseWeightSellCount = ();
     type DocumentChooseWeightTryCount = ();
     type DocumentModelWeightProducerCount = ();

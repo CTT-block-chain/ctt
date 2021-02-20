@@ -25,8 +25,9 @@ use node_runtime::Block;
 use node_runtime::{
     wasm_binary_unwrap, AuthorityDiscoveryConfig, BabeConfig, BalancesConfig, ContractsConfig,
     CouncilConfig, DemocracyConfig, ElectionsConfig, GrandpaConfig, ImOnlineConfig, IndicesConfig,
-    KpConfig, SessionConfig, SessionKeys, SocietyConfig, StakerStatus, StakingConfig, SudoConfig,
-    SystemConfig, TechnicalCommitteeConfig, TreasuryFin, TreasuryMod, TreasuryTech,
+    KpConfig, MembersConfig, SessionConfig, SessionKeys, SocietyConfig, StakerStatus,
+    StakingConfig, SudoConfig, SystemConfig, TechnicalCommitteeConfig, TreasuryFin, TreasuryMod,
+    TreasuryTech,
 };
 use pallet_im_online::sr25519::AuthorityId as ImOnlineId;
 use sc_chain_spec::ChainSpecExtension;
@@ -367,7 +368,6 @@ pub fn testnet_genesis(
         }),
         pallet_vesting: Some(Default::default()),
         kp: Some(KpConfig {
-            auth_servers,
             app_id_range: vec![
                 (b"default".to_vec(), (100000000, 0 * DOLLARS, 1, 0, 0)),
                 (
@@ -409,6 +409,13 @@ pub fn testnet_genesis(
                 ),
                 (b"misc".to_vec(), (400010000, 1_000_000 * DOLLARS, 0, 0, 10)),
             ],
+        }),
+        members: Some(MembersConfig {
+            finance_members: vec![hex![
+                // sudo
+                "9cb650c86e586c0c3791df694ac610a0adfaeeacdae856668186bef833dccf59"
+            ]
+            .into()],
         }),
     }
 }

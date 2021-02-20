@@ -128,5 +128,6 @@ pub fn config_endowed(
         }),
         pallet_vesting: Some(Default::default()),
         kp: Some(Default::default()),
+        members: Some(Default::default()),
     }
 }

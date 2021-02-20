@@ -116,6 +116,7 @@ pub trait Membership<AccountId, Hash, Balance> {
     fn is_expert(who: &AccountId, app_id: u32, model_id: &Vec<u8>) -> bool;
     fn is_app_admin(who: &AccountId, app_id: u32) -> bool;
     fn is_investor(who: &AccountId) -> bool;
+    fn is_finance_member(who: &AccountId) -> bool;
     fn set_model_creator(key: &Hash, creator: &AccountId, is_give_benefit: bool) -> Balance;
     fn is_model_creator(who: &AccountId, app_id: u32, model_id: &Vec<u8>) -> bool;
     fn config_app_admin(who: &AccountId, app_id: u32);

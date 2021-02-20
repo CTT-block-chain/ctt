@@ -102,6 +102,8 @@ decl_event!(
 
 decl_storage! {
     trait Store for Module<T: Trait> as Members {
+        // Finance members group
+        FinanceMembers get(fn finance_members) config() : Vec<T::AccountId>;
 
         // Investor members, system level
         InvestorMembers get(fn investor_members): Vec<T::AccountId>;
@@ -157,6 +159,8 @@ decl_error! {
         NotAppAdmin,
         NotAppIdentity,
         NotModelCreator,
+        CallerNotFinanceMemeber,
+        MembersLenTooLow,
         BenefitAlreadyDropped,
         NotEnoughFund,
         StableExchangeReceiptExist,
@@ -224,6 +228,51 @@ decl_module! {
                 Ok(index) => {
                     members.remove(index);
                     InvestorMembers::<T>::put(members);
+                    Self::deposit_event(RawEvent::MemberRemoved(old_member));
+                    Ok(())
+                },
+                // If the search fails, the caller is not a member, so just return
+                Err(_) => Err(Error::<T>::NotMember.into()),
+            }
+        }
+
+        #[weight = 0]
+        pub fn add_finance_member(origin, new_member: T::AccountId) -> DispatchResult {
+            let who = ensure_signed(origin)?;
+
+            ensure!(Self::is_finance_member(&who), Error::<T>::CallerNotFinanceMemeber);
+
+            let mut members = FinanceMembers::<T>::get();
+            match members.binary_search(&new_member) {
+                // If the search succeeds, the caller is already a member, so just return
+                Ok(_) => Err(Error::<T>::AlreadyMember.into()),
+                // If the search fails, the caller is not a member and we learned the index where
+                // they should be inserted
+                Err(index) => {
+                    members.insert(index, new_member.clone());
+                    FinanceMembers::<T>::put(members);
+                    Self::deposit_event(RawEvent::MemberAdded(new_member));
+                    Ok(())
+                }
+            }
+        }
+
+        /// Removes a member.
+        #[weight = 0]
+        pub fn remove_finance_member(origin, old_member: T::AccountId) -> DispatchResult {
+            let who = ensure_signed(origin)?;
+
+            ensure!(Self::is_finance_member(&who), Error::<T>::CallerNotFinanceMemeber);
+
+            let mut members = FinanceMembers::<T>::get();
+            ensure!(members.len() > 1, Error::<T>::MembersLenTooLow);
+
+            // We have to find out if the member exists in the sorted vec, and, if so, where.
+            match members.binary_search(&old_member) {
+                // If the search succeeds, the caller is a member, so remove her
+                Ok(index) => {
+                    members.remove(index);
+                    FinanceMembers::<T>::put(members);
                     Self::deposit_event(RawEvent::MemberRemoved(old_member));
                     Ok(())
                 },
@@ -684,6 +733,10 @@ impl<T: Trait> Module<T> {
         let key = T::Hashing::hash_of(&(app_id, &model_id));
         <ModelCreators<T>>::get(&key)
     }
+
+    pub fn is_finance_member(who: &T::AccountId) -> bool {
+        <FinanceMembers<T>>::get().contains(who)
+    }
 }
 
 impl<T: Trait> Membership<T::AccountId, T::Hash, BalanceOf<T>> for Module<T> {
@@ -700,6 +753,10 @@ impl<T: Trait> Membership<T::AccountId, T::Hash, BalanceOf<T>> for Module<T> {
 
     fn is_investor(who: &T::AccountId) -> bool {
         Self::is_investor(who)
+    }
+
+    fn is_finance_member(who: &T::AccountId) -> bool {
+        Self::is_finance_member(who)
     }
 
     fn set_model_creator(

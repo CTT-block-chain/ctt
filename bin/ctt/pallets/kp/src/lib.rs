@@ -207,12 +207,14 @@ impl From<u8> for CommentTrend {
 pub struct KPProductPublishData {
     para_issue_rate: PowerSize,
     self_issue_rate: PowerSize,
+    attend_rate: PowerSize,
 }
 
 #[derive(Encode, Decode, Clone, Default, PartialEq, RuntimeDebug)]
 pub struct KPProductPublishRateMax {
     para_issue_rate: PowerSize,
     self_issue_rate: PowerSize,
+    attend_rate: PowerSize,
 }
 
 #[derive(Encode, Decode, Clone, Default, PartialEq, RuntimeDebug)]
@@ -220,6 +222,7 @@ pub struct KPProductIdentifyData {
     goods_price: PowerSize,
     ident_rate: PowerSize,
     ident_consistence: PowerSize,
+    seller_consistence: PowerSize,
     cart_id: Vec<u8>,
 }
 
@@ -227,6 +230,7 @@ pub struct KPProductIdentifyData {
 pub struct KPProductIdentifyRateMax {
     ident_rate: PowerSize,
     ident_consistence: PowerSize,
+    seller_consistence: PowerSize,
 }
 
 #[derive(Encode, Decode, Clone, Default, PartialEq, RuntimeDebug)]
@@ -234,6 +238,7 @@ pub struct KPProductTryData {
     goods_price: PowerSize,
     offset_rate: PowerSize,
     true_rate: PowerSize,
+    seller_consistence: PowerSize,
     cart_id: Vec<u8>,
 }
 
@@ -241,6 +246,7 @@ pub struct KPProductTryData {
 pub struct KPProductTryRateMax {
     offset_rate: PowerSize,
     true_rate: PowerSize,
+    seller_consistence: PowerSize,
 }
 
 #[derive(Encode, Decode, Clone, Default, PartialEq, RuntimeDebug)]
@@ -610,6 +616,7 @@ pub struct ClientParamsCreatePublishDoc<Hash> {
     content_hash: Hash,
     para_issue_rate: PowerSize,
     self_issue_rate: PowerSize,
+    attend_rate: PowerSize,
 }
 
 #[derive(Encode, Decode, Clone, Default, PartialEq, RuntimeDebug)]
@@ -621,6 +628,7 @@ pub struct ClientParamsCreateIdentifyDoc<Hash> {
     goods_price: PowerSize,
     ident_rate: PowerSize,
     ident_consistence: PowerSize,
+    seller_consistence: PowerSize,
     cart_id: Vec<u8>,
 }
 
@@ -633,6 +641,7 @@ pub struct ClientParamsCreateTryDoc<Hash> {
     goods_price: PowerSize,
     offset_rate: PowerSize,
     true_rate: PowerSize,
+    seller_consistence: PowerSize,
     cart_id: Vec<u8>,
 }
 
@@ -821,14 +830,17 @@ pub trait Trait: system::Trait {
     /// Document Publish content weight
     type DocumentPublishWeightParamsRate: Get<u8>;
     type DocumentPublishWeightParamsSelfRate: Get<u8>;
+    type DocumentPublishWeightParamsAttendRate: Get<u8>;
 
     /// Document Identify content weight
     type DocumentIdentifyWeightParamsRate: Get<u8>;
     type DocumentIdentifyWeightCheckRate: Get<u8>;
+    type DocumentIdentifyWeightConsistentRate: Get<u8>;
 
     /// Document Try content weight
     type DocumentTryWeightBiasRate: Get<u8>;
     type DocumentTryWeightTrueRate: Get<u8>;
+    type DocumentTryWeightConsistentRate: Get<u8>;
 
     /// Below for Choose & Model special documents
     /// Document Choose content weight
@@ -891,9 +903,6 @@ decl_storage! {
     // It is important to update your storage name so that your pallet's
     // storage items are isolated from other pallets.
     trait Store for Module<T: Trait> as Kp {
-        // Trusted application server account
-        AuthServers get(fn auth_servers) config() : Vec<T::AccountId>;
-
         // App id ranges according type string (current appid, staking, maxNum, currentNum, maxModelNum)
         AppIdRange get(fn app_id_range) config():
             map hasher(twox_64_concat) Vec<u8> => (u32, BalanceOf<T>, u32, u32, u32);
@@ -1208,6 +1217,7 @@ decl_error! {
         SignVerifyErrorAuth,
         AuthIdentityNotAppKey,
         AuthIdentityNotTechMember,
+        AuthIdentityNotFinanceMember,
         ModelCycleIncomeAlreadyExisted,
         ModelCycleRewardAlreadyExisted,
         ModelCycleRewardSlashed,
@@ -1410,6 +1420,7 @@ decl_module! {
                 content_hash,
                 para_issue_rate,
                 self_issue_rate,
+                attend_rate,
             } = client_params;
 
             ensure!(T::Membership::is_valid_app(app_id), Error::<T>::AppIdInvalid);
@@ -1439,7 +1450,7 @@ decl_module! {
                 model_id,
                 product_id: product_id.clone(),
                 content_hash,
-                document_data: DocumentSpecificData::ProductPublish(KPProductPublishData {para_issue_rate, self_issue_rate}),
+                document_data: DocumentSpecificData::ProductPublish(KPProductPublishData {para_issue_rate, self_issue_rate, attend_rate}),
                 ..Default::default()
             };
 
@@ -1480,6 +1491,7 @@ decl_module! {
                 goods_price,
                 ident_rate,
                 ident_consistence,
+                seller_consistence,
                 cart_id,
             } = client_params;
 
@@ -1509,7 +1521,7 @@ decl_module! {
                 model_id,
                 product_id,
                 content_hash,
-                document_data: DocumentSpecificData::ProductIdentify(KPProductIdentifyData {goods_price, ident_rate, ident_consistence, cart_id: cart_id.clone()}),
+                document_data: DocumentSpecificData::ProductIdentify(KPProductIdentifyData {goods_price, ident_rate, ident_consistence, seller_consistence, cart_id: cart_id.clone()}),
                 ..Default::default()
             };
 
@@ -1559,6 +1571,7 @@ decl_module! {
                 goods_price,
                 offset_rate,
                 true_rate,
+                seller_consistence,
                 cart_id,
             } = client_params;
 
@@ -1588,7 +1601,7 @@ decl_module! {
                 model_id,
                 product_id,
                 content_hash,
-                document_data: DocumentSpecificData::ProductTry(KPProductTryData {goods_price, offset_rate, true_rate, cart_id: cart_id.clone()}),
+                document_data: DocumentSpecificData::ProductTry(KPProductTryData {goods_price, offset_rate, true_rate, seller_consistence, cart_id: cart_id.clone()}),
                 ..Default::default()
             };
 
@@ -1843,7 +1856,7 @@ decl_module! {
             auth_key: AuthAccountId,
             auth_sign: sr25519::Signature) -> dispatch::DispatchResult {
             let who = ensure_signed(origin)?;
-            ensure!(T::TechMembers::contains(&Self::convert_account(&auth_key)), Error::<T>::AuthIdentityNotTechMember);
+            ensure!(T::Membership::is_finance_member(&Self::convert_account(&auth_key)), Error::<T>::AuthIdentityNotFinanceMember);
 
             let buf = params.encode();
             ensure!(Self::verify_sign(&user_key, user_sign, &buf), Error::<T>::SignVerifyErrorUser);
@@ -2051,7 +2064,7 @@ decl_module! {
         pub fn app_income_redeem_confirm(origin, params: AppIncomeRedeemConfirmParams<T::AccountId, T::BlockNumber>) -> dispatch::DispatchResult {
 
             let who = ensure_signed(origin)?;
-            ensure!(T::TechMembers::contains(&who), Error::<T>::AuthIdentityNotTechMember);
+            ensure!(T::Membership::is_finance_member(&who), Error::<T>::AuthIdentityNotFinanceMember);
 
             let AppIncomeRedeemConfirmParams {
                 account,
@@ -2258,8 +2271,8 @@ decl_module! {
             }
             print("pass period check");
 
-            // only tech memebers allow auth
-            ensure!(T::TechMembers::contains(&Self::convert_account(&auth_server)), Error::<T>::AuthIdentityNotTechMember);
+            // only finance memebers allow auth
+            ensure!(T::Membership::is_finance_member(&Self::convert_account(&auth_server)), Error::<T>::AuthIdentityNotFinanceMember);
             print("pass tech member check");
 
             let buf = params.encode();
@@ -2392,7 +2405,7 @@ decl_module! {
         #[weight = 0]
         pub fn app_financed_user_exchange_confirm(origin, params: AppFinancedUserExchangeConfirmParams<T::AccountId>) -> dispatch::DispatchResult {
             let who = ensure_signed(origin)?;
-            ensure!(T::TechMembers::contains(&who), Error::<T>::AuthIdentityNotTechMember);
+            ensure!(T::Membership::is_finance_member(&who), Error::<T>::AuthIdentityNotFinanceMember);
 
             let AppFinancedUserExchangeConfirmParams {
                 account,
@@ -2715,10 +2728,6 @@ impl<T: Trait> Module<T> {
         T::Hashing::hash_of(&(buf, model_id))
     }
 
-    fn _is_auth_server(who: &T::AccountId) -> bool {
-        <AuthServers<T>>::get().contains(who)
-    }
-
     fn verify_sign(pub_key: &AuthAccountId, sign: sr25519::Signature, msg: &[u8]) -> bool {
         let ms: MultiSignature = sign.into();
         ms.verify(msg, &pub_key)
@@ -2929,6 +2938,7 @@ impl<T: Trait> Module<T> {
     fn compute_publish_product_content_power(
         para_issue_rate: Permill,
         self_issue_rate: Permill,
+        attend_rate: Permill,
     ) -> PowerSize {
         let mut base = Permill::from_percent(T::TopWeightDocumentIdentify::get() as u32)
             * FLOAT_COMPUTE_PRECISION;
@@ -2941,12 +2951,16 @@ impl<T: Trait> Module<T> {
         let mut sub2 = self_issue_rate * base;
         sub2 = Permill::from_percent(T::DocumentPublishWeightParamsSelfRate::get() as u32) * sub2;
 
-        sub1 + sub2
+        let mut sub3 = attend_rate * base;
+        sub3 = Permill::from_percent(T::DocumentPublishWeightParamsAttendRate::get() as u32) * sub3;
+
+        sub1 + sub2 + sub3
     }
 
     fn compute_identify_content_power(
         ident_rate: Permill,
         ident_consistence: Permill,
+        seller_consistence: Permill,
     ) -> PowerSize {
         let mut base = Permill::from_percent(T::TopWeightDocumentIdentify::get() as u32)
             * FLOAT_COMPUTE_PRECISION;
@@ -2959,10 +2973,17 @@ impl<T: Trait> Module<T> {
         let mut sub2 = ident_consistence * base;
         sub2 = Permill::from_percent(T::DocumentIdentifyWeightCheckRate::get() as u32) * sub2;
 
-        sub1 + sub2
+        let mut sub3 = seller_consistence * base;
+        sub3 = Permill::from_percent(T::DocumentIdentifyWeightConsistentRate::get() as u32) * sub3;
+
+        sub1 + sub2 + sub3
     }
 
-    fn compute_try_content_power(offset_rate: Permill, true_rate: Permill) -> PowerSize {
+    fn compute_try_content_power(
+        offset_rate: Permill,
+        true_rate: Permill,
+        seller_consistence: Permill,
+    ) -> PowerSize {
         let mut base = Permill::from_percent(T::TopWeightDocumentIdentify::get() as u32)
             * FLOAT_COMPUTE_PRECISION;
 
@@ -2974,7 +2995,10 @@ impl<T: Trait> Module<T> {
         let mut sub2 = true_rate * base;
         sub2 = Permill::from_percent(T::DocumentTryWeightTrueRate::get() as u32) * sub2;
 
-        sub1 + sub2
+        let mut sub3 = seller_consistence * base;
+        sub3 = Permill::from_percent(T::DocumentTryWeightConsistentRate::get() as u32) * sub3;
+
+        sub1 + sub2 + sub3
     }
 
     fn compute_choose_content_power(
@@ -3495,10 +3519,18 @@ impl<T: Trait> Module<T> {
                         })
                     });
 
+                let attend_rate_p =
+                    Self::update_max(data.attend_rate, params_max.attend_rate, |v| {
+                        <DocumentPublishMaxParams>::mutate(doc.app_id, |max| {
+                            max.attend_rate = v;
+                        })
+                    });
+
                 // compute power
                 content_power = Self::compute_publish_product_content_power(
                     para_issue_rate_p,
                     self_issue_rate_p,
+                    attend_rate_p,
                 );
 
                 initial_judge_power = Self::compute_judge_power(
@@ -3523,8 +3555,21 @@ impl<T: Trait> Module<T> {
                         })
                     });
 
-                content_power =
-                    Self::compute_identify_content_power(ident_rate_p, ident_consistence_p);
+                let seller_consistence_p = Self::update_max(
+                    data.seller_consistence,
+                    params_max.seller_consistence,
+                    |v| {
+                        <DocumentIdentifyMaxParams>::mutate(doc.app_id, |max| {
+                            max.seller_consistence = v;
+                        })
+                    },
+                );
+
+                content_power = Self::compute_identify_content_power(
+                    ident_rate_p,
+                    ident_consistence_p,
+                    seller_consistence_p,
+                );
 
                 initial_judge_power = Self::compute_judge_power(
                     Self::compute_doc_trend_power(&doc),
@@ -3550,7 +3595,21 @@ impl<T: Trait> Module<T> {
                     })
                 });
 
-                content_power = Self::compute_try_content_power(offset_rate_p, true_rate_p);
+                let seller_consistence_p = Self::update_max(
+                    data.seller_consistence,
+                    params_max.seller_consistence,
+                    |v| {
+                        <DocumentTryMaxParams>::mutate(doc.app_id, |max| {
+                            max.seller_consistence = v;
+                        })
+                    },
+                );
+
+                content_power = Self::compute_try_content_power(
+                    offset_rate_p,
+                    true_rate_p,
+                    seller_consistence_p,
+                );
 
                 initial_judge_power = Self::compute_judge_power(
                     Self::compute_doc_trend_power(&doc),

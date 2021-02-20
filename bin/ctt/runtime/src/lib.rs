@@ -1049,20 +1049,29 @@ parameter_types! {
     pub const DocumentPowerWeightAttend: u8 = 40;
     pub const DocumentPowerWeightContent: u8 = 30;
     pub const DocumentPowerWeightJudge: u8 = 30;
+
     pub const CommentPowerWeightCount: u8 = 65;
     pub const CommentPowerWeightCost: u8 = 20;
     pub const CommentPowerWeightPerCost: u8 = 10;
     pub const CommentPowerWeightPositive: u8 = 5;
     pub const CommentPowerWeight: u8 = 40;
-    pub const DocumentPublishWeightParamsRate: u8 = 60;
-    pub const DocumentPublishWeightParamsSelfRate: u8 = 40;
-    pub const DocumentIdentifyWeightParamsRate: u8 = 50;
-    pub const DocumentIdentifyWeightCheckRate: u8 = 50;
-    pub const DocumentTryWeightBiasRate: u8 = 50;
-    pub const DocumentTryWeightTrueRate: u8 = 50;
+
+    pub const DocumentPublishWeightParamsRate: u8 = 20;
+    pub const DocumentPublishWeightParamsSelfRate: u8 = 35;
+    pub const DocumentPublishWeightParamsAttendRate: u8 = 45;
+
+    pub const DocumentIdentifyWeightParamsRate: u8 = 20;
+    pub const DocumentIdentifyWeightCheckRate: u8 = 35;
+    pub const DocumentIdentifyWeightConsistentRate: u8 = 45;
+
+    pub const DocumentTryWeightBiasRate: u8 = 20;
+    pub const DocumentTryWeightTrueRate: u8 = 35;
+    pub const DocumentTryWeightConsistentRate: u8 = 45;
+
+
     pub const TopWeightProductPublish: u8 = 15;
-    pub const TopWeightDocumentIdentify: u8 = 25;
-    pub const TopWeightDocumentTry: u8 = 35;
+    pub const TopWeightDocumentIdentify: u8 = 30;
+    pub const TopWeightDocumentTry: u8 = 40;
     pub const TopWeightAccountAttend: u8 = 10;
     pub const TopWeightAccountStake: u8 = 15;
 
@@ -1073,10 +1082,10 @@ parameter_types! {
     pub const DocumentModelWeightProducerCount: u8 = 40;
     pub const DocumentModelWeightProductCount: u8 = 60;
 
-    pub const DocumentCMPowerWeightAttend: u8 = 35;
-    pub const DocumentCMPowerWeightContent: u8 = 30;
+    pub const DocumentCMPowerWeightAttend: u8 = 40;
+    pub const DocumentCMPowerWeightContent: u8 = 20;
     pub const DocumentCMPowerWeightJudge: u8 = 30;
-    pub const CMPowerAccountAttend: u8 = 5;
+    pub const CMPowerAccountAttend: u8 = 10;
 
     pub const CommentCMPowerWeightCount: u8 = 65;
     pub const CommentCMPowerWeightCost: u8 = 20;
@@ -1133,10 +1142,13 @@ impl kp::Trait for Runtime {
     type CommentPowerWeight = CommentPowerWeight;
     type DocumentPublishWeightParamsRate = DocumentPublishWeightParamsRate;
     type DocumentPublishWeightParamsSelfRate = DocumentPublishWeightParamsSelfRate;
+    type DocumentPublishWeightParamsAttendRate = DocumentPublishWeightParamsAttendRate;
     type DocumentIdentifyWeightParamsRate = DocumentIdentifyWeightParamsRate;
     type DocumentIdentifyWeightCheckRate = DocumentIdentifyWeightCheckRate;
+    type DocumentIdentifyWeightConsistentRate = DocumentIdentifyWeightConsistentRate;
     type DocumentTryWeightBiasRate = DocumentTryWeightBiasRate;
     type DocumentTryWeightTrueRate = DocumentTryWeightTrueRate;
+    type DocumentTryWeightConsistentRate = DocumentTryWeightConsistentRate;
 
     type DocumentChooseWeightSellCount = DocumentChooseWeightSellCount;
     type DocumentChooseWeightTryCount = DocumentChooseWeightTryCount;
@@ -1212,7 +1224,7 @@ construct_runtime!(
         Proxy: pallet_proxy::{Module, Call, Storage, Event<T>},
         Multisig: pallet_multisig::{Module, Call, Storage, Event<T>},
         // CTT pallets
-        Members: members::{Module, Call, Storage, Event<T>},
+        Members: members::{Module, Call, Storage, Config<T>, Event<T>},
         Kp: kp::{Module, Call, Storage, Config<T>, Event<T>},
     }
 );
