@@ -1310,6 +1310,14 @@ impl_runtime_apis! {
             Kp::app_finance_exchange_data(app_id, proposal_id, account)
         }
 
+        fn app_income_exchange_accounts(app_id: u32, cycle: BlockNumber) -> Vec<AccountId> {
+            Kp::app_income_exchange_accounts(app_id, cycle)
+        }
+
+        fn app_income_exchange_data(app_id: u32, cycle: BlockNumber, account: AccountId) -> AppFinancedUserExchangeData<Balance> {
+            Kp::app_income_exchange_data(app_id, cycle, account)
+        }
+
         fn model_income_current_stage() -> ModelIncomeCurrentStage<BlockNumber> {
             Kp::model_income_current_stage()
         }

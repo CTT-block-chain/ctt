@@ -112,6 +112,23 @@ pub struct AppFinanceExchangeDataParams {
 #[derive(Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 #[serde(deny_unknown_fields)]
+pub struct AppIncomeRecordParams {
+    app_id: u32,
+    cycle: BlockNumber,
+}
+
+#[derive(Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+#[serde(deny_unknown_fields)]
+pub struct AppIncomeExchangeDataParams {
+    app_id: u32,
+    cycle: BlockNumber,
+    account: AuthAccountId,
+}
+
+#[derive(Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+#[serde(deny_unknown_fields)]
 pub struct AppFinanceExchangeDataRPC {
     exchange_amount: u64,
     status: u8, // 0: initial state, 1: reserved, 2: received cash and burned
@@ -224,6 +241,20 @@ pub trait KpApi<BlockHash, AccountId, Balance, BlockNumber> {
     fn app_finance_exchange_data(
         &self,
         params: AppFinanceExchangeDataParams,
+        at: Option<BlockHash>,
+    ) -> Result<AppFinanceExchangeDataRPC>;
+
+    #[rpc(name = "kp_appIncomeExchangeAccounts")]
+    fn app_income_exchange_accounts(
+        &self,
+        params: AppIncomeRecordParams,
+        at: Option<BlockHash>,
+    ) -> Result<Vec<AccountId>>;
+
+    #[rpc(name = "kp_appIncomeExchangeData")]
+    fn app_income_exchange_data(
+        &self,
+        params: AppIncomeExchangeDataParams,
         at: Option<BlockHash>,
     ) -> Result<AppFinanceExchangeDataRPC>;
 
@@ -619,6 +650,60 @@ where
 
         let runtime_api_result =
             api.app_finance_exchange_data(&at, app_id, proposal_id.to_vec(), account);
+        // convert result
+        match runtime_api_result {
+            Ok(v) => Ok(AppFinanceExchangeDataRPC {
+                exchange_amount: convert_balance(v.exchange_amount),
+                status: v.status,
+                pay_id: v.pay_id.into(),
+            }),
+            Err(e) => {
+                Err(RpcError {
+                    code: ErrorCode::ServerError(9876), // No real reason for this value
+                    message: "Something wrong".into(),
+                    data: Some(format!("{:?}", e).into()),
+                })
+            }
+        }
+    }
+
+    fn app_income_exchange_accounts(
+        &self,
+        query: AppIncomeRecordParams,
+        at: Option<<Block as BlockT>::Hash>,
+    ) -> Result<Vec<AuthAccountId>> {
+        let api = self.client.runtime_api();
+        let at = BlockId::hash(at.unwrap_or_else(||
+            // If the block hash is not supplied assume the best block.
+            self.client.info().best_hash));
+
+        let AppIncomeRecordParams { app_id, cycle } = query;
+
+        let runtime_api_result = api.app_income_exchange_accounts(&at, app_id, cycle);
+        runtime_api_result.map_err(|e| RpcError {
+            code: ErrorCode::ServerError(9876), // No real reason for this value
+            message: "Something wrong".into(),
+            data: Some(format!("{:?}", e).into()),
+        })
+    }
+
+    fn app_income_exchange_data(
+        &self,
+        query: AppIncomeExchangeDataParams,
+        at: Option<<Block as BlockT>::Hash>,
+    ) -> Result<AppFinanceExchangeDataRPC> {
+        let api = self.client.runtime_api();
+        let at = BlockId::hash(at.unwrap_or_else(||
+            // If the block hash is not supplied assume the best block.
+            self.client.info().best_hash));
+
+        let AppIncomeExchangeDataParams {
+            app_id,
+            cycle,
+            account,
+        } = query;
+
+        let runtime_api_result = api.app_income_exchange_data(&at, app_id, cycle, account);
         // convert result
         match runtime_api_result {
             Ok(v) => Ok(AppFinanceExchangeDataRPC {

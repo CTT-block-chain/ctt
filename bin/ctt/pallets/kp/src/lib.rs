@@ -2638,6 +2638,20 @@ impl<T: Trait> Module<T> {
         <AppFinancedUserExchangeRecord<T>>::get(&key)
     }
 
+    pub fn app_income_exchange_accounts(app_id: u32, cycle: T::BlockNumber) -> Vec<T::AccountId> {
+        let key = T::Hashing::hash_of(&(app_id, cycle));
+        <AppCycleIncomeExchangeSet<T>>::get(&key)
+    }
+
+    pub fn app_income_exchange_data(
+        app_id: u32,
+        cycle: T::BlockNumber,
+        account: T::AccountId,
+    ) -> AppFinancedUserExchangeData<BalanceOf<T>> {
+        let key = Self::app_income_exchange_record_key(app_id, cycle, &account);
+        <AppCycleIncomeExchangeRecords<T>>::get(&key)
+    }
+
     pub fn kp_commodity_power(app_id: u32, cart_id: Vec<u8>) -> PowerSize {
         let key = T::Hashing::hash_of(&(app_id, &cart_id));
         Self::get_purchase_power(&key)
