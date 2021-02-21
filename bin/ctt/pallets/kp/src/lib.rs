@@ -1377,6 +1377,24 @@ decl_module! {
         }
 
         #[weight = 0]
+        pub fn disable_model(origin, app_id: u32, model_id: Vec<u8>) -> dispatch::DispatchResult {
+            let who = ensure_signed(origin)?;
+            ensure!(T::Membership::is_model_creator(&who, app_id, &model_id),  Error::<T>::NotModelCreator);
+
+            // check if model valid
+            ensure!(Self::is_valid_model(app_id, &model_id), Error::<T>::ModelNotFoundOrDisabled);
+
+            let key = T::Hashing::hash_of(&(app_id, &model_id));
+            <KPModelDataByIdHash<T>>::mutate(&key, |model| {
+                model.status = ModelStatus::DISABLED;
+            });
+            T::Currency::unreserve(&who, <KPModelDepositMap<T>>::get(&key));
+
+            Self::deposit_event(RawEvent::ModelDisabled(who));
+            Ok(())
+        }
+
+        #[weight = 0]
         pub fn add_model_deposit(origin, app_id: u32, model_id: Vec<u8>, amount: BalanceOf<T>) -> dispatch::DispatchResult {
             let who = ensure_signed(origin)?;
 
