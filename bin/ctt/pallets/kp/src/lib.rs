@@ -608,6 +608,12 @@ pub struct AuthParamsCreateModel {
 }
 
 #[derive(Encode, Decode, Clone, Default, PartialEq, RuntimeDebug)]
+pub struct DisableModelParams {
+    app_id: u32,
+    model_id: Vec<u8>,
+}
+
+#[derive(Encode, Decode, Clone, Default, PartialEq, RuntimeDebug)]
 pub struct ClientParamsCreatePublishDoc<Hash> {
     app_id: u32,
     document_id: Vec<u8>,
@@ -1377,9 +1383,27 @@ decl_module! {
         }
 
         #[weight = 0]
-        pub fn disable_model(origin, app_id: u32, model_id: Vec<u8>) -> dispatch::DispatchResult {
-            let who = ensure_signed(origin)?;
-            ensure!(T::Membership::is_model_creator(&who, app_id, &model_id),  Error::<T>::NotModelCreator);
+        pub fn disable_model(origin, params: DisableModelParams,
+            app_user_account: AuthAccountId,
+            app_user_sign: sr25519::Signature,
+
+            auth_server: AuthAccountId,
+            auth_sign: sr25519::Signature) -> dispatch::DispatchResult {
+            let _who = ensure_signed(origin)?;
+
+            let encode = params.encode();
+            ensure!(Self::verify_sign(&app_user_account, app_user_sign, &encode), Error::<T>::SignVerifyErrorUser);
+            ensure!(Self::verify_sign(&auth_server, auth_sign, &encode), Error::<T>::SignVerifyErrorAuth);
+
+            let DisableModelParams {
+                app_id,
+                model_id
+            } = params;
+
+            let owner = Self::convert_account(&app_user_account);
+            ensure!(T::Membership::is_model_creator(&owner, app_id, &model_id),  Error::<T>::NotModelCreator);
+            // check if valid auth server
+            ensure!(T::Membership::is_valid_app_key(app_id, &Self::convert_account(&auth_server)), Error::<T>::AuthIdentityNotAppKey);
 
             // check if model valid
             ensure!(Self::is_valid_model(app_id, &model_id), Error::<T>::ModelNotFoundOrDisabled);
@@ -1388,9 +1412,9 @@ decl_module! {
             <KPModelDataByIdHash<T>>::mutate(&key, |model| {
                 model.status = ModelStatus::DISABLED;
             });
-            T::Currency::unreserve(&who, <KPModelDepositMap<T>>::get(&key));
+            T::Currency::unreserve(&owner, <KPModelDepositMap<T>>::get(&key));
 
-            Self::deposit_event(RawEvent::ModelDisabled(who));
+            Self::deposit_event(RawEvent::ModelDisabled(owner));
             Ok(())
         }
 
