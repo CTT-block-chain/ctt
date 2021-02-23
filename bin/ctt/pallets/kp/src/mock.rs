@@ -101,6 +101,14 @@ parameter_types! {
     pub const ModelIncomeRewardingPeriod: u32 = 1;
     pub const ModelDisputeDelayTime: u32 = 1;
 
+    pub const ModelDisputeCycleCount: u32 = 10;
+    pub const ModelDisputeCycleLv2IncreaseCount: u32 = 3;
+    pub const ModelDisputeCycleLv3IncreaseCount: u32 = 6;
+
+    pub const ModelDisputeRewardLv1: Balance = 15 * DOLLARS;
+    pub const ModelDisputeRewardLv2: Balance = 150 * DOLLARS;
+    pub const ModelDisputeRewardLv3: Balance = 150 * DOLLARS;
+
     pub const TreasuryModuleId: ModuleId = ModuleId(*b"py/trsry");
 }
 
@@ -196,6 +204,7 @@ impl Trait for Test {
     type FinTreasuryModuleId = TreasuryModuleId;
     type ModTreasuryModuleId = TreasuryModuleId;
     type TechTreasuryModuleId = TreasuryModuleId;
+    type TreasuryModuleId = TreasuryModuleId;
     type BurnDestination = ();
     type TechMembers = MockContains;
     type AppFinanceExchangePeriod = AppFinanceExchangePeriod;
@@ -206,6 +215,13 @@ impl Trait for Test {
     type ModelDisputeDelayTime = ModelDisputeDelayTime;
     type TechMemberOrigin = EnsureSignedBy<Two, u64>;
     type TechFundBase = ();
+    type ModelDisputeCycleCount = ModelDisputeCycleCount;
+    type ModelDisputeCycleLv2IncreaseCount = ModelDisputeCycleLv2IncreaseCount;
+    type ModelDisputeCycleLv3IncreaseCount = ModelDisputeCycleLv3IncreaseCount;
+
+    type ModelDisputeRewardLv1 = ModelDisputeRewardLv1;
+    type ModelDisputeRewardLv2 = ModelDisputeRewardLv2;
+    type ModelDisputeRewardLv3 = ModelDisputeRewardLv3;
 }
 
 impl pallet_balances::Trait for Test {

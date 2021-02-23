@@ -203,18 +203,18 @@ impl From<u8> for CommentTrend {
     }
 }
 
-#[derive(Encode, Decode, Clone, Default, PartialEq, RuntimeDebug)]
+#[derive(Encode, Decode, Clone, Copy, Default, PartialEq, RuntimeDebug)]
 pub struct KPProductPublishData {
     para_issue_rate: PowerSize,
     self_issue_rate: PowerSize,
-    attend_rate: PowerSize,
+    refer_count: PowerSize,
 }
 
 #[derive(Encode, Decode, Clone, Default, PartialEq, RuntimeDebug)]
 pub struct KPProductPublishRateMax {
     para_issue_rate: PowerSize,
     self_issue_rate: PowerSize,
-    attend_rate: PowerSize,
+    refer_count: PowerSize,
 }
 
 #[derive(Encode, Decode, Clone, Default, PartialEq, RuntimeDebug)]
@@ -622,7 +622,6 @@ pub struct ClientParamsCreatePublishDoc<Hash> {
     content_hash: Hash,
     para_issue_rate: PowerSize,
     self_issue_rate: PowerSize,
-    attend_rate: PowerSize,
 }
 
 #[derive(Encode, Decode, Clone, Default, PartialEq, RuntimeDebug)]
@@ -800,6 +799,9 @@ pub trait Trait: system::Trait {
     /// Tech treasury model id
     type TechTreasuryModuleId: Get<ModuleId>;
 
+    /// Treasury model id
+    type TreasuryModuleId: Get<ModuleId>;
+
     /// The overarching event type.
     type Event: From<Event<Self>> + Into<<Self as system::Trait>::Event>;
 
@@ -895,6 +897,14 @@ pub trait Trait: system::Trait {
     type ModelIncomeCyclePeriod: Get<Self::BlockNumber>;
     type ModelIncomeCollectingPeriod: Get<Self::BlockNumber>;
     type ModelIncomeRewardingPeriod: Get<Self::BlockNumber>;
+
+    type ModelDisputeCycleCount: Get<u32>;
+    type ModelDisputeCycleLv2IncreaseCount: Get<u32>;
+    type ModelDisputeCycleLv3IncreaseCount: Get<u32>;
+
+    type ModelDisputeRewardLv1: Get<BalanceOf<Self>>;
+    type ModelDisputeRewardLv2: Get<BalanceOf<Self>>;
+    type ModelDisputeRewardLv3: Get<BalanceOf<Self>>;
 
     // Model dispute slash config
     type ModelDisputeLv1Slash: Get<BalanceOf<Self>>;
@@ -1065,6 +1075,10 @@ decl_storage! {
 
         // total model reward sending count
         ModelIncomeRewardTotal get(fn model_income_reward_total): BalanceOf<T>;
+
+        // cycle, (app_id, model_id)
+        ModelCycleDisputeCount get(fn model_cycle_dispute_count):
+            double_map hasher(twox_64_concat) T::BlockNumber, hasher(twox_64_concat) T::Hash => u32;
 
         // App financed record (AppId & proposal_id)
         AppFinancedRecord get(fn app_financed_record):
@@ -1462,7 +1476,6 @@ decl_module! {
                 content_hash,
                 para_issue_rate,
                 self_issue_rate,
-                attend_rate,
             } = client_params;
 
             ensure!(T::Membership::is_valid_app(app_id), Error::<T>::AppIdInvalid);
@@ -1492,7 +1505,7 @@ decl_module! {
                 model_id,
                 product_id: product_id.clone(),
                 content_hash,
-                document_data: DocumentSpecificData::ProductPublish(KPProductPublishData {para_issue_rate, self_issue_rate, attend_rate}),
+                document_data: DocumentSpecificData::ProductPublish(KPProductPublishData {para_issue_rate, self_issue_rate, refer_count: 0}),
                 ..Default::default()
             };
 
@@ -2219,7 +2232,7 @@ decl_module! {
             // according dispute type to decide slash
             let owner_account = Self::convert_account(&model.owner);
 
-            Self::model_dispute(app_id, &model_id, dispute_type, &owner_account);
+            Self::model_dispute(app_id, &model_id, dispute_type, &owner_account, &reporter_account);
 
             // update store
             Self::add_model_dispute_record(app_id, &model_id, &comment_id, dispute_type);
@@ -3534,6 +3547,7 @@ impl<T: Trait> Module<T> {
         doc: &KPDocumentData<T::AccountId, T::Hash>,
         attend_power: PowerSize,
         judge_power: PowerSize,
+        content_power: PowerSize,
     ) -> Option<u32> {
         // read out original first
         let key = T::Hashing::hash_of(&(doc.app_id, &doc.document_id));
@@ -3547,10 +3561,68 @@ impl<T: Trait> Module<T> {
             org_power.judge = judge_power;
         }
 
+        if content_power > 0 {
+            org_power.content = content_power;
+        }
+
         // update store
         <KPDocumentPowerByIdHash<T>>::insert(&key, org_power);
 
         Some(0)
+    }
+
+    fn process_publish_doc_content_refer_power(
+        app_id: u32,
+        product_id: &Vec<u8>,
+        refer_increased: PowerSize,
+    ) {
+        let publish_key = T::Hashing::hash_of(&(app_id, product_id));
+        let publish_doc_id = <KPDocumentProductIndexByIdHash<T>>::get(&publish_key);
+        let publish_doc_key = T::Hashing::hash_of(&(app_id, &publish_doc_id));
+
+        // read out doc
+        let mut doc = <KPDocumentDataByIdHash<T>>::get(&publish_doc_key);
+        match doc.document_data {
+            DocumentSpecificData::ProductPublish(mut data) => {
+                data.refer_count += refer_increased;
+                doc.document_data = DocumentSpecificData::ProductPublish(data);
+                // check if need to update max
+                let params_max = <DocumentPublishMaxParams>::get(doc.app_id);
+                let para_issue_rate_p =
+                    Self::update_max(data.para_issue_rate, params_max.para_issue_rate, |v| {
+                        <DocumentPublishMaxParams>::mutate(app_id, |max| {
+                            max.para_issue_rate = v;
+                        })
+                    });
+
+                let self_issue_rate_p =
+                    Self::update_max(data.self_issue_rate, params_max.self_issue_rate, |v| {
+                        <DocumentPublishMaxParams>::mutate(app_id, |max| {
+                            max.self_issue_rate = v;
+                        })
+                    });
+
+                let attend_rate_p =
+                    Self::update_max(data.refer_count, params_max.refer_count, |v| {
+                        <DocumentPublishMaxParams>::mutate(app_id, |max| {
+                            max.refer_count = v;
+                        })
+                    });
+
+                // compute power
+                let content_power = Self::compute_publish_product_content_power(
+                    para_issue_rate_p,
+                    self_issue_rate_p,
+                    attend_rate_p,
+                );
+
+                Self::update_document_power(&doc, 0, 0, content_power);
+            }
+            _ => {}
+        }
+
+        // update store
+        <KPDocumentDataByIdHash<T>>::insert(&publish_doc_key, &doc);
     }
 
     // only invoked when creating document
@@ -3576,9 +3648,9 @@ impl<T: Trait> Module<T> {
                     });
 
                 let attend_rate_p =
-                    Self::update_max(data.attend_rate, params_max.attend_rate, |v| {
+                    Self::update_max(data.refer_count, params_max.refer_count, |v| {
                         <DocumentPublishMaxParams>::mutate(doc.app_id, |max| {
-                            max.attend_rate = v;
+                            max.refer_count = v;
                         })
                     });
 
@@ -3635,6 +3707,7 @@ impl<T: Trait> Module<T> {
 
                 Self::update_max_goods_price(data.goods_price);
                 Self::insert_document_power(&doc, content_power, initial_judge_power);
+                Self::process_publish_doc_content_refer_power(doc.app_id, &doc.product_id, 1);
             }
             DocumentSpecificData::ProductTry(data) => {
                 let params_max = <DocumentTryMaxParams>::get(doc.app_id);
@@ -3675,6 +3748,7 @@ impl<T: Trait> Module<T> {
 
                 Self::update_max_goods_price(data.goods_price);
                 Self::insert_document_power(&doc, content_power, initial_judge_power);
+                Self::process_publish_doc_content_refer_power(doc.app_id, &doc.product_id, 1);
             }
             DocumentSpecificData::ProductChoose(data) => {
                 let params_max = <DocumentChooseMaxParams>::get(doc.app_id);
@@ -3900,7 +3974,7 @@ impl<T: Trait> Module<T> {
         <AccountAttendPowerMap<T>>::insert(&key, account_comment_power);
 
         // update document attend power store
-        Self::update_document_power(&doc, doc_comment_power, platform_comment_power);
+        Self::update_document_power(&doc, doc_comment_power, platform_comment_power, 0);
 
         Self::update_document_comment_pool(&comment, &doc);
 
@@ -4075,59 +4149,58 @@ impl<T: Trait> Module<T> {
         model_id: &Vec<u8>,
         dispute_type: ModelDisputeType,
         owner: &T::AccountId,
+        reporter: &T::AccountId,
     ) {
         let current_block = <system::Module<T>>::block_number();
+        // get current model income cycle index
+        let cycle = Self::model_income_cycle_index(current_block);
         let key = T::Hashing::hash_of(&(app_id, model_id));
-        let model_target_reserve = T::ModelCreateDeposit::get();
+
+        // get model cycle dispute count
+        let mut cycle_dispute_count = <ModelCycleDisputeCount<T>>::get(cycle, &key);
 
         let cancel_model_cycle_reward = || {
-            <ModelSlashCycleRewardIndex<T>>::insert(
-                &key,
-                Self::model_income_cycle_index(current_block),
-            );
+            <ModelSlashCycleRewardIndex<T>>::insert(&key, cycle);
         };
+
+        let reporter_reward: BalanceOf<T>;
 
         match dispute_type {
             ModelDisputeType::NoneIntendNormal => {
-                // slash 10KPT
-                let slash = T::ModelDisputeLv1Slash::get();
-                T::Slash::on_unbalanced(T::Currency::slash_reserved(owner, slash).0);
-
-                // update record
-                let key = T::Hashing::hash_of(&(app_id, model_id));
-                <KPModelDepositMap<T>>::mutate(&key, |value| {
-                    *value -= slash;
-                });
-
-                // check owner account's reserved value if under 50% of target resolving
-                let reserved = T::Currency::reserved_balance(owner);
-
-                if reserved < model_target_reserve / 2u32.into() {
-                    print("model_dispute find account reserve lower than 50%");
-                    // put this model into pre-black list
-                    let mut list = <ModelPreBlackList<T>>::get();
-                    list.push((
-                        app_id,
-                        model_id.clone(),
-                        owner.clone(),
-                        <system::Module<T>>::block_number() + T::ModelDisputeDelayTime::get(),
-                    ));
-                    <ModelPreBlackList<T>>::put(list);
-                }
+                cycle_dispute_count += 1;
+                reporter_reward = T::ModelDisputeRewardLv1::get();
             }
             ModelDisputeType::IntendNormal => {
-                cancel_model_cycle_reward();
+                // check if cycle count reach max
+                if cycle_dispute_count >= T::ModelDisputeCycleCount::get() {
+                    cancel_model_cycle_reward();
+                }
+
+                cycle_dispute_count += T::ModelDisputeCycleLv2IncreaseCount::get();
+                reporter_reward = T::ModelDisputeRewardLv2::get();
             }
             ModelDisputeType::Serious => {
-                cancel_model_cycle_reward();
-                <KPModelDataByIdHash<T>>::mutate(&key, |model| {
-                    model.status = ModelStatus::DISABLED;
-                });
-                // slash all owner's model create deposit
-                let amount = T::Currency::reserved_balance(owner).min(model_target_reserve);
-                T::Slash::on_unbalanced(T::Currency::slash_reserved(owner, amount).0);
+                if cycle_dispute_count >= T::ModelDisputeCycleCount::get() {
+                    cancel_model_cycle_reward();
+                    <KPModelDataByIdHash<T>>::mutate(&key, |model| {
+                        model.status = ModelStatus::DISABLED;
+                    });
+
+                    T::Slash::on_unbalanced(
+                        T::Currency::slash_reserved(owner, <KPModelDepositMap<T>>::get(&key)).0,
+                    );
+                }
+
+                cycle_dispute_count += T::ModelDisputeCycleLv3IncreaseCount::get();
+                reporter_reward = T::ModelDisputeRewardLv3::get();
             }
         }
+
+        <ModelCycleDisputeCount<T>>::insert(cycle, &key, cycle_dispute_count);
+
+        // reward reporter
+        let treasury_account: T::AccountId = T::TreasuryModuleId::get().into_account();
+        T::Currency::transfer(&treasury_account, &reporter, reporter_reward, KeepAlive);
     }
 
     fn add_model_dispute_record(

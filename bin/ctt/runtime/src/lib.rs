@@ -1113,6 +1113,14 @@ parameter_types! {
     pub const ModelIncomeCollectingPeriod: BlockNumber = 10 * MINUTES;
     pub const ModelIncomeRewardingPeriod: BlockNumber = 10 * MINUTES;
 
+    pub const ModelDisputeCycleCount: u32 = 10;
+    pub const ModelDisputeCycleLv2IncreaseCount: u32 = 3;
+    pub const ModelDisputeCycleLv3IncreaseCount: u32 = 6;
+
+    pub const ModelDisputeRewardLv1: Balance = 15 * DOLLARS;
+    pub const ModelDisputeRewardLv2: Balance = 150 * DOLLARS;
+    pub const ModelDisputeRewardLv3: Balance = 150 * DOLLARS;
+
     pub const ModelDisputeLv1Slash: Balance = 10 * DOLLARS;
     //pub const ModelDisputeDelayTime: BlockNumber = 28 * DAYS;
     // TODO: test
@@ -1167,6 +1175,7 @@ impl kp::Trait for Runtime {
     type AppLeaderBoardInterval = AppLeaderBoardInterval;
     type AppLeaderBoardMaxPos = AppLeaderBoardMaxPos;
     type Randomness = RandomnessCollectiveFlip;
+    type TreasuryModuleId = TreasuryModuleId;
     type FinTreasuryModuleId = TreasuryFinModuleId;
     type ModTreasuryModuleId = TreasuryModModuleId;
     type TechTreasuryModuleId = TreasuryTechModuleId;
@@ -1180,6 +1189,14 @@ impl kp::Trait for Runtime {
     type ModelDisputeDelayTime = ModelDisputeDelayTime;
     type TechMemberOrigin = EnsureRootOrHalfTech;
     type TechFundBase = TechFundBase;
+
+    type ModelDisputeCycleCount = ModelDisputeCycleCount;
+    type ModelDisputeCycleLv2IncreaseCount = ModelDisputeCycleLv2IncreaseCount;
+    type ModelDisputeCycleLv3IncreaseCount = ModelDisputeCycleLv3IncreaseCount;
+
+    type ModelDisputeRewardLv1 = ModelDisputeRewardLv1;
+    type ModelDisputeRewardLv2 = ModelDisputeRewardLv2;
+    type ModelDisputeRewardLv3 = ModelDisputeRewardLv3;
 }
 
 construct_runtime!(
