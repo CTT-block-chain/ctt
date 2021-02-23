@@ -608,7 +608,7 @@ pub struct AuthParamsCreateModel {
 }
 
 #[derive(Encode, Decode, Clone, Default, PartialEq, RuntimeDebug)]
-pub struct DisableModelParams {
+pub struct ModelKeyParams {
     app_id: u32,
     model_id: Vec<u8>,
 }
@@ -1175,7 +1175,7 @@ decl_event!(
         KnowledgeCreated(AccountId),
         CommentCreated(AccountId),
         ModelCreated(AccountId),
-        ModelDisabled(AccountId),
+        ModelOwnerTransfered(AccountId),
         CommodityTypeCreated(u32),
         AppModelTotal(u32),
         ModelCycleIncome(AccountId),
@@ -1397,7 +1397,7 @@ decl_module! {
         }
 
         #[weight = 0]
-        pub fn disable_model(origin, params: DisableModelParams,
+        pub fn model_owner_release(origin, params: ModelKeyParams,
             app_user_account: AuthAccountId,
             app_user_sign: sr25519::Signature,
 
@@ -1409,7 +1409,7 @@ decl_module! {
             ensure!(Self::verify_sign(&app_user_account, app_user_sign, &encode), Error::<T>::SignVerifyErrorUser);
             ensure!(Self::verify_sign(&auth_server, auth_sign, &encode), Error::<T>::SignVerifyErrorAuth);
 
-            let DisableModelParams {
+            let ModelKeyParams {
                 app_id,
                 model_id
             } = params;
@@ -1417,18 +1417,24 @@ decl_module! {
             let owner = Self::convert_account(&app_user_account);
             ensure!(T::Membership::is_model_creator(&owner, app_id, &model_id),  Error::<T>::NotModelCreator);
             // check if valid auth server
-            ensure!(T::Membership::is_valid_app_key(app_id, &Self::convert_account(&auth_server)), Error::<T>::AuthIdentityNotAppKey);
+            let admin = Self::convert_account(&auth_server);
+            ensure!(T::Membership::is_app_admin(&admin, app_id), Error::<T>::NotAppAdmin);
 
             // check if model valid
             ensure!(Self::is_valid_model(app_id, &model_id), Error::<T>::ModelNotFoundOrDisabled);
 
             let key = T::Hashing::hash_of(&(app_id, &model_id));
-            <KPModelDataByIdHash<T>>::mutate(&key, |model| {
-                model.status = ModelStatus::DISABLED;
-            });
-            T::Currency::unreserve(&owner, <KPModelDepositMap<T>>::get(&key));
+            let reserve_amount = <KPModelDepositMap<T>>::get(&key);
+            // reserver app admin
+            T::Currency::reserve(&admin, reserve_amount)?;
 
-            Self::deposit_event(RawEvent::ModelDisabled(owner));
+            // transfer owner
+            T::Membership::transfer_model_owner(&key, &admin);
+
+            // release owner's
+            T::Currency::unreserve(&owner, reserve_amount);
+
+            Self::deposit_event(RawEvent::ModelOwnerTransfered(owner));
             Ok(())
         }
 
@@ -2568,6 +2574,7 @@ decl_module! {
 
         // regular timer based task here
         fn on_initialize(n: T::BlockNumber) -> Weight {
+            /*
             print("kp pallet block on_initialize");
             let mut pre_black_list = <ModelPreBlackList<T>>::get();
             let mut is_changed = false;
@@ -2595,7 +2602,7 @@ decl_module! {
 
             if is_changed {
                 <ModelPreBlackList<T>>::put(pre_black_list);
-            }
+            }*/
 
             0
         }

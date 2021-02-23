@@ -729,6 +729,35 @@ impl<T: Trait> Module<T> {
         <ExpertMembers<T>>::get(&key)
     }
 
+    pub fn model_add_expert(key: &T::Hash, new_member: &T::AccountId) {
+        let mut members = <ExpertMembers<T>>::get(key);
+
+        match members.binary_search(new_member) {
+            // If the search succeeds, the caller is already a member, so just return
+            Ok(_) => {}
+            // If the search fails, the caller is not a member and we learned the index where
+            // they should be inserted
+            Err(index) => {
+                members.insert(index, new_member.clone());
+                <ExpertMembers<T>>::insert(key, members);
+            }
+        }
+    }
+
+    pub fn model_remove_expert(key: &T::Hash, member: &T::AccountId) {
+        let mut members = <ExpertMembers<T>>::get(key);
+
+        match members.binary_search(member) {
+            // If the search succeeds, the caller is already a member, so just return
+            Ok(index) => {
+                members.remove(index);
+                <ExpertMembers<T>>::insert(key, members);
+            }
+            // If the search fails, the caller is not a member, so just return
+            Err(_) => {}
+        }
+    }
+
     pub fn model_creator(app_id: u32, model_id: Vec<u8>) -> T::AccountId {
         let key = T::Hashing::hash_of(&(app_id, &model_id));
         <ModelCreators<T>>::get(&key)
@@ -784,6 +813,14 @@ impl<T: Trait> Membership<T::AccountId, T::Hash, BalanceOf<T>> for Module<T> {
         }
 
         0u32.into()
+    }
+
+    fn transfer_model_owner(key: &T::Hash, new_owner: &T::AccountId) {
+        let owner = <ModelCreators<T>>::get(key);
+        // remove owner from expert members
+        Self::model_remove_expert(key, &owner);
+        // add new member
+        Self::model_add_expert(key, new_owner);
     }
 
     fn is_model_creator(who: &T::AccountId, app_id: u32, model_id: &Vec<u8>) -> bool {
