@@ -3,8 +3,8 @@
 
 use codec::Codec;
 use kp::{
-    AppFinancedData, AppFinancedUserExchangeData, CommoditySlashRecord, DocumentPowerInfo,
-    LeaderBoardResult, ModelDisputeRecord, ModelIncomeCurrentStage,
+    AppFinancedData, AppFinancedUserExchangeData, AppIncomeCycleRecord, CommoditySlashRecord,
+    DocumentPowerInfo, LeaderBoardResult, ModelDisputeRecord, ModelIncomeCurrentStage,
 };
 use primitives::PowerSize;
 use sp_std::prelude::*;
@@ -26,6 +26,7 @@ sp_api::decl_runtime_apis! {
         fn app_finance_exchange_data(app_id: u32, proposal_id: Vec<u8>, account: AccountId) -> AppFinancedUserExchangeData<Balance>;
         fn app_income_exchange_accounts(app_id: u32, cycle: BlockNumber) -> Vec<AccountId>;
         fn app_income_exchange_data(app_id: u32, cycle: BlockNumber, account: AccountId) -> AppFinancedUserExchangeData<Balance>;
+        fn app_income_record(app_id: u32, cycle: BlockNumber) -> AppIncomeCycleRecord<Balance, BlockNumber>;
         fn model_income_current_stage() -> ModelIncomeCurrentStage<BlockNumber>;
         fn is_tech_member_sign(account: AccountId, msg: Vec<u8>, sign: Vec<u8>) -> bool;
         fn misc_document_power(app_id: u32, document_id: Vec<u8>) -> PowerSize;

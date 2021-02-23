@@ -37,8 +37,8 @@ use frame_support::{
 };
 use frame_system::{EnsureOneOf, EnsureRoot};
 use kp::{
-    AppFinancedData, AppFinancedUserExchangeData, CommoditySlashRecord, DocumentPowerInfo,
-    LeaderBoardResult, ModelDisputeRecord, ModelIncomeCurrentStage,
+    AppFinancedData, AppFinancedUserExchangeData, AppIncomeCycleRecord, CommoditySlashRecord,
+    DocumentPowerInfo, LeaderBoardResult, ModelDisputeRecord, ModelIncomeCurrentStage,
 };
 pub use node_primitives::{AccountId, AuthAccountId, PowerSize, Signature};
 use node_primitives::{AccountIndex, Balance, BlockNumber, Hash, Index, Moment};
@@ -1333,6 +1333,10 @@ impl_runtime_apis! {
 
         fn app_income_exchange_data(app_id: u32, cycle: BlockNumber, account: AccountId) -> AppFinancedUserExchangeData<Balance> {
             Kp::app_income_exchange_data(app_id, cycle, account)
+        }
+
+        fn app_income_record(app_id: u32, cycle: BlockNumber) -> AppIncomeCycleRecord<Balance, BlockNumber> {
+            Kp::app_income_record(app_id, cycle)
         }
 
         fn model_income_current_stage() -> ModelIncomeCurrentStage<BlockNumber> {

@@ -150,6 +150,15 @@ pub struct AppFinanceDataRPC {
 #[derive(Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 #[serde(deny_unknown_fields)]
+pub struct AppIncomeDataRPC {
+    app_id: u32,
+    cycle: BlockNumber,
+    income: u64,
+}
+
+#[derive(Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+#[serde(deny_unknown_fields)]
 pub struct ModelIncomeCurrentStageRPC {
     stage: u8,
     left: BlockNumber,
@@ -243,6 +252,13 @@ pub trait KpApi<BlockHash, AccountId, Balance, BlockNumber> {
         params: AppFinanceExchangeDataParams,
         at: Option<BlockHash>,
     ) -> Result<AppFinanceExchangeDataRPC>;
+
+    #[rpc(name = "kp_appIncomeRecord")]
+    fn app_income_record(
+        &self,
+        params: AppIncomeRecordParams,
+        at: Option<BlockHash>,
+    ) -> Result<AppIncomeDataRPC>;
 
     #[rpc(name = "kp_appIncomeExchangeAccounts")]
     fn app_income_exchange_accounts(
@@ -656,6 +672,36 @@ where
                 exchange_amount: convert_balance(v.exchange_amount),
                 status: v.status,
                 pay_id: v.pay_id.into(),
+            }),
+            Err(e) => {
+                Err(RpcError {
+                    code: ErrorCode::ServerError(9876), // No real reason for this value
+                    message: "Something wrong".into(),
+                    data: Some(format!("{:?}", e).into()),
+                })
+            }
+        }
+    }
+
+    fn app_income_record(
+        &self,
+        query: AppIncomeRecordParams,
+        at: Option<<Block as BlockT>::Hash>,
+    ) -> Result<AppIncomeDataRPC> {
+        let api = self.client.runtime_api();
+        let at = BlockId::hash(at.unwrap_or_else(||
+            // If the block hash is not supplied assume the best block.
+            self.client.info().best_hash));
+
+        let AppIncomeRecordParams { app_id, cycle } = query;
+
+        let runtime_api_result = api.app_income_record(&at, app_id, cycle);
+        // convert result
+        match runtime_api_result {
+            Ok(v) => Ok(AppIncomeDataRPC {
+                app_id: v.app_id,
+                cycle: v.cycle,
+                income: v.income,
             }),
             Err(e) => {
                 Err(RpcError {

@@ -2707,6 +2707,13 @@ impl<T: Trait> Module<T> {
         <AppCycleIncomeExchangeRecords<T>>::get(&key)
     }
 
+    pub fn app_income_record(
+        app_id: u32,
+        cycle: T::BlockNumber,
+    ) -> AppIncomeCycleRecord<BalanceOf<T>, T::BlockNumber> {
+        <AppCycleIncome<T>>::get(cycle, app_id)
+    }
+
     pub fn kp_commodity_power(app_id: u32, cart_id: Vec<u8>) -> PowerSize {
         let key = T::Hashing::hash_of(&(app_id, &cart_id));
         Self::get_purchase_power(&key)
