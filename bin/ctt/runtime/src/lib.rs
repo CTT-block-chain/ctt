@@ -35,11 +35,14 @@ use frame_support::{
     },
     RuntimeDebug,
 };
-use frame_system::{EnsureOneOf, EnsureRoot};
+use frame_system::{EnsureOneOf, EnsureRoot, Trait};
 use kp::{
     AppFinancedData, AppFinancedUserExchangeData, AppIncomeCycleRecord, CommoditySlashRecord,
     DocumentPowerInfo, LeaderBoardResult, ModelDisputeRecord, ModelIncomeCurrentStage,
 };
+
+use pallet_atomic_swap::BalanceSwapAction;
+
 pub use node_primitives::{AccountId, AuthAccountId, PowerSize, Signature};
 use node_primitives::{AccountIndex, Balance, BlockNumber, Hash, Index, Moment};
 use pallet_contracts_rpc_runtime_api::ContractExecResult;
@@ -1029,6 +1032,17 @@ impl pallet_vesting::Trait for Runtime {
 }
 
 parameter_types! {
+    pub const ProofLimit: u32 = 1024;
+    pub const ExpireDuration: u64 = 100;
+}
+
+impl pallet_atomic_swap::Trait for Runtime {
+    type Event = Event;
+    type SwapAction = BalanceSwapAction<AccountId, Balances>;
+    type ProofLimit = ProofLimit;
+}
+
+parameter_types! {
     pub const ModelCreatorCreateBenefit: Balance = 2000 * DOLLARS;
 }
 
@@ -1240,6 +1254,7 @@ construct_runtime!(
         Scheduler: pallet_scheduler::{Module, Call, Storage, Event<T>},
         Proxy: pallet_proxy::{Module, Call, Storage, Event<T>},
         Multisig: pallet_multisig::{Module, Call, Storage, Event<T>},
+        AtomicSwap: pallet_atomic_swap::{Module, Call, Storage, Event<T>},
         // CTT pallets
         Members: members::{Module, Call, Storage, Config<T>, Event<T>},
         Kp: kp::{Module, Call, Storage, Config<T>, Event<T>},
