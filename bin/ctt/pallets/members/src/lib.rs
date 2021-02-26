@@ -817,6 +817,8 @@ impl<T: Trait> Membership<T::AccountId, T::Hash, BalanceOf<T>> for Module<T> {
 
     fn transfer_model_owner(key: &T::Hash, new_owner: &T::AccountId) {
         let owner = <ModelCreators<T>>::get(key);
+        // set new owner
+        <ModelCreators<T>>::insert(key, &new_owner);
         // remove owner from expert members
         Self::model_remove_expert(key, &owner);
         // add new member
