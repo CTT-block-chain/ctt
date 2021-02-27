@@ -1434,6 +1434,11 @@ decl_module! {
             // release owner's
             T::Currency::unreserve(&owner, reserve_amount);
 
+            // update model data store
+            <KPModelDataByIdHash<T>>::mutate(&key, |model| {
+                model.owner = auth_server;
+            });
+
             Self::deposit_event(RawEvent::ModelOwnerTransfered(owner));
             Ok(())
         }
