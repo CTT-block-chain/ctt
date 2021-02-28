@@ -471,7 +471,7 @@ where
 
     fn misc_document_power(
         &self,
-        query: MiscDocumentPowerParams,
+        query: QueryDocumentPowerParams,
         at: Option<<Block as BlockT>::Hash>,
     ) -> Result<DocumentPowerRPC> {
         let api = self.client.runtime_api();
@@ -479,7 +479,7 @@ where
             // If the block hash is not supplied assume the best block.
             self.client.info().best_hash));
 
-        let MiscDocumentPowerParams { app_id, doc_id } = query;
+        let QueryDocumentPowerParams { app_id, doc_id } = query;
 
         let runtime_api_result = api.misc_document_power(&at, app_id, doc_id.to_vec());
         match runtime_api_result {
