@@ -1347,7 +1347,7 @@ impl_runtime_apis! {
             Kp::is_tech_member_sign(account, msg, sign)
         }
 
-        fn misc_document_power(app_id: u32, document_id: Vec<u8>) -> PowerSize {
+        fn misc_document_power(app_id: u32, document_id: Vec<u8>) -> DocumentPowerInfo {
             Kp::kp_misc_document_power(app_id, document_id)
         }
 

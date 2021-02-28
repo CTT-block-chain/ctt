@@ -714,6 +714,7 @@ impl<T: Trait> Module<T> {
     }
 
     pub fn is_app_identity(who: &T::AccountId, app_id: u32) -> bool {
+        //let test = who.clone().encode().as_slice();
         let members = <AppKeys<T>>::get(app_id);
 
         match members.binary_search(who) {

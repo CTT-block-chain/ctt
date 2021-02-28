@@ -339,10 +339,12 @@ pub struct KPDocumentData<AccountId, Hash> {
 }
 
 // for RPC query using
-#[derive(Encode, Decode, Clone, PartialEq, RuntimeDebug)]
+#[derive(Encode, Decode, Clone, PartialEq, Default, RuntimeDebug)]
 pub struct DocumentPowerInfo {
     pub doc_type: DocumentType,
     pub power: PowerSize,
+    pub is_exist: bool,
+    pub is_slashed: bool,
 }
 
 // power store
@@ -2731,11 +2733,6 @@ impl<T: Trait> Module<T> {
         Self::get_purchase_power(&key)
     }
 
-    pub fn kp_misc_document_power(app_id: u32, document_id: Vec<u8>) -> PowerSize {
-        let key = T::Hashing::hash_of(&(app_id, &document_id));
-        <KPMiscDocumentPowerByIdHash<T>>::get(&key)
-    }
-
     pub fn kp_is_commodity_power_exist(app_id: u32, cart_id: Vec<u8>) -> bool {
         let key = T::Hashing::hash_of(&(app_id, &cart_id));
         <KPPurchasePowerByIdHash<T>>::contains_key(&key)
@@ -2746,14 +2743,56 @@ impl<T: Trait> Module<T> {
         <KPPurchaseBlackList<T>>::contains_key(key)
     }
 
-    pub fn kp_document_power(app_id: u32, document_id: Vec<u8>) -> DocumentPowerInfo {
+    pub fn kp_misc_document_power(app_id: u32, document_id: Vec<u8>) -> DocumentPowerInfo {
         let key = T::Hashing::hash_of(&(app_id, &document_id));
-        let power = <KPDocumentPowerByIdHash<T>>::get(&key).total();
+        if !<KPDocumentDataByIdHash<T>>::contains_key(&key) {
+            return DocumentPowerInfo {
+                is_exist: false,
+                ..Default::default()
+            };
+        }
+
         let doc = <KPDocumentDataByIdHash<T>>::get(&key);
+
         DocumentPowerInfo {
             doc_type: doc.document_type,
-            power,
+            power: <KPMiscDocumentPowerByIdHash<T>>::get(&key),
+            is_exist: true,
+            is_slashed: false,
         }
+    }
+
+    pub fn kp_document_power(app_id: u32, document_id: Vec<u8>) -> DocumentPowerInfo {
+        let key = T::Hashing::hash_of(&(app_id, &document_id));
+        if !<KPDocumentDataByIdHash<T>>::contains_key(&key) {
+            return DocumentPowerInfo {
+                is_exist: false,
+                ..Default::default()
+            };
+        }
+
+        let power = <KPDocumentPowerByIdHash<T>>::get(&key).total();
+        let doc = <KPDocumentDataByIdHash<T>>::get(&key);
+        let mut result = DocumentPowerInfo {
+            doc_type: doc.document_type,
+            power,
+            is_exist: true,
+            ..Default::default()
+        };
+
+        // check doc type to see if it's try or identity doc
+        match &doc.document_data {
+            DocumentSpecificData::ProductIdentify(data) => {
+                result.is_slashed = Self::is_commodity_in_black_list(app_id, data.cart_id.clone());
+            }
+            DocumentSpecificData::ProductTry(data) => {
+                // check if this doc in slash list
+                result.is_slashed = Self::is_commodity_in_black_list(app_id, data.cart_id.clone());
+            }
+            _ => {}
+        }
+
+        result
     }
 
     pub fn kp_account_attend_power(app_id: u32, account: T::AccountId) -> PowerSize {

@@ -90,6 +90,8 @@ pub struct LeaderBoardResultRPC<AccountId> {
 pub struct DocumentPowerRPC {
     doc_type: u8,
     power: PowerSize,
+    is_exist: bool,
+    is_slashed: bool,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -171,14 +173,6 @@ pub struct TechMemberSignParams {
     account: AuthAccountId,
     msg: Bytes,
     sign: Bytes,
-}
-
-#[derive(Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-#[serde(deny_unknown_fields)]
-pub struct MiscDocumentPowerParams {
-    app_id: u32,
-    document_id: Bytes,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -290,9 +284,9 @@ pub trait KpApi<BlockHash, AccountId, Balance, BlockNumber> {
     #[rpc(name = "kp_miscDocumentPower")]
     fn misc_document_power(
         &self,
-        params: MiscDocumentPowerParams,
+        params: QueryDocumentPowerParams,
         at: Option<BlockHash>,
-    ) -> Result<PowerSize>;
+    ) -> Result<DocumentPowerRPC>;
 
     #[rpc(name = "kp_modelDeposit")]
     fn model_deposit(&self, params: QueryModelParams, at: Option<BlockHash>) -> Result<u64>;
@@ -459,6 +453,42 @@ where
                 let converted: DocumentPowerRPC = DocumentPowerRPC {
                     doc_type: v.doc_type.into(),
                     power: v.power,
+                    is_slashed: v.is_slashed,
+                    is_exist: v.is_exist,
+                };
+
+                Ok(converted)
+            }
+            Err(e) => {
+                Err(RpcError {
+                    code: ErrorCode::ServerError(9876), // No real reason for this value
+                    message: "Something wrong".into(),
+                    data: Some(format!("{:?}", e).into()),
+                })
+            }
+        }
+    }
+
+    fn misc_document_power(
+        &self,
+        query: MiscDocumentPowerParams,
+        at: Option<<Block as BlockT>::Hash>,
+    ) -> Result<DocumentPowerRPC> {
+        let api = self.client.runtime_api();
+        let at = BlockId::hash(at.unwrap_or_else(||
+            // If the block hash is not supplied assume the best block.
+            self.client.info().best_hash));
+
+        let MiscDocumentPowerParams { app_id, doc_id } = query;
+
+        let runtime_api_result = api.misc_document_power(&at, app_id, doc_id.to_vec());
+        match runtime_api_result {
+            Ok(v) => {
+                let converted: DocumentPowerRPC = DocumentPowerRPC {
+                    doc_type: v.doc_type.into(),
+                    power: v.power,
+                    is_slashed: v.is_slashed,
+                    is_exist: v.is_exist,
                 };
 
                 Ok(converted)
@@ -805,29 +835,6 @@ where
         let TechMemberSignParams { account, msg, sign } = query;
 
         let runtime_api_result = api.is_tech_member_sign(&at, account, msg.to_vec(), sign.to_vec());
-        runtime_api_result.map_err(|e| RpcError {
-            code: ErrorCode::ServerError(9876), // No real reason for this value
-            message: "Something wrong".into(),
-            data: Some(format!("{:?}", e).into()),
-        })
-    }
-
-    fn misc_document_power(
-        &self,
-        query: MiscDocumentPowerParams,
-        at: Option<<Block as BlockT>::Hash>,
-    ) -> Result<PowerSize> {
-        let api = self.client.runtime_api();
-        let at = BlockId::hash(at.unwrap_or_else(||
-            // If the block hash is not supplied assume the best block.
-            self.client.info().best_hash));
-
-        let MiscDocumentPowerParams {
-            app_id,
-            document_id,
-        } = query;
-
-        let runtime_api_result = api.misc_document_power(&at, app_id, document_id.to_vec());
         runtime_api_result.map_err(|e| RpcError {
             code: ErrorCode::ServerError(9876), // No real reason for this value
             message: "Something wrong".into(),
