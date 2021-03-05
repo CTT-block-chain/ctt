@@ -3289,7 +3289,7 @@ impl<T: Trait> Module<T> {
                     0b00 => match et & pt {
                         0b00 => Permill::from_percent(100), //1.0,
                         0b01 => Permill::from_percent(0),   //0.0,
-                        0b10 => Permill::from_rational_approximation(375u32, 1000u32), //0.375,
+                        0b10 => Permill::from_percent(50),  //0.5,
                         // unexpected!!!
                         _ => {
                             print("unexpected");
@@ -3297,7 +3297,7 @@ impl<T: Trait> Module<T> {
                         }
                     },
                     // 00 01, 01 00 positive and negative
-                    0b01 => Permill::from_percent(50), //0.5,
+                    0b01 => Permill::from_rational_approximation(375u32, 1000u32), //0.375,
                     // 00 10, 10 00 single positive
                     0b10 => Permill::from_percent(75), //0.75,
                     // unexpected!!!
