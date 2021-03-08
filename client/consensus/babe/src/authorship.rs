@@ -19,7 +19,7 @@
 use sp_application_crypto::AppKey;
 use sp_consensus_babe::{
 	BABE_VRF_PREFIX,
-	AuthorityId, BabeAuthorityWeight,
+	AuthorityId, BabeAuthorityWeight, BabeCttWeight,
 	SlotNumber,
 	make_transcript,
 	make_transcript_data,
@@ -41,7 +41,7 @@ use super::Epoch;
 /// into account `c` (`1 - c` represents the probability of a slot being empty).
 pub(super) fn calculate_primary_threshold(
 	c: (u64, u64),
-	authorities: &[(AuthorityId, BabeAuthorityWeight)],
+	authorities: &[(AuthorityId, BabeAuthorityWeight, BabeCttWeight)],
 	authority_index: usize,
 ) -> u128 {
 	use num_bigint::BigUint;
@@ -51,8 +51,8 @@ pub(super) fn calculate_primary_threshold(
 	let c = c.0 as f64 / c.1 as f64;
 
 	let theta =
-		authorities[authority_index].1 as f64 /
-		authorities.iter().map(|(_, weight)| weight).sum::<u64>() as f64;
+		authorities[authority_index].2 as f64 /
+		authorities.iter().map(|(_, _weight, ctt_weight)| ctt_weight).sum::<u64>() as f64;
 
 	assert!(theta > 0.0, "authority with weight 0.");
 
@@ -105,7 +105,7 @@ pub(super) fn check_primary_threshold(inout: &VRFInOut, threshold: u128) -> bool
 /// authorities list is empty.
 pub(super) fn secondary_slot_author(
 	slot_number: u64,
-	authorities: &[(AuthorityId, BabeAuthorityWeight)],
+	authorities: &[(AuthorityId, BabeAuthorityWeight, BabeCttWeight)],
 	randomness: [u8; 32],
 ) -> Option<&AuthorityId> {
 	if authorities.is_empty() {

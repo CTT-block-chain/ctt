@@ -57,6 +57,11 @@ use frame_support::{
 use sp_inherents::{CheckInherentsResult, InherentData};
 use cfg_if::cfg_if;
 
+// CTT
+use kp::PowerVote;
+pub struct PowerVoteMock;
+impl PowerVote<u64> for PowerVoteMock {}
+
 // Ensure Babe and Aura use the same crypto to simplify things a bit.
 pub use sp_consensus_babe::{AuthorityId, SlotNumber, AllowedSlots};
 
@@ -494,6 +499,8 @@ impl pallet_babe::Trait for Runtime {
 	type HandleEquivocation = ();
 
 	type WeightInfo = ();
+
+	type PowerVote = PowerVoteMock;
 }
 
 /// Adds one to the given input and returns the final result.
@@ -717,7 +724,7 @@ cfg_if! {
 						epoch_length: EpochDuration::get(),
 						c: (3, 10),
 						genesis_authorities: system::authorities()
-							.into_iter().map(|x|(x, 1)).collect(),
+							.into_iter().map(|x|(x, 1, 0)).collect(),
 						randomness: <pallet_babe::Module<Runtime>>::randomness(),
 						allowed_slots: AllowedSlots::PrimaryAndSecondaryPlainSlots,
 					}
@@ -963,7 +970,7 @@ cfg_if! {
 						epoch_length: EpochDuration::get(),
 						c: (3, 10),
 						genesis_authorities: system::authorities()
-							.into_iter().map(|x|(x, 1)).collect(),
+							.into_iter().map(|x|(x, 1, 0)).collect(),
 						randomness: <pallet_babe::Module<Runtime>>::randomness(),
 						allowed_slots: AllowedSlots::PrimaryAndSecondaryPlainSlots,
 					}

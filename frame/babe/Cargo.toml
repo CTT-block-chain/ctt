@@ -32,6 +32,9 @@ sp-staking = { version = "2.0.0", default-features = false, path = "../../primit
 sp-std = { version = "2.0.0", default-features = false, path = "../../primitives/std" }
 sp-timestamp = { version = "2.0.0", default-features = false, path = "../../primitives/timestamp" }
 
+# CTT power vote
+kp = { version = "2.0.0", default-features = false, path = "../../bin/ctt/pallets/kp", package = "ctt-pallet-kp" }
+
 [dev-dependencies]
 frame-benchmarking = { version = "2.0.0", path = "../benchmarking" }
 pallet-balances = { version = "2.0.0", path = "../balances" }
@@ -39,9 +42,6 @@ pallet-offences = { version = "2.0.0", path = "../offences" }
 pallet-staking = { version = "2.0.0", path = "../staking" }
 pallet-staking-reward-curve = { version = "2.0.0", path = "../staking/reward-curve" }
 sp-core = { version = "2.0.0", path = "../../primitives/core" }
-
-# CTT power vote
-kp = { version = "2.0.0", default-features = false, path = "../../bin/ctt/pallets/kp", package = "ctt-pallet-kp" }
 
 [features]
 default = ["std"]

@@ -43,10 +43,13 @@ use sp_timestamp::OnTimestampSet;
 use sp_consensus_babe::{
 	digests::{NextConfigDescriptor, NextEpochDescriptor, PreDigest},
 	inherents::{BabeInherentData, INHERENT_IDENTIFIER},
-	BabeAuthorityWeight, ConsensusLog, EquivocationProof, SlotNumber, BABE_ENGINE_ID,
+	BabeAuthorityWeight, BabeCttWeight, ConsensusLog, EquivocationProof, SlotNumber, BABE_ENGINE_ID,
 };
 use sp_consensus_vrf::schnorrkel;
 use sp_inherents::{InherentData, InherentIdentifier, MakeFatalError, ProvideInherent};
+
+// CTT
+use kp::PowerVote;
 
 pub use sp_consensus_babe::{AuthorityId, PUBLIC_KEY_LENGTH, RANDOMNESS_LENGTH, VRF_OUTPUT_LENGTH};
 
@@ -105,6 +108,9 @@ pub trait Trait: pallet_timestamp::Trait {
 	type HandleEquivocation: HandleEquivocation<Self>;
 
 	type WeightInfo: WeightInfo;
+
+	/// CTT power vote type
+	type PowerVote: PowerVote<Self::AccountId>;
 }
 
 pub trait WeightInfo {
@@ -162,7 +168,7 @@ decl_storage! {
 		pub EpochIndex get(fn epoch_index): u64;
 
 		/// Current epoch authorities.
-		pub Authorities get(fn authorities): Vec<(AuthorityId, BabeAuthorityWeight)>;
+		pub Authorities get(fn authorities): Vec<(AuthorityId, BabeAuthorityWeight, BabeCttWeight)>;
 
 		/// The slot at which the first epoch actually started. This is 0
 		/// until the first block of the chain.
@@ -218,7 +224,7 @@ decl_storage! {
 		Lateness get(fn lateness): T::BlockNumber;
 	}
 	add_extra_genesis {
-		config(authorities): Vec<(AuthorityId, BabeAuthorityWeight)>;
+		config(authorities): Vec<(AuthorityId, BabeAuthorityWeight, BabeCttWeight)>;
 		build(|config| Module::<T>::initialize_authorities(&config.authorities))
 	}
 }
@@ -431,8 +437,8 @@ impl<T: Trait> Module<T> {
 	/// Typically, this is not handled directly by the user, but by higher-level validator-set manager logic like
 	/// `pallet-session`.
 	pub fn enact_epoch_change(
-		authorities: Vec<(AuthorityId, BabeAuthorityWeight)>,
-		next_authorities: Vec<(AuthorityId, BabeAuthorityWeight)>,
+		authorities: Vec<(AuthorityId, BabeAuthorityWeight, BabeCttWeight)>,
+		next_authorities: Vec<(AuthorityId, BabeAuthorityWeight, BabeCttWeight)>,
 	) {
 		// PRECONDITION: caller has done initialization and is guaranteed
 		// by the session module to be called before this.
@@ -602,7 +608,7 @@ impl<T: Trait> Module<T> {
 		this_randomness
 	}
 
-	fn initialize_authorities(authorities: &[(AuthorityId, BabeAuthorityWeight)]) {
+	fn initialize_authorities(authorities: &[(AuthorityId, BabeAuthorityWeight, BabeCttWeight)]) {
 		if !authorities.is_empty() {
 			assert!(Authorities::get().is_empty(), "Authorities are already initialized!");
 			Authorities::put(authorities);
@@ -706,19 +712,19 @@ impl<T: Trait> pallet_session::OneSessionHandler<T::AccountId> for Module<T> {
 	fn on_genesis_session<'a, I: 'a>(validators: I)
 		where I: Iterator<Item=(&'a T::AccountId, AuthorityId)>
 	{
-		let authorities = validators.map(|(_, k)| (k, 1)).collect::<Vec<_>>();
+		let authorities = validators.map(|(_, k)| (k, 1, 1)).collect::<Vec<_>>();
 		Self::initialize_authorities(&authorities);
 	}
 
 	fn on_new_session<'a, I: 'a>(_changed: bool, validators: I, queued_validators: I)
 		where I: Iterator<Item=(&'a T::AccountId, AuthorityId)>
 	{
-		let authorities = validators.map(|(_account, k)| {
-			(k, 1)
+		let authorities = validators.map(|(account, k)| {
+			(k, 1, T::PowerVote::account_power_relative(account))
 		}).collect::<Vec<_>>();
 
-		let next_authorities = queued_validators.map(|(_account, k)| {
-			(k, 1)
+		let next_authorities = queued_validators.map(|(account, k)| {
+			(k, 1, T::PowerVote::account_power_relative(account))
 		}).collect::<Vec<_>>();
 
 		Self::enact_epoch_change(authorities, next_authorities)

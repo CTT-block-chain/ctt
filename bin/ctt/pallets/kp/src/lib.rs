@@ -66,6 +66,11 @@ pub trait PowerVote<AccountId> {
         // default return 1
         (1u32, Perbill::one(), 1u32)
     }
+
+    /// (account power / total power) * 10000
+    fn account_power_relative(_account: &AccountId) -> u64 {
+        1
+    }
 }
 
 #[derive(Encode, Decode, PartialEq, Clone, RuntimeDebug)]
@@ -4347,6 +4352,17 @@ impl<T: Trait> Module<T> {
 impl<T: Trait> PowerVote<T::AccountId> for Module<T> {
     fn account_power_ratio(account: &T::AccountId) -> PowerRatioType {
         Self::kp_account_power_ratio(account)
+    }
+
+    fn account_power_relative(account: &T::AccountId) -> u64 {
+        /*let total = Self::kp_total_power();
+        if total == 0 {
+            return 0;
+        }*/
+
+        let power = <MinerPowerByAccount<T>>::get(account);
+        max(power, 1)
+        //Permill::from_rational_approximation(power, total) * 10000
     }
 }
 
