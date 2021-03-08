@@ -105,9 +105,9 @@ parameter_types! {
     pub const ModelDisputeCycleLv2IncreaseCount: u32 = 3;
     pub const ModelDisputeCycleLv3IncreaseCount: u32 = 6;
 
-    pub const ModelDisputeRewardLv1: Balance = 15 * DOLLARS;
-    pub const ModelDisputeRewardLv2: Balance = 150 * DOLLARS;
-    pub const ModelDisputeRewardLv3: Balance = 150 * DOLLARS;
+    pub const ModelDisputeRewardLv1: u64 = 15;
+    pub const ModelDisputeRewardLv2: u64 = 150;
+    pub const ModelDisputeRewardLv3: u64 = 150;
 
     pub const TreasuryModuleId: ModuleId = ModuleId(*b"py/trsry");
 }

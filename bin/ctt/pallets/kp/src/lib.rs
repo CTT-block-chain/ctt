@@ -2849,6 +2849,25 @@ impl<T: Trait> Module<T> {
         <CommoditySlashRecords<T>>::get(&key)
     }
 
+    /// if not found match, return closet right
+    pub fn binary_search_closet<L: PartialOrd>(collection: &[L], target: &L) -> usize {
+        let mut lo: usize = 0;
+        let mut hi: usize = collection.len();
+
+        while lo < hi {
+            let m = (hi - lo) / 2 + lo;
+
+            if *target == collection[m] {
+                return m;
+            } else if *target < collection[m] {
+                hi = m;
+            } else {
+                lo = m + 1;
+            }
+        }
+        return lo;
+    }
+
     // belows are internal using
     fn leader_record_key(app_id: u32, block: T::BlockNumber, model_id: &Vec<u8>) -> T::Hash {
         let buf: Vec<T::BlockNumber> = vec![app_id.into(), block];
@@ -3471,10 +3490,12 @@ impl<T: Trait> Module<T> {
         let mut attend_lottery = |doc_id: &Vec<u8>, is_pub: bool| {
             let comment_set =
                 <DocumentCommentsAccountPool<T>>::get(&T::Hashing::hash_of(&(app_id, doc_id)));
-            //let mut hit_count = 0;
-            let hit_max = Percent::from_percent(30) * comment_set.len();
+            // this numbers should be put into config
+            let hit_max = min(Percent::from_percent(30) * comment_set.len(), 100);
+            let mut weight_pool: Vec<u32> = vec![];
+            let mut weight_sum: u32 = 0;
             // go through comment set to compute lottery weight
-            for comment_data in comment_set {
+            for comment_data in &comment_set {
                 let mut weight1 = Percent::from_rational_approximation(
                     comment_data.cash_cost as u32,
                     max.max_fee as u32,
@@ -3490,17 +3511,48 @@ impl<T: Trait> Module<T> {
                     weight1 = Percent::from_percent(50) * weight1;
                     weight2 = Percent::from_percent(50) * weight2;
                 }
-                let weight = (weight1 + weight2) as usize;
+                let weight = weight1 + weight2;
+                weight_pool.push(weight);
+                weight_sum += weight;
 
                 print(weight);
-                // now we start random choose 1 - 100
-                let hit = pick_usize(&mut rng, 100);
-                print(hit);
-                if weight > hit {
-                    print("hit");
-                    // record this hit
-                    records.push(comment_data.account);
+            }
+
+            // now we got all weight info, use weight info array to setup chance array
+            // count positions
+            let position_count = 100u32;
+            let attender_len = weight_pool.len();
+            for i in 0..attender_len {
+                let attender_weight = weight_pool[i];
+                let chance_count =
+                    Percent::from_rational_approximation(attender_weight, weight_sum)
+                        * position_count;
+                // now weight transfered to position count
+                if i == 0 {
+                    weight_pool[i] = chance_count;
+                } else {
+                    weight_pool[i] = weight_pool[i - 1] + chance_count;
                 }
+            }
+
+            // now we got total reassigned position info
+            let total_positions = *weight_pool.last().unwrap_or(&0);
+            print("total_positions");
+            print(total_positions);
+            // start lottery
+            for _l in 0..hit_max {
+                let pos = pick_usize(&mut rng, total_positions as usize) as u32;
+                print("hit pos:");
+                print(pos);
+                // now check which chance hit, binary search weight_pool
+                let mut closet_index = Self::binary_search_closet(&weight_pool, &pos);
+                if weight_pool[closet_index] <= pos && closet_index < hit_max - 1 {
+                    // always take is right neighbor
+                    closet_index += 1;
+                }
+                print("hit index:");
+                print(closet_index);
+                records.push(comment_set[closet_index].account.clone());
             }
         };
 
