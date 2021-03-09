@@ -724,7 +724,7 @@ cfg_if! {
 						epoch_length: EpochDuration::get(),
 						c: (3, 10),
 						genesis_authorities: system::authorities()
-							.into_iter().map(|x|(x, 1, 0)).collect(),
+							.into_iter().map(|x|(x, 1, 1)).collect(),
 						randomness: <pallet_babe::Module<Runtime>>::randomness(),
 						allowed_slots: AllowedSlots::PrimaryAndSecondaryPlainSlots,
 					}
@@ -970,7 +970,7 @@ cfg_if! {
 						epoch_length: EpochDuration::get(),
 						c: (3, 10),
 						genesis_authorities: system::authorities()
-							.into_iter().map(|x|(x, 1, 0)).collect(),
+							.into_iter().map(|x|(x, 1, 1)).collect(),
 						randomness: <pallet_babe::Module<Runtime>>::randomness(),
 						allowed_slots: AllowedSlots::PrimaryAndSecondaryPlainSlots,
 					}
