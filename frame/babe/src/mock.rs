@@ -260,6 +260,7 @@ impl Trait for Test {
 
     type HandleEquivocation = super::EquivocationHandler<Self::KeyOwnerIdentification, Offences>;
     type WeightInfo = ();
+    type PowerVote = PowerVoteMock;
 }
 
 pub type Balances = pallet_balances::Module<Test>;

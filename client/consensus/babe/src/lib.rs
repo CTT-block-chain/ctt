@@ -67,7 +67,7 @@ pub use sp_consensus_babe::{
 	BabeApi, ConsensusLog, BABE_ENGINE_ID, SlotNumber,
 	BabeEpochConfiguration, BabeGenesisConfiguration,
 	AuthorityId, AuthorityPair, AuthoritySignature,
-	BabeAuthorityWeight, VRF_OUTPUT_LENGTH,
+	BabeAuthorityWeight, BabeCttWeight, VRF_OUTPUT_LENGTH,
 	digests::{
 		CompatibleDigestItem, NextEpochDescriptor, NextConfigDescriptor, PreDigest,
 		PrimaryPreDigest, SecondaryPlainPreDigest,
@@ -144,7 +144,7 @@ pub struct Epoch {
 	/// The duration of this epoch.
 	pub duration: SlotNumber,
 	/// The authorities and their weights.
-	pub authorities: Vec<(AuthorityId, BabeAuthorityWeight)>,
+	pub authorities: Vec<(AuthorityId, BabeAuthorityWeight, BabeCttWeight)>,
 	/// Randomness for this epoch.
 	pub randomness: [u8; VRF_OUTPUT_LENGTH],
 	/// Configuration of the epoch.

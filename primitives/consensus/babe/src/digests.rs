@@ -18,7 +18,7 @@
 //! Private implementation details of BABE digests.
 
 use super::{
-	AllowedSlots, AuthorityId, AuthorityIndex, AuthoritySignature, BabeAuthorityWeight,
+	AllowedSlots, AuthorityId, AuthorityIndex, AuthoritySignature, BabeAuthorityWeight, BabeCttWeight,
 	BabeEpochConfiguration, SlotNumber, BABE_ENGINE_ID,
 };
 use codec::{Codec, Decode, Encode};
@@ -117,7 +117,7 @@ impl PreDigest {
 #[derive(Decode, Encode, PartialEq, Eq, Clone, RuntimeDebug)]
 pub struct NextEpochDescriptor {
 	/// The authorities.
-	pub authorities: Vec<(AuthorityId, BabeAuthorityWeight)>,
+	pub authorities: Vec<(AuthorityId, BabeAuthorityWeight, BabeCttWeight)>,
 
 	/// The value of randomness to use for the slot-assignment.
 	pub randomness: Randomness,
