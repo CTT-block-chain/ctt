@@ -331,6 +331,8 @@ impl pallet_babe::Trait for Runtime {
 		pallet_babe::EquivocationHandler<Self::KeyOwnerIdentification, Offences>;
 
 	type WeightInfo = ();
+
+	type PowerVote = PowerVoteMock;
 }
 
 parameter_types! {

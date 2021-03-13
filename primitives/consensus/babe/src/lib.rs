@@ -87,6 +87,9 @@ pub type EquivocationProof<H> = sp_consensus_slots::EquivocationProof<H, Authori
 //       `Weight` types, since the metadata isn't able to disambiguate.
 pub type BabeAuthorityWeight = u64;
 
+/// CTT specific weight data, it's account knowledge power
+pub type BabeCttWeight = u64;
+
 /// The weight of a BABE block.
 pub type BabeBlockWeight = u32;
 
@@ -158,7 +161,7 @@ pub struct BabeGenesisConfigurationV1 {
 	pub c: (u64, u64),
 
 	/// The authorities for the genesis epoch.
-	pub genesis_authorities: Vec<(AuthorityId, BabeAuthorityWeight)>,
+	pub genesis_authorities: Vec<(AuthorityId, BabeAuthorityWeight, BabeCttWeight)>,
 
 	/// The randomness for the genesis epoch.
 	pub randomness: Randomness,
@@ -206,7 +209,7 @@ pub struct BabeGenesisConfiguration {
 	pub c: (u64, u64),
 
 	/// The authorities for the genesis epoch.
-	pub genesis_authorities: Vec<(AuthorityId, BabeAuthorityWeight)>,
+	pub genesis_authorities: Vec<(AuthorityId, BabeAuthorityWeight, BabeCttWeight)>,
 
 	/// The randomness for the genesis epoch.
 	pub randomness: Randomness,

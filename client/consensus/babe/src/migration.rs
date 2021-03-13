@@ -1,7 +1,7 @@
 use codec::{Encode, Decode};
 use sc_consensus_epochs::Epoch as EpochT;
 use crate::{
-	Epoch, SlotNumber, AuthorityId, BabeAuthorityWeight, BabeGenesisConfiguration,
+	Epoch, SlotNumber, AuthorityId, BabeAuthorityWeight, BabeCttWeight, BabeGenesisConfiguration,
 	BabeEpochConfiguration, VRF_OUTPUT_LENGTH, NextEpochDescriptor,
 };
 
@@ -15,7 +15,7 @@ pub struct EpochV0 {
 	/// The duration of this epoch.
 	pub duration: SlotNumber,
 	/// The authorities and their weights.
-	pub authorities: Vec<(AuthorityId, BabeAuthorityWeight)>,
+	pub authorities: Vec<(AuthorityId, BabeAuthorityWeight, BabeCttWeight)>,
 	/// Randomness for this epoch.
 	pub randomness: [u8; VRF_OUTPUT_LENGTH],
 }
