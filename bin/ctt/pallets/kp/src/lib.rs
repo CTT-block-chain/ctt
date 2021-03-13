@@ -477,7 +477,11 @@ pub struct AppFinancedUserExchangeParams<AccountId, Balance> {
 #[derive(Encode, Decode, Clone, Default, PartialEq, RuntimeDebug)]
 pub struct AppFinancedUserExchangeData<Balance> {
     pub exchange_amount: Balance,
-    pub status: u8, // 0: initial state, 1: reserved, 2: received cash and burned
+    // 0: initial state,
+    // 1: reserved,
+    // 2: received cash and burned,
+    // 3: not receive cash but got slash from finance member
+    pub status: u8,
     pub pay_id: Vec<u8>,
 }
 
@@ -914,6 +918,8 @@ pub trait Trait: system::Trait {
 
     // Base Balance of tech fund
     type TechFundBase: Get<BalanceOf<Self>>;
+
+    type RedeemFeeRate: Get<u32>;
 }
 
 // This pallet's storage items.
@@ -1061,6 +1067,14 @@ decl_storage! {
         AppCycleIncomeExchangeSet get(fn app_cycle_income_exchange_set):
             map hasher(twox_64_concat) T::Hash => Vec<T::AccountId>;
 
+        // (AppId & cycle index) -> this cycle finance member account
+        AppCycleIncomeFinanceMember get(fn app_cycle_income_finance_member):
+            map hasher(twox_64_concat) T::Hash => T::AccountId;
+
+        // (AppId & proposal id) -> this app finance proposal finance member account
+        AppFinanceFinanceMember get(fn app_finance_finance_member):
+            map hasher(twox_64_concat) T::Hash => T::AccountId;
+
         AppCycleIncomeBurnTotal get(fn app_cycle_income_burn_total): BalanceOf<T>;
         AppCycleIncomeCount get(fn app_cycle_income_count): u32;
 
@@ -1187,11 +1201,13 @@ decl_event!(
         LeaderBoardsCreated(BlockNumber, u32, Vec<u8>),
         ModelDisputed(AccountId),
         AppRedeemed(AccountId),
-        AppFinanceUserExchangeStart(AccountId),
+        AppFinanceUserExchangeStart(AccountId, AccountId),
         AppFinanceUserExchangeConfirmed(AccountId),
+        AppFinanceUserExchangeCompensated(AccountId),
         AppCycleIncomeUserExchangeConfirmed(AccountId),
         ModelIncomeRewarded(AccountId),
-        AppCycleIncomeRedeem(AccountId),
+        AppCycleIncomeRedeem(AccountId, AccountId),
+        AppIncomeUserExchangeCompensated(AccountId),
         TechFundWithdrawed(AccountId),
         ModelDepositAdded(AccountId),
     }
@@ -1231,6 +1247,7 @@ decl_error! {
         AppFinancedUserExchangeOverflow,
         AppFinancedUserExchangeStateWrong,
         AppFinancedUserExchangeEnded,
+        AppFinancedUserExchangeConfirmNotEnd,
         DocumentIdentifyAlreadyExisted,
         DocumentTryAlreadyExisted,
         LeaderBoardCreateNotPermit,
@@ -1240,12 +1257,14 @@ decl_error! {
         AuthIdentityNotAppKey,
         AuthIdentityNotTechMember,
         AuthIdentityNotFinanceMember,
+        AuthIdentityNotExpectedFinanceMember,
         ModelCycleIncomeAlreadyExisted,
         ModelCycleRewardAlreadyExisted,
         ModelCycleRewardSlashed,
         ModelIncomeParamsTooLarge,
         ModelIncomeNotInCollectingStage,
         ModelIncomeNotInRewardingStage,
+        ModelIncomeRewardingNotEnd,
         ModelCycleIncomeTotalZero,
         ModelCycleIncomeZero,
         AppCycleIncomeZero,
@@ -1253,6 +1272,7 @@ decl_error! {
         NotModelCreator,
         TechFundAmountComputeError,
         CartIdInBalckList,
+        NotFoundValidFinanceMember,
     }
 }
 
@@ -2080,6 +2100,17 @@ decl_module! {
             ensure!(!<AppCycleIncomeExchangeRecords<T>>::contains_key(&ukey),
                 Error::<T>::AppFinancedUserExchangeAlreadyPerformed);
 
+            let fkey = T::Hashing::hash_of(&(app_id, cycle));
+            let finance_member: T::AccountId;
+            // check if we have specified a finance member to do confirm
+            if !<AppCycleIncomeFinanceMember<T>>::contains_key(&fkey) {
+                // random choose one
+                finance_member = Self::choose_finance_member()?;
+                <AppCycleIncomeFinanceMember<T>>::insert(&fkey, finance_member.clone());
+            } else {
+                finance_member = <AppCycleIncomeFinanceMember<T>>::get(&fkey);
+            }
+
             // read app cycle income record
             let mut record = <AppCycleIncome<T>>::get(cycle, app_id);
             // make sure has enough income counted
@@ -2119,12 +2150,12 @@ decl_module! {
                 ..Default::default()
             });
 
-            let fkey = T::Hashing::hash_of(&(app_id, cycle));
+
             let mut accounts = <AppCycleIncomeExchangeSet<T>>::get(&fkey);
             accounts.push(account.clone());
             <AppCycleIncomeExchangeSet<T>>::insert(&fkey, accounts);
 
-            Self::deposit_event(RawEvent::AppCycleIncomeRedeem(who));
+            Self::deposit_event(RawEvent::AppCycleIncomeRedeem(who, finance_member));
             Ok(())
         }
 
@@ -2132,7 +2163,6 @@ decl_module! {
         pub fn app_income_redeem_confirm(origin, params: AppIncomeRedeemConfirmParams<T::AccountId, T::BlockNumber>) -> dispatch::DispatchResult {
 
             let who = ensure_signed(origin)?;
-            ensure!(T::Membership::is_finance_member(&who), Error::<T>::AuthIdentityNotFinanceMember);
 
             let AppIncomeRedeemConfirmParams {
                 account,
@@ -2143,6 +2173,11 @@ decl_module! {
 
             ensure!(T::Membership::is_valid_app(app_id), Error::<T>::AppIdInvalid);
 
+            // get this cycle's finance member
+            let member_key = T::Hashing::hash_of(&(app_id, cycle));
+            let finance_member = <AppCycleIncomeFinanceMember<T>>::get(&member_key);
+            ensure!(finance_member == who, Error::<T>::AuthIdentityNotExpectedFinanceMember);
+
             let ukey = Self::app_income_exchange_record_key(app_id, cycle, &account);
             // make sure record exist
             ensure!(<AppCycleIncomeExchangeRecords<T>>::contains_key(&ukey),
@@ -2151,6 +2186,15 @@ decl_module! {
             // make sure state is 1
             let record = <AppCycleIncomeExchangeRecords<T>>::get(&ukey);
             ensure!(record.status == 1, Error::<T>::AppFinancedUserExchangeStateWrong);
+
+            // give fee to finance member
+            let fee = Permill::from_rational_approximation(T::RedeemFeeRate::get(), 1000u32) * record.exchange_amount;
+            T::Currency::transfer(
+                &account,
+                &finance_member,
+                fee,
+                KeepAlive,
+            )?;
 
             // unreserve account balance
             T::Currency::unreserve(&account, record.exchange_amount);
@@ -2178,6 +2222,37 @@ decl_module! {
             <AppCycleIncomeBurnTotal<T>>::put(<AppCycleIncomeBurnTotal<T>>::get() + record.exchange_amount);
 
             Self::deposit_event(RawEvent::AppCycleIncomeUserExchangeConfirmed(account));
+            Ok(())
+        }
+
+        #[weight = 0]
+        pub fn app_income_redeem_compensate(origin, app_id: u32, cycle: T::BlockNumber) -> dispatch::DispatchResult {
+            let who = ensure_signed(origin)?;
+            let fkey = T::Hashing::hash_of(&(app_id, cycle));
+            let ukey = Self::app_income_exchange_record_key(app_id, cycle, &who);
+            // check record exist
+            ensure!(<AppCycleIncomeExchangeRecords<T>>::contains_key(&ukey),
+                Error::<T>::AppFinancedUserExchangeRecordNotExist);
+
+            let record = <AppCycleIncomeExchangeRecords<T>>::get(&ukey);
+            ensure!(record.status == 1, Error::<T>::AppFinancedUserExchangeStateWrong);
+
+            let block = <system::Module<T>>::block_number();
+            // make sure current rewarding stage end
+            ensure!(Self::model_income_stage(block).0 != ModelIncomeStage::REWARDING, Error::<T>::ModelIncomeRewardingNotEnd);
+
+            // unlock balance
+            T::Currency::unreserve(&who, record.exchange_amount);
+
+            // get slash from finance member
+            let finance_member = <AppCycleIncomeFinanceMember<T>>::get(&fkey);
+            T::Membership::slash_finance_member(&finance_member, &who, record.exchange_amount)?;
+
+            <AppCycleIncomeExchangeRecords<T>>::mutate(&ukey, |record| {
+                record.status = 3;
+            });
+
+            Self::deposit_event(RawEvent::AppIncomeUserExchangeCompensated(who));
             Ok(())
         }
 
@@ -2449,6 +2524,18 @@ decl_module! {
             // make sure exchanged not overflow (this should not happen, if happen should be serious bug)
             ensure!(financed_record.exchanged + exchange_amount <= financed_record.exchange,
                 Error::<T>::AppFinancedUserExchangeOverflow);
+
+            // get finance member AppFinanceFinanceMember
+            let finance_member: T::AccountId;
+            // check if we have specified a finance member to do confirm
+            if !<AppFinanceFinanceMember<T>>::contains_key(&fkey) {
+                // random choose one
+                finance_member = Self::choose_finance_member()?;
+                <AppFinanceFinanceMember<T>>::insert(&fkey, finance_member.clone());
+            } else {
+                finance_member = <AppFinanceFinanceMember<T>>::get(&fkey);
+            }
+
             // reserve exchange_amount from user account
             T::Currency::reserve(&account, exchange_amount)?;
 
@@ -2466,7 +2553,7 @@ decl_module! {
             accounts.push(account.clone());
             <AppFinancedUserExchangeSet<T>>::insert(&fkey, accounts);
 
-            Self::deposit_event(RawEvent::AppFinanceUserExchangeStart(account));
+            Self::deposit_event(RawEvent::AppFinanceUserExchangeStart(account, finance_member));
             Ok(())
         }
 
@@ -2519,6 +2606,38 @@ decl_module! {
             <AppFinancedBurnTotal<T>>::put(<AppFinancedBurnTotal<T>>::get() + record.exchange_amount);
 
             Self::deposit_event(RawEvent::AppFinanceUserExchangeConfirmed(account));
+            Ok(())
+        }
+
+        #[weight = 0]
+        pub fn app_finance_redeem_compensate(origin, app_id: u32, proposal_id: Vec<u8>) -> dispatch::DispatchResult {
+            let who = ensure_signed(origin)?;
+            let fkey = T::Hashing::hash_of(&(app_id, &proposal_id));
+            let ukey = Self::app_financed_exchange_record_key(app_id, &proposal_id, &who);
+            // check record exist
+            ensure!(<AppFinancedUserExchangeRecord<T>>::contains_key(&ukey),
+                Error::<T>::AppFinancedUserExchangeRecordNotExist);
+
+            let record = <AppFinancedUserExchangeRecord<T>>::get(&ukey);
+            ensure!(record.status == 1, Error::<T>::AppFinancedUserExchangeStateWrong);
+
+            let current_block = <system::Module<T>>::block_number();
+            let financed_record = <AppFinancedRecord<T>>::get(&fkey);
+            // make sure current block over end + end
+            ensure!(financed_record.exchange_end_block + T::AppFinanceExchangePeriod::get() < current_block, Error::<T>::AppFinancedUserExchangeConfirmNotEnd);
+
+            // unlock balance
+            T::Currency::unreserve(&who, record.exchange_amount);
+
+            // get slash from finance member
+            let finance_member = <AppFinanceFinanceMember<T>>::get(&fkey);
+            T::Membership::slash_finance_member(&finance_member, &who, record.exchange_amount)?;
+
+            <AppFinancedUserExchangeRecord<T>>::mutate(&ukey, |record| {
+                record.status = 3;
+            });
+
+            Self::deposit_event(RawEvent::AppFinanceUserExchangeCompensated(who));
             Ok(())
         }
 
@@ -2869,6 +2988,22 @@ impl<T: Trait> Module<T> {
     }
 
     // belows are internal using
+    fn choose_finance_member() -> Result<T::AccountId, sp_runtime::DispatchError> {
+        let seed = T::Randomness::random(b"ctt_finance");
+        // seed needs to be guaranteed to be 32 bytes.
+        let seed = <[u8; 32]>::decode(&mut TrailingZeroInput::new(seed.as_ref()))
+            .expect("input is padded with zeroes; qed");
+        let mut rng = ChaChaRng::from_seed(seed);
+
+        let members = T::Membership::valid_finance_members();
+
+        return if let Some(member) = pick_item(&mut rng, &members) {
+            Ok(member.clone())
+        } else {
+            Err(Error::<T>::NotFoundValidFinanceMember.into())
+        };
+    }
+
     fn leader_record_key(app_id: u32, block: T::BlockNumber, model_id: &Vec<u8>) -> T::Hash {
         let buf: Vec<T::BlockNumber> = vec![app_id.into(), block];
         T::Hashing::hash_of(&(buf, model_id))
@@ -4351,7 +4486,7 @@ impl<T: Trait> PowerVote<T::AccountId> for Module<T> {
 }
 
 /// Pick an item at pseudo-random from the slice, given the `rng`. `None` iff the slice is empty.
-fn _pick_item<'a, R: RngCore, T>(rng: &mut R, items: &'a [T]) -> Option<&'a T> {
+fn pick_item<'a, R: RngCore, T>(rng: &mut R, items: &'a [T]) -> Option<&'a T> {
     if items.is_empty() {
         None
     } else {

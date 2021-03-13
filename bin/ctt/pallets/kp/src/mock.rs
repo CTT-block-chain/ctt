@@ -110,6 +110,11 @@ parameter_types! {
     pub const ModelDisputeRewardLv3: u64 = 150;
 
     pub const TreasuryModuleId: ModuleId = ModuleId(*b"py/trsry");
+
+    pub const MaxFinanceMembers: u32 = 0;
+    pub const MinFinanceMemberDeposit: u64 = 0;
+
+    pub const RedeemFeeRate: u32 = 0;
 }
 
 impl system::Trait for Test {
@@ -222,6 +227,7 @@ impl Trait for Test {
     type ModelDisputeRewardLv1 = ModelDisputeRewardLv1;
     type ModelDisputeRewardLv2 = ModelDisputeRewardLv2;
     type ModelDisputeRewardLv3 = ModelDisputeRewardLv3;
+    type RedeemFeeRate = RedeemFeeRate;
 }
 
 impl pallet_balances::Trait for Test {
@@ -239,6 +245,8 @@ impl members::Trait for Test {
     type Currency = Balances;
     type ModelCreatorCreateBenefit = ();
     type ModTreasuryModuleId = TreasuryModuleId;
+    type MaxFinanceMembers = MaxFinanceMembers;
+    type MinFinanceMemberDeposit = MinFinanceMemberDeposit;
 }
 pub type System = system::Module<Test>;
 pub type Balances = pallet_balances::Module<Test>;

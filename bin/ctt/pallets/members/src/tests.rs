@@ -21,6 +21,8 @@ parameter_types! {
     pub const MaximumBlockWeight: u32 = 1024;
     pub const MaximumBlockLength: u32 = 2 * 1024;
     pub const AvailableBlockRatio: Perbill = Perbill::one();
+    pub const MaxFinanceMembers: u32 = 0;
+    pub const MinFinanceMemberDeposit: u64 = 0;
 }
 impl system::Trait for TestRuntime {
     type Origin = Origin;
@@ -77,6 +79,8 @@ impl Trait for TestRuntime {
     type Currency = Balances;
     type ModelCreatorCreateBenefit = ();
     type ModTreasuryModuleId = ();
+    type MaxFinanceMembers = MaxFinanceMembers;
+    type MinFinanceMemberDeposit = MinFinanceMemberDeposit;
 }
 
 pub type System = system::Module<TestRuntime>;

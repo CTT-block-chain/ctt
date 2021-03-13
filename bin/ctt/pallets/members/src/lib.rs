@@ -8,7 +8,7 @@ use frame_support::{
     decl_error, decl_event, decl_module, decl_storage,
     dispatch::DispatchResult,
     ensure,
-    traits::{Currency, ExistenceRequirement::KeepAlive, Get},
+    traits::{Currency, ExistenceRequirement::KeepAlive, Get, ReservableCurrency},
 };
 use frame_system::{self as system, ensure_signed};
 use primitives::{AuthAccountId, Membership};
@@ -18,6 +18,7 @@ use sp_runtime::{
     traits::{AccountIdConversion, Hash, Verify},
     ModuleId, MultiSignature, RuntimeDebug,
 };
+use sp_std::cmp::*;
 use sp_std::prelude::*;
 
 #[cfg(test)]
@@ -71,11 +72,19 @@ pub struct AppKeyManageParams<Account> {
     member: Account,
 }
 
+#[derive(Encode, Decode, Clone, Default, PartialEq, RuntimeDebug)]
+pub struct FinanceMemberParams<Account, Balance> {
+    deposit: Balance,
+    member: Account,
+}
+
 pub trait Trait: system::Trait {
     type Event: From<Event<Self>> + Into<<Self as system::Trait>::Event>;
-    type Currency: Currency<Self::AccountId>;
+    type Currency: ReservableCurrency<Self::AccountId>;
     type ModelCreatorCreateBenefit: Get<BalanceOf<Self>>;
     type ModTreasuryModuleId: Get<ModuleId>;
+    type MaxFinanceMembers: Get<u32>;
+    type MinFinanceMemberDeposit: Get<BalanceOf<Self>>;
 }
 
 const MAX_APP_KEYS: usize = 16;
@@ -102,8 +111,15 @@ decl_event!(
 
 decl_storage! {
     trait Store for Module<T: Trait> as Members {
+        // Finance Root
+        FinanceRoot get(fn finance_root) config(): T::AccountId;
+
         // Finance members group
-        FinanceMembers get(fn finance_members) config() : Vec<T::AccountId>;
+        FinanceMembers get(fn finance_members): Vec<T::AccountId>;
+
+        // Finance member deposit records
+        FinanceMemberDeposit get(fn finance_member_deposit):
+            map hasher(twox_64_concat) T::AccountId => BalanceOf<T>;
 
         // Investor members, system level
         InvestorMembers get(fn investor_members): Vec<T::AccountId>;
@@ -160,6 +176,7 @@ decl_error! {
         NotAppIdentity,
         NotModelCreator,
         CallerNotFinanceMemeber,
+        CallerNotFinanceRoot,
         MembersLenTooLow,
         BenefitAlreadyDropped,
         NotEnoughFund,
@@ -173,6 +190,8 @@ decl_error! {
         AuthIdentityNotAppAdmin,
         AppKeysLimitReached,
         AppKeysOnlyOne,
+        FinanceMemberSizeOver,
+        FinanceMemberDepositTooLow,
     }
 }
 
@@ -237,21 +256,38 @@ decl_module! {
         }
 
         #[weight = 0]
-        pub fn add_finance_member(origin, new_member: T::AccountId) -> DispatchResult {
+        pub fn add_finance_member(origin, params: FinanceMemberParams<T::AccountId, BalanceOf<T>>, app_user_account: AuthAccountId, app_user_sign: sr25519::Signature) -> DispatchResult {
             let who = ensure_signed(origin)?;
 
-            ensure!(Self::is_finance_member(&who), Error::<T>::CallerNotFinanceMemeber);
+            ensure!(Self::is_finance_root(&who), Error::<T>::CallerNotFinanceRoot);
+
+            let buf = params.encode();
+            ensure!(Self::verify_sign(&app_user_account, app_user_sign, &buf), Error::<T>::SignVerifyError);
+
+            let FinanceMemberParams {
+                deposit,
+                member
+            } = params;
+
+            ensure!(deposit >= T::MinFinanceMemberDeposit::get(), Error::<T>::FinanceMemberDepositTooLow);
 
             let mut members = FinanceMembers::<T>::get();
-            match members.binary_search(&new_member) {
+            ensure!((members.len() as u32) < T::MaxFinanceMembers::get(), Error::<T>::FinanceMemberSizeOver);
+
+            match members.binary_search(&member) {
                 // If the search succeeds, the caller is already a member, so just return
                 Ok(_) => Err(Error::<T>::AlreadyMember.into()),
                 // If the search fails, the caller is not a member and we learned the index where
                 // they should be inserted
                 Err(index) => {
-                    members.insert(index, new_member.clone());
+                    // make sure deposit success
+                    T::Currency::reserve(&member, deposit)?;
+
+                    <FinanceMemberDeposit<T>>::insert(&member, deposit);
+
+                    members.insert(index, member.clone());
                     FinanceMembers::<T>::put(members);
-                    Self::deposit_event(RawEvent::MemberAdded(new_member));
+                    Self::deposit_event(RawEvent::MemberAdded(member));
                     Ok(())
                 }
             }
@@ -262,15 +298,18 @@ decl_module! {
         pub fn remove_finance_member(origin, old_member: T::AccountId) -> DispatchResult {
             let who = ensure_signed(origin)?;
 
-            ensure!(Self::is_finance_member(&who), Error::<T>::CallerNotFinanceMemeber);
+            ensure!(Self::is_finance_root(&who), Error::<T>::CallerNotFinanceRoot);
 
             let mut members = FinanceMembers::<T>::get();
-            ensure!(members.len() > 1, Error::<T>::MembersLenTooLow);
 
             // We have to find out if the member exists in the sorted vec, and, if so, where.
             match members.binary_search(&old_member) {
                 // If the search succeeds, the caller is a member, so remove her
                 Ok(index) => {
+                    // unreserve deposit
+                    let deposit = <FinanceMemberDeposit<T>>::get(&old_member);
+                    T::Currency::unreserve(&old_member, deposit);
+
                     members.remove(index);
                     FinanceMembers::<T>::put(members);
                     Self::deposit_event(RawEvent::MemberRemoved(old_member));
@@ -767,6 +806,39 @@ impl<T: Trait> Module<T> {
     pub fn is_finance_member(who: &T::AccountId) -> bool {
         <FinanceMembers<T>>::get().contains(who)
     }
+
+    pub fn is_finance_root(who: &T::AccountId) -> bool {
+        *who == <FinanceRoot<T>>::get()
+    }
+
+    pub fn slash_finance_member(
+        member: &T::AccountId,
+        receiver: &T::AccountId,
+        amount: BalanceOf<T>,
+    ) -> DispatchResult {
+        let deposit = <FinanceMemberDeposit<T>>::get(member);
+        if deposit == 0u32.into() {
+            // nothing to do
+        } else {
+            let slash = min(deposit, amount);
+            T::Currency::unreserve(member, slash);
+            T::Currency::transfer(member, receiver, slash, KeepAlive)?;
+            <FinanceMemberDeposit<T>>::insert(member, deposit - slash);
+        }
+
+        Ok(())
+    }
+
+    /// return valid finance members (depoist is enough)
+    pub fn valid_finance_members() -> Vec<T::AccountId> {
+        let min_deposit = T::MinFinanceMemberDeposit::get();
+        let members: Vec<T::AccountId> = <FinanceMembers<T>>::get();
+        members
+            .iter()
+            .filter(|&member| <FinanceMemberDeposit<T>>::get(member) >= min_deposit)
+            .map(|member| member.clone())
+            .collect()
+    }
 }
 
 impl<T: Trait> Membership<T::AccountId, T::Hash, BalanceOf<T>> for Module<T> {
@@ -866,5 +938,17 @@ impl<T: Trait> Membership<T::AccountId, T::Hash, BalanceOf<T>> for Module<T> {
 
     fn is_valid_app_key(app_id: u32, app_key: &T::AccountId) -> bool {
         Self::is_app_identity(app_key, app_id)
+    }
+
+    fn valid_finance_members() -> Vec<T::AccountId> {
+        Self::valid_finance_members()
+    }
+
+    fn slash_finance_member(
+        member: &T::AccountId,
+        receiver: &T::AccountId,
+        amount: BalanceOf<T>,
+    ) -> DispatchResult {
+        Self::slash_finance_member(member, receiver, amount)
     }
 }

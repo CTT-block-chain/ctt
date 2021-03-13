@@ -1030,6 +1030,8 @@ impl pallet_vesting::Trait for Runtime {
 
 parameter_types! {
     pub const ModelCreatorCreateBenefit: Balance = 2000 * DOLLARS;
+    pub const MaxFinanceMembers: u32 = 64;
+    pub const MinFinanceMemberDeposit: Balance = 10000 * DOLLARS;
 }
 
 impl members::Trait for Runtime {
@@ -1037,6 +1039,8 @@ impl members::Trait for Runtime {
     type Currency = Balances;
     type ModelCreatorCreateBenefit = ModelCreatorCreateBenefit;
     type ModTreasuryModuleId = AccountModModuleId;
+    type MaxFinanceMembers = MaxFinanceMembers;
+    type MinFinanceMemberDeposit = MinFinanceMemberDeposit;
 }
 
 type EnsureRootOrHalfTech = EnsureOneOf<
@@ -1127,6 +1131,9 @@ parameter_types! {
     pub const ModelDisputeDelayTime: BlockNumber = 10 * MINUTES;
 
     pub const TechFundBase: Balance = 1_000_000_00 * DOLLARS;
+
+    // per 1000
+    pub const RedeemFeeRate: u32 = 3;
 }
 
 impl kp::Trait for Runtime {
@@ -1197,6 +1204,8 @@ impl kp::Trait for Runtime {
     type ModelDisputeRewardLv1 = ModelDisputeRewardLv1;
     type ModelDisputeRewardLv2 = ModelDisputeRewardLv2;
     type ModelDisputeRewardLv3 = ModelDisputeRewardLv3;
+
+    type RedeemFeeRate = RedeemFeeRate;
 }
 
 construct_runtime!(

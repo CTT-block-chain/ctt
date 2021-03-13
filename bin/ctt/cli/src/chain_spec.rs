@@ -221,7 +221,7 @@ pub fn testnet_genesis(
     root_key: AccountId,
     endowed_accounts: Option<Vec<AccountId>>,
     enable_println: bool,
-    auth_servers: Vec<AccountId>,
+    _auth_servers: Vec<AccountId>,
 ) -> GenesisConfig {
     let endowed_accounts: Vec<AccountId> = endowed_accounts.unwrap_or_else(|| {
         vec![
@@ -411,11 +411,11 @@ pub fn testnet_genesis(
             ],
         }),
         members: Some(MembersConfig {
-            finance_members: vec![hex![
+            finance_root: hex![
                 // sudo
                 "9cb650c86e586c0c3791df694ac610a0adfaeeacdae856668186bef833dccf59"
             ]
-            .into()],
+            .into(),
         }),
     }
 }
