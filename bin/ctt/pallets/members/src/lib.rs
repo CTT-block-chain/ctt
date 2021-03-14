@@ -106,6 +106,7 @@ decl_event!(
         StableExchanged(AccountId),
         AppRedeemAccountSet(AccountId),
         AppRedeemed(AccountId, AccountId, Balance),
+        FinanceMemberDeposit(AccountId),
     }
 );
 
@@ -192,6 +193,260 @@ decl_error! {
         AppKeysOnlyOne,
         FinanceMemberSizeOver,
         FinanceMemberDepositTooLow,
+        DepositTooSmall,
+    }
+}
+
+impl<T: Trait> Module<T> {
+    fn convert_account(origin: &AuthAccountId) -> T::AccountId {
+        let tmp: [u8; 32] = origin.clone().into();
+        T::AccountId::decode(&mut &tmp[..]).unwrap_or_default()
+    }
+
+    fn verify_sign(pub_key: &AuthAccountId, sign: sr25519::Signature, msg: &[u8]) -> bool {
+        let ms: MultiSignature = sign.into();
+        ms.verify(msg, &pub_key)
+    }
+
+    pub fn is_platform_expert(who: &T::AccountId, app_id: u32) -> bool {
+        let members = <AppPlatformExpertMembers<T>>::get(app_id);
+        match members.binary_search(who) {
+            Ok(_) => true,
+            Err(_) => false,
+        }
+    }
+
+    pub fn is_model_expert(who: &T::AccountId, app_id: u32, model_id: &Vec<u8>) -> bool {
+        let key = T::Hashing::hash_of(&(app_id, model_id));
+        let members = <ExpertMembers<T>>::get(&key);
+        match members.binary_search(who) {
+            Ok(_) => true,
+            Err(_) => false,
+        }
+    }
+
+    pub fn is_investor(who: &T::AccountId) -> bool {
+        let members = InvestorMembers::<T>::get();
+        match members.binary_search(who) {
+            Ok(_) => true,
+            Err(_) => false,
+        }
+    }
+
+    pub fn is_model_creator(who: &T::AccountId, app_id: u32, model_id: &Vec<u8>) -> bool {
+        let key = T::Hashing::hash_of(&(app_id, model_id));
+        <ModelCreators<T>>::contains_key(&key) && <ModelCreators<T>>::get(&key) == *who
+    }
+
+    pub fn is_app_admin(who: &T::AccountId, app_id: u32) -> bool {
+        let members = <AppAdmins<T>>::get(app_id);
+
+        match members.binary_search(who) {
+            // If the search succeeds, the caller is already a member, so just return
+            Ok(_index) => true,
+            // If the search fails, the caller is not a member, so just return
+            Err(_) => false,
+        }
+    }
+
+    pub fn is_app_identity(who: &T::AccountId, app_id: u32) -> bool {
+        //let test = who.clone().encode().as_slice();
+        let members = <AppKeys<T>>::get(app_id);
+
+        match members.binary_search(who) {
+            // If the search succeeds, the caller is already a member, so just return
+            Ok(_index) => true,
+            // If the search fails, the caller is not a member, so just return
+            Err(_) => false,
+        }
+    }
+
+    pub fn model_experts(app_id: u32, model_id: Vec<u8>) -> Vec<T::AccountId> {
+        let key = T::Hashing::hash_of(&(app_id, &model_id));
+        <ExpertMembers<T>>::get(&key)
+    }
+
+    pub fn model_add_expert(key: &T::Hash, new_member: &T::AccountId) {
+        let mut members = <ExpertMembers<T>>::get(key);
+
+        match members.binary_search(new_member) {
+            // If the search succeeds, the caller is already a member, so just return
+            Ok(_) => {}
+            // If the search fails, the caller is not a member and we learned the index where
+            // they should be inserted
+            Err(index) => {
+                members.insert(index, new_member.clone());
+                <ExpertMembers<T>>::insert(key, members);
+            }
+        }
+    }
+
+    pub fn model_remove_expert(key: &T::Hash, member: &T::AccountId) {
+        let mut members = <ExpertMembers<T>>::get(key);
+
+        match members.binary_search(member) {
+            // If the search succeeds, the caller is already a member, so just return
+            Ok(index) => {
+                members.remove(index);
+                <ExpertMembers<T>>::insert(key, members);
+            }
+            // If the search fails, the caller is not a member, so just return
+            Err(_) => {}
+        }
+    }
+
+    pub fn model_creator(app_id: u32, model_id: Vec<u8>) -> T::AccountId {
+        let key = T::Hashing::hash_of(&(app_id, &model_id));
+        <ModelCreators<T>>::get(&key)
+    }
+
+    pub fn is_finance_member(who: &T::AccountId) -> bool {
+        <FinanceMembers<T>>::get().contains(who)
+    }
+
+    pub fn is_finance_root(who: &T::AccountId) -> bool {
+        *who == <FinanceRoot<T>>::get()
+    }
+
+    pub fn slash_finance_member(
+        member: &T::AccountId,
+        receiver: &T::AccountId,
+        amount: BalanceOf<T>,
+    ) -> DispatchResult {
+        let deposit = <FinanceMemberDeposit<T>>::get(member);
+        if deposit == 0u32.into() {
+            // nothing to do
+        } else {
+            let slash = min(deposit, amount);
+            T::Currency::unreserve(member, slash);
+            T::Currency::transfer(member, receiver, slash, KeepAlive)?;
+            <FinanceMemberDeposit<T>>::insert(member, deposit - slash);
+        }
+
+        Ok(())
+    }
+
+    /// return valid finance members (depoist is enough)
+    pub fn valid_finance_members() -> Vec<T::AccountId> {
+        let min_deposit = T::MinFinanceMemberDeposit::get();
+        let members: Vec<T::AccountId> = <FinanceMembers<T>>::get();
+        members
+            .iter()
+            .filter(|&member| <FinanceMemberDeposit<T>>::get(member) >= min_deposit)
+            .map(|member| member.clone())
+            .collect()
+    }
+}
+
+impl<T: Trait> Membership<T::AccountId, T::Hash, BalanceOf<T>> for Module<T> {
+    fn is_platform(who: &T::AccountId, app_id: u32) -> bool {
+        Self::is_platform_expert(who, app_id)
+    }
+    fn is_expert(who: &T::AccountId, app_id: u32, model_id: &Vec<u8>) -> bool {
+        Self::is_model_expert(who, app_id, model_id)
+    }
+
+    fn is_app_admin(who: &T::AccountId, app_id: u32) -> bool {
+        Self::is_app_admin(who, app_id)
+    }
+
+    fn is_investor(who: &T::AccountId) -> bool {
+        Self::is_investor(who)
+    }
+
+    fn is_finance_member(who: &T::AccountId) -> bool {
+        Self::is_finance_member(who)
+    }
+
+    fn set_model_creator(
+        key: &T::Hash,
+        creator: &T::AccountId,
+        is_give_benefit: bool,
+    ) -> BalanceOf<T> {
+        // this interface is only available form pallet internal (from kp to member invoking)
+        <ModelCreators<T>>::insert(key, creator);
+
+        // insert creator into ExpertMembers
+        let mut members = <ExpertMembers<T>>::get(key);
+        // members should be empty now
+        members.push(creator.clone());
+        <ExpertMembers<T>>::insert(key, members);
+
+        // give benifit to creator
+        let treasury_account: T::AccountId = T::ModTreasuryModuleId::get().into_account();
+        print("set_model_creator");
+
+        if is_give_benefit {
+            let reward = T::ModelCreatorCreateBenefit::get();
+            let _ = T::Currency::transfer(&treasury_account, creator, reward, KeepAlive);
+            return reward;
+        }
+
+        0u32.into()
+    }
+
+    fn transfer_model_owner(key: &T::Hash, new_owner: &T::AccountId) {
+        let owner = <ModelCreators<T>>::get(key);
+        // set new owner
+        <ModelCreators<T>>::insert(key, &new_owner);
+        // remove owner from expert members
+        Self::model_remove_expert(key, &owner);
+        // add new member
+        Self::model_add_expert(key, new_owner);
+    }
+
+    fn is_model_creator(who: &T::AccountId, app_id: u32, model_id: &Vec<u8>) -> bool {
+        Self::is_model_creator(who, app_id, model_id)
+    }
+
+    // only used for app register
+    fn config_app_admin(who: &T::AccountId, app_id: u32) {
+        let mut members = <AppAdmins<T>>::get(app_id);
+        members.push(who.clone());
+        <AppAdmins<T>>::insert(app_id, members);
+    }
+
+    // only used for app register
+    fn config_app_key(who: &T::AccountId, app_id: u32) {
+        let mut members = <AppKeys<T>>::get(app_id);
+        members.push(who.clone());
+        <AppKeys<T>>::insert(app_id, members);
+    }
+
+    fn config_app_setting(app_id: u32, rate: u32, name: Vec<u8>, stake: BalanceOf<T>) {
+        <AppDataMap<T>>::insert(
+            app_id,
+            &AppData {
+                return_rate: rate,
+                name,
+                stake,
+            },
+        );
+    }
+
+    fn get_app_setting(app_id: u32) -> (u32, Vec<u8>, BalanceOf<T>) {
+        let setting = <AppDataMap<T>>::get(app_id);
+        (setting.return_rate, setting.name, setting.stake)
+    }
+
+    fn is_valid_app(app_id: u32) -> bool {
+        <AppDataMap<T>>::contains_key(app_id)
+    }
+
+    fn is_valid_app_key(app_id: u32, app_key: &T::AccountId) -> bool {
+        Self::is_app_identity(app_key, app_id)
+    }
+
+    fn valid_finance_members() -> Vec<T::AccountId> {
+        Self::valid_finance_members()
+    }
+
+    fn slash_finance_member(
+        member: &T::AccountId,
+        receiver: &T::AccountId,
+        amount: BalanceOf<T>,
+    ) -> DispatchResult {
+        Self::slash_finance_member(member, receiver, amount)
     }
 }
 
@@ -318,6 +573,22 @@ decl_module! {
                 // If the search fails, the caller is not a member, so just return
                 Err(_) => Err(Error::<T>::NotMember.into()),
             }
+        }
+
+        #[weight = 0]
+        pub fn finance_member_add_deposit(origin, deposit: BalanceOf<T>) -> DispatchResult {
+            let who = ensure_signed(origin)?;
+
+            ensure!(deposit > 0u32.into(), Error::<T>::DepositTooSmall);
+
+            T::Currency::reserve(&who, deposit)?;
+
+            <FinanceMemberDeposit<T>>::mutate(&who, |org_deposit| {
+                *org_deposit += deposit;
+            });
+
+            Self::deposit_event(RawEvent::FinanceMemberDeposit(who));
+            Ok(())
         }
 
         #[weight = 0]
@@ -697,258 +968,5 @@ decl_module! {
             Self::deposit_event(RawEvent::AppRedeemAccountSet(account));
             Ok(())
         }
-    }
-}
-
-impl<T: Trait> Module<T> {
-    fn convert_account(origin: &AuthAccountId) -> T::AccountId {
-        let tmp: [u8; 32] = origin.clone().into();
-        T::AccountId::decode(&mut &tmp[..]).unwrap_or_default()
-    }
-
-    fn verify_sign(pub_key: &AuthAccountId, sign: sr25519::Signature, msg: &[u8]) -> bool {
-        let ms: MultiSignature = sign.into();
-        ms.verify(msg, &pub_key)
-    }
-
-    pub fn is_platform_expert(who: &T::AccountId, app_id: u32) -> bool {
-        let members = <AppPlatformExpertMembers<T>>::get(app_id);
-        match members.binary_search(who) {
-            Ok(_) => true,
-            Err(_) => false,
-        }
-    }
-
-    pub fn is_model_expert(who: &T::AccountId, app_id: u32, model_id: &Vec<u8>) -> bool {
-        let key = T::Hashing::hash_of(&(app_id, model_id));
-        let members = <ExpertMembers<T>>::get(&key);
-        match members.binary_search(who) {
-            Ok(_) => true,
-            Err(_) => false,
-        }
-    }
-
-    pub fn is_investor(who: &T::AccountId) -> bool {
-        let members = InvestorMembers::<T>::get();
-        match members.binary_search(who) {
-            Ok(_) => true,
-            Err(_) => false,
-        }
-    }
-
-    pub fn is_model_creator(who: &T::AccountId, app_id: u32, model_id: &Vec<u8>) -> bool {
-        let key = T::Hashing::hash_of(&(app_id, model_id));
-        <ModelCreators<T>>::contains_key(&key) && <ModelCreators<T>>::get(&key) == *who
-    }
-
-    pub fn is_app_admin(who: &T::AccountId, app_id: u32) -> bool {
-        let members = <AppAdmins<T>>::get(app_id);
-
-        match members.binary_search(who) {
-            // If the search succeeds, the caller is already a member, so just return
-            Ok(_index) => true,
-            // If the search fails, the caller is not a member, so just return
-            Err(_) => false,
-        }
-    }
-
-    pub fn is_app_identity(who: &T::AccountId, app_id: u32) -> bool {
-        //let test = who.clone().encode().as_slice();
-        let members = <AppKeys<T>>::get(app_id);
-
-        match members.binary_search(who) {
-            // If the search succeeds, the caller is already a member, so just return
-            Ok(_index) => true,
-            // If the search fails, the caller is not a member, so just return
-            Err(_) => false,
-        }
-    }
-
-    pub fn model_experts(app_id: u32, model_id: Vec<u8>) -> Vec<T::AccountId> {
-        let key = T::Hashing::hash_of(&(app_id, &model_id));
-        <ExpertMembers<T>>::get(&key)
-    }
-
-    pub fn model_add_expert(key: &T::Hash, new_member: &T::AccountId) {
-        let mut members = <ExpertMembers<T>>::get(key);
-
-        match members.binary_search(new_member) {
-            // If the search succeeds, the caller is already a member, so just return
-            Ok(_) => {}
-            // If the search fails, the caller is not a member and we learned the index where
-            // they should be inserted
-            Err(index) => {
-                members.insert(index, new_member.clone());
-                <ExpertMembers<T>>::insert(key, members);
-            }
-        }
-    }
-
-    pub fn model_remove_expert(key: &T::Hash, member: &T::AccountId) {
-        let mut members = <ExpertMembers<T>>::get(key);
-
-        match members.binary_search(member) {
-            // If the search succeeds, the caller is already a member, so just return
-            Ok(index) => {
-                members.remove(index);
-                <ExpertMembers<T>>::insert(key, members);
-            }
-            // If the search fails, the caller is not a member, so just return
-            Err(_) => {}
-        }
-    }
-
-    pub fn model_creator(app_id: u32, model_id: Vec<u8>) -> T::AccountId {
-        let key = T::Hashing::hash_of(&(app_id, &model_id));
-        <ModelCreators<T>>::get(&key)
-    }
-
-    pub fn is_finance_member(who: &T::AccountId) -> bool {
-        <FinanceMembers<T>>::get().contains(who)
-    }
-
-    pub fn is_finance_root(who: &T::AccountId) -> bool {
-        *who == <FinanceRoot<T>>::get()
-    }
-
-    pub fn slash_finance_member(
-        member: &T::AccountId,
-        receiver: &T::AccountId,
-        amount: BalanceOf<T>,
-    ) -> DispatchResult {
-        let deposit = <FinanceMemberDeposit<T>>::get(member);
-        if deposit == 0u32.into() {
-            // nothing to do
-        } else {
-            let slash = min(deposit, amount);
-            T::Currency::unreserve(member, slash);
-            T::Currency::transfer(member, receiver, slash, KeepAlive)?;
-            <FinanceMemberDeposit<T>>::insert(member, deposit - slash);
-        }
-
-        Ok(())
-    }
-
-    /// return valid finance members (depoist is enough)
-    pub fn valid_finance_members() -> Vec<T::AccountId> {
-        let min_deposit = T::MinFinanceMemberDeposit::get();
-        let members: Vec<T::AccountId> = <FinanceMembers<T>>::get();
-        members
-            .iter()
-            .filter(|&member| <FinanceMemberDeposit<T>>::get(member) >= min_deposit)
-            .map(|member| member.clone())
-            .collect()
-    }
-}
-
-impl<T: Trait> Membership<T::AccountId, T::Hash, BalanceOf<T>> for Module<T> {
-    fn is_platform(who: &T::AccountId, app_id: u32) -> bool {
-        Self::is_platform_expert(who, app_id)
-    }
-    fn is_expert(who: &T::AccountId, app_id: u32, model_id: &Vec<u8>) -> bool {
-        Self::is_model_expert(who, app_id, model_id)
-    }
-
-    fn is_app_admin(who: &T::AccountId, app_id: u32) -> bool {
-        Self::is_app_admin(who, app_id)
-    }
-
-    fn is_investor(who: &T::AccountId) -> bool {
-        Self::is_investor(who)
-    }
-
-    fn is_finance_member(who: &T::AccountId) -> bool {
-        Self::is_finance_member(who)
-    }
-
-    fn set_model_creator(
-        key: &T::Hash,
-        creator: &T::AccountId,
-        is_give_benefit: bool,
-    ) -> BalanceOf<T> {
-        // this interface is only available form pallet internal (from kp to member invoking)
-        <ModelCreators<T>>::insert(key, creator);
-
-        // insert creator into ExpertMembers
-        let mut members = <ExpertMembers<T>>::get(key);
-        // members should be empty now
-        members.push(creator.clone());
-        <ExpertMembers<T>>::insert(key, members);
-
-        // give benifit to creator
-        let treasury_account: T::AccountId = T::ModTreasuryModuleId::get().into_account();
-        print("set_model_creator");
-
-        if is_give_benefit {
-            let reward = T::ModelCreatorCreateBenefit::get();
-            let _ = T::Currency::transfer(&treasury_account, creator, reward, KeepAlive);
-            return reward;
-        }
-
-        0u32.into()
-    }
-
-    fn transfer_model_owner(key: &T::Hash, new_owner: &T::AccountId) {
-        let owner = <ModelCreators<T>>::get(key);
-        // set new owner
-        <ModelCreators<T>>::insert(key, &new_owner);
-        // remove owner from expert members
-        Self::model_remove_expert(key, &owner);
-        // add new member
-        Self::model_add_expert(key, new_owner);
-    }
-
-    fn is_model_creator(who: &T::AccountId, app_id: u32, model_id: &Vec<u8>) -> bool {
-        Self::is_model_creator(who, app_id, model_id)
-    }
-
-    // only used for app register
-    fn config_app_admin(who: &T::AccountId, app_id: u32) {
-        let mut members = <AppAdmins<T>>::get(app_id);
-        members.push(who.clone());
-        <AppAdmins<T>>::insert(app_id, members);
-    }
-
-    // only used for app register
-    fn config_app_key(who: &T::AccountId, app_id: u32) {
-        let mut members = <AppKeys<T>>::get(app_id);
-        members.push(who.clone());
-        <AppKeys<T>>::insert(app_id, members);
-    }
-
-    fn config_app_setting(app_id: u32, rate: u32, name: Vec<u8>, stake: BalanceOf<T>) {
-        <AppDataMap<T>>::insert(
-            app_id,
-            &AppData {
-                return_rate: rate,
-                name,
-                stake,
-            },
-        );
-    }
-
-    fn get_app_setting(app_id: u32) -> (u32, Vec<u8>, BalanceOf<T>) {
-        let setting = <AppDataMap<T>>::get(app_id);
-        (setting.return_rate, setting.name, setting.stake)
-    }
-
-    fn is_valid_app(app_id: u32) -> bool {
-        <AppDataMap<T>>::contains_key(app_id)
-    }
-
-    fn is_valid_app_key(app_id: u32, app_key: &T::AccountId) -> bool {
-        Self::is_app_identity(app_key, app_id)
-    }
-
-    fn valid_finance_members() -> Vec<T::AccountId> {
-        Self::valid_finance_members()
-    }
-
-    fn slash_finance_member(
-        member: &T::AccountId,
-        receiver: &T::AccountId,
-        amount: BalanceOf<T>,
-    ) -> DispatchResult {
-        Self::slash_finance_member(member, receiver, amount)
     }
 }
