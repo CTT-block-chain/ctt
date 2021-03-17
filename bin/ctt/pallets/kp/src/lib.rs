@@ -2139,11 +2139,15 @@ decl_module! {
                 }
             }
 
+            // reserve finance fee
+            let fee = Permill::from_rational_approximation(T::RedeemFeeRate::get(), 1000u32) * exchange_amount;
+            let amount = exchange_amount + fee;
+
             // make sure balance is enough
-            ensure!(record.balance >= exchange_amount, Error::<T>::AppFinancedUserExchangeOverflow);
+            ensure!(record.balance > amount, Error::<T>::AppFinancedUserExchangeOverflow);
 
             // reserve exchange_amount from user account
-            T::Currency::reserve(&account, exchange_amount)?;
+            T::Currency::reserve(&account, amount)?;
             record.balance -= exchange_amount;
 
             <AppCycleIncome<T>>::insert(cycle, app_id, &record);
@@ -2154,7 +2158,6 @@ decl_module! {
                 status: 1,
                 ..Default::default()
             });
-
 
             let mut accounts = <AppCycleIncomeExchangeSet<T>>::get(&fkey);
             accounts.push(account.clone());
@@ -2192,8 +2195,11 @@ decl_module! {
             let record = <AppCycleIncomeExchangeRecords<T>>::get(&ukey);
             ensure!(record.status == 1, Error::<T>::AppFinancedUserExchangeStateWrong);
 
-            // give fee to finance member
             let fee = Permill::from_rational_approximation(T::RedeemFeeRate::get(), 1000u32) * record.exchange_amount;
+            // unreserve account balance
+            T::Currency::unreserve(&account, record.exchange_amount + fee);
+
+            // give fee to finance member
             T::Currency::transfer(
                 &account,
                 &finance_member,
@@ -2201,8 +2207,6 @@ decl_module! {
                 KeepAlive,
             )?;
 
-            // unreserve account balance
-            T::Currency::unreserve(&account, record.exchange_amount);
             // burn process
             let (debit, credit) = T::Currency::pair(record.exchange_amount);
             T::BurnDestination::on_unbalanced(credit);
@@ -2541,8 +2545,12 @@ decl_module! {
                 finance_member = <AppFinanceFinanceMember<T>>::get(&fkey);
             }
 
+            // reserve finance fee
+            let fee = Permill::from_rational_approximation(T::RedeemFeeRate::get(), 1000u32) * exchange_amount;
+            let amount = exchange_amount + fee;
+
             // reserve exchange_amount from user account
-            T::Currency::reserve(&account, exchange_amount)?;
+            T::Currency::reserve(&account, amount)?;
 
             financed_record.exchanged += exchange_amount;
             <AppFinancedRecord<T>>::insert(&fkey, financed_record);
@@ -2565,7 +2573,6 @@ decl_module! {
         #[weight = 0]
         pub fn app_financed_user_exchange_confirm(origin, params: AppFinancedUserExchangeConfirmParams<T::AccountId>) -> dispatch::DispatchResult {
             let who = ensure_signed(origin)?;
-            ensure!(T::Membership::is_finance_member(&who), Error::<T>::AuthIdentityNotFinanceMember);
 
             let AppFinancedUserExchangeConfirmParams {
                 account,
@@ -2573,6 +2580,11 @@ decl_module! {
                 proposal_id,
                 pay_id
             } = params;
+
+            // get this cycle's finance member
+            let member_key = T::Hashing::hash_of(&(app_id, &proposal_id));
+            let finance_member = <AppFinanceFinanceMember<T>>::get(&member_key);
+            ensure!(finance_member == who, Error::<T>::AuthIdentityNotExpectedFinanceMember);
 
             ensure!(T::Membership::is_valid_app(app_id), Error::<T>::AppIdInvalid);
 
@@ -2585,8 +2597,18 @@ decl_module! {
             let record = <AppFinancedUserExchangeRecord<T>>::get(&ukey);
             ensure!(record.status == 1, Error::<T>::AppFinancedUserExchangeStateWrong);
 
+            let fee = Permill::from_rational_approximation(T::RedeemFeeRate::get(), 1000u32) * record.exchange_amount;
             // unreserve account balance
-            T::Currency::unreserve(&account, record.exchange_amount);
+            T::Currency::unreserve(&account, record.exchange_amount + fee);
+
+            // give fee to finance member
+            T::Currency::transfer(
+                &account,
+                &finance_member,
+                fee,
+                KeepAlive,
+            )?;
+
             // burn process
             let (debit, credit) = T::Currency::pair(record.exchange_amount);
             T::BurnDestination::on_unbalanced(credit);
