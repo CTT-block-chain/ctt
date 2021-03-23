@@ -1079,7 +1079,7 @@ parameter_types! {
     pub const TopWeightDocumentIdentify: u8 = 30;
     pub const TopWeightDocumentTry: u8 = 40;
     pub const TopWeightAccountAttend: u8 = 10;
-    pub const TopWeightAccountStake: u8 = 15;
+    pub const TopWeightAccountStake: u8 = 5;
 
     // for CM
     pub const DocumentChooseWeightSellCount: u8 = 60;
