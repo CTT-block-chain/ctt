@@ -261,3 +261,6 @@ pub fn new_test_ext() -> sp_io::TestExternalities {
         .unwrap()
         .into()
 }
+
+#[derive(Debug, PartialEq)]
+pub struct TestStruct<T: Trait>(pub BalanceOf<T>);

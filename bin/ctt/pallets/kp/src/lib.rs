@@ -3248,7 +3248,7 @@ impl<T: Trait> Module<T> {
         self_issue_rate: Permill,
         attend_rate: Permill,
     ) -> PowerSize {
-        let mut base = Permill::from_percent(T::TopWeightDocumentIdentify::get() as u32)
+        let mut base = Permill::from_percent(T::TopWeightProductPublish::get() as u32)
             * FLOAT_COMPUTE_PRECISION;
 
         base = Permill::from_percent(T::DocumentPowerWeightContent::get() as u32) * base;
