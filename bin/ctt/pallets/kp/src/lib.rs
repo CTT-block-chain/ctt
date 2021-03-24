@@ -4179,9 +4179,21 @@ impl<T: Trait> Module<T> {
 
         // compute document attend power
         // get this document's compare base first
-        let compare_base: CommentMaxRecord;
+        let mut compare_base: CommentMaxRecord;
         if <DocumentCommentPowerBase<T>>::contains_key(&doc_key_hash) {
             compare_base = <DocumentCommentPowerBase<T>>::get(&doc_key_hash);
+            // check if we need to update the compare_base
+            let is_compare_base_updated = Self::update_comment_max(
+                &mut compare_base,
+                doc.comment_count,
+                doc.comment_total_fee,
+                doc.comment_positive_count,
+                doc_comment_unit_fee,
+            );
+
+            if is_compare_base_updated {
+                <DocumentCommentPowerBase<T>>::insert(&doc_key_hash, &compare_base);
+            }
         } else {
             // not exist, this is the first comment of this document
             <DocumentCommentPowerBase<T>>::insert(&doc_key_hash, &doc_comment_max);
