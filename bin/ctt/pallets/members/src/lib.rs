@@ -329,12 +329,32 @@ impl<T: Trait> Module<T> {
     /// return valid finance members (depoist is enough)
     pub fn valid_finance_members() -> Vec<T::AccountId> {
         let min_deposit = T::MinFinanceMemberDeposit::get();
-        let members: Vec<T::AccountId> = <FinanceMembers<T>>::get();
-        members
-            .iter()
-            .filter(|&member| <FinanceMemberDeposit<T>>::get(member) >= min_deposit)
-            .map(|member| member.clone())
-            .collect()
+        let mut members: Vec<T::AccountId> = <FinanceMembers<T>>::get();
+
+        if members.len() == 0 {
+            return vec![];
+        }
+
+        members.sort_by(|a, b| {
+            <FinanceMemberDeposit<T>>::get(a).cmp(&<FinanceMemberDeposit<T>>::get(b))
+        });
+
+        // reverse iter to get top equles
+        let max = <FinanceMemberDeposit<T>>::get(members.last().unwrap());
+        if max < min_deposit {
+            return vec![];
+        }
+
+        let mut pos = members.len() - 1;
+        for member in members.iter().rev() {
+            if <FinanceMemberDeposit<T>>::get(member) < max {
+                break;
+            }
+
+            pos -= 1;
+        }
+
+        members[pos..].into()
     }
 }
 
