@@ -925,6 +925,9 @@ pub trait Trait: system::Trait {
     type TechFundBase: Get<BalanceOf<Self>>;
 
     type RedeemFeeRate: Get<u32>;
+
+    type CommentRewardNormalRate: Get<u32>;
+    type CommentRewardExpertRate: Get<u32>;
 }
 
 // This pallet's storage items.
@@ -4081,6 +4084,22 @@ impl<T: Trait> Module<T> {
         <AccountDocumentSet<T>>::insert(&owner_account, doc.app_id, owner_doc_ids);
     }
 
+    fn give_comment_reward(is_normal: bool, owner: &T::AccountId, cost: u64) {
+        let rate = if is_normal {
+            Permill::from_percent(T::CommentRewardNormalRate::get())
+        } else {
+            Permill::from_percent(T::CommentRewardExpertRate::get())
+        };
+
+        // convert cost to dollar
+        let mut amount: BalanceOf<T> = ((cost / 100) as u32).into();
+        amount *= 1_000_000_000_000u64.saturated_into();
+        amount = rate * amount;
+
+        let treasury_account: T::AccountId = T::TreasuryModuleId::get().into_account();
+        T::Currency::transfer(&treasury_account, owner, amount, KeepAlive).ok();
+    }
+
     fn process_comment_power(comment: &KPCommentData<T::AccountId, T::Hash>) {
         // target compute
         let account_comment_power: PowerSize;
@@ -4213,6 +4232,7 @@ impl<T: Trait> Module<T> {
 
         // chcek if owner's membership
         let mut platform_comment_power: PowerSize = 0;
+        let mut is_normal_comment = true;
         if doc.expert_trend == CommentTrend::Empty
             && T::Membership::is_expert(&comment.sender, doc.app_id, &doc.model_id)
         {
@@ -4222,6 +4242,10 @@ impl<T: Trait> Module<T> {
                 doc_comment_top_weight,
                 doc_judge_weight,
             );
+
+            // give expert comment reward
+            Self::give_comment_reward(false, &comment.sender, comment.comment_fee);
+            is_normal_comment = false;
         }
         if doc.platform_trend == CommentTrend::Empty
             && T::Membership::is_platform(&comment.sender, doc.app_id)
@@ -4232,6 +4256,14 @@ impl<T: Trait> Module<T> {
                 doc_comment_top_weight,
                 doc_judge_weight,
             );
+
+            // give platform comment reward
+            Self::give_comment_reward(false, &comment.sender, comment.comment_fee);
+            is_normal_comment = false;
+        }
+
+        if is_normal_comment {
+            Self::give_comment_reward(true, &comment.sender, comment.comment_fee);
         }
 
         // below are write actions
@@ -4484,7 +4516,7 @@ impl<T: Trait> Module<T> {
 
         // reward reporter
         let treasury_account: T::AccountId = T::TreasuryModuleId::get().into_account();
-        T::Currency::transfer(&treasury_account, &reporter, reporter_reward, KeepAlive);
+        T::Currency::transfer(&treasury_account, &reporter, reporter_reward, KeepAlive).ok();
     }
 
     fn add_model_dispute_record(

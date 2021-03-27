@@ -1136,6 +1136,9 @@ parameter_types! {
 
     // per 1000
     pub const RedeemFeeRate: u32 = 3;
+
+    pub const CommentRewardNormalRate: u32 = 2;
+    pub const CommentRewardExpertRate: u32 = 10;
 }
 
 impl kp::Trait for Runtime {
@@ -1208,6 +1211,9 @@ impl kp::Trait for Runtime {
     type ModelDisputeRewardLv3 = ModelDisputeRewardLv3;
 
     type RedeemFeeRate = RedeemFeeRate;
+
+    type CommentRewardNormalRate = CommentRewardNormalRate;
+    type CommentRewardExpertRate = CommentRewardExpertRate;
 }
 
 construct_runtime!(

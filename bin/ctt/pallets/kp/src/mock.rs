@@ -115,6 +115,9 @@ parameter_types! {
     pub const MinFinanceMemberDeposit: u64 = 0;
 
     pub const RedeemFeeRate: u32 = 0;
+
+    pub const CommentRewardNormalRate: u32 = 0;
+    pub const CommentRewardExpertRate: u32 = 0;
 }
 
 impl system::Trait for Test {
@@ -228,6 +231,9 @@ impl Trait for Test {
     type ModelDisputeRewardLv2 = ModelDisputeRewardLv2;
     type ModelDisputeRewardLv3 = ModelDisputeRewardLv3;
     type RedeemFeeRate = RedeemFeeRate;
+
+    type CommentRewardNormalRate = CommentRewardNormalRate;
+    type CommentRewardExpertRate = CommentRewardExpertRate;
 }
 
 impl pallet_balances::Trait for Test {
