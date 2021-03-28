@@ -1256,6 +1256,8 @@ decl_error! {
         AppFinancedUserExchangeStateWrong,
         AppFinancedUserExchangeEnded,
         AppFinancedUserExchangeConfirmNotEnd,
+        AppFinancedUserExchangeConfirmEnded,
+        AppFinancedUserExchangeCompensateEnded,
         DocumentIdentifyAlreadyExisted,
         DocumentTryAlreadyExisted,
         LeaderBoardCreateNotPermit,
@@ -2600,6 +2602,13 @@ decl_module! {
             let record = <AppFinancedUserExchangeRecord<T>>::get(&ukey);
             ensure!(record.status == 1, Error::<T>::AppFinancedUserExchangeStateWrong);
 
+            // make sure not over confirm end stage
+            let fkey = T::Hashing::hash_of(&(app_id, &proposal_id));
+            let financed_record = <AppFinancedRecord<T>>::get(&fkey);
+            let current_block = <system::Module<T>>::block_number();
+            let end = financed_record.exchange_end_block + T::AppFinanceExchangePeriod::get() / 2u32.into();
+            ensure!(end >= current_block, Error::<T>::AppFinancedUserExchangeConfirmEnded);
+
             let fee = Permill::from_rational_approximation(T::RedeemFeeRate::get(), 1000u32) * record.exchange_amount;
             // unreserve account balance
             T::Currency::unreserve(&account, record.exchange_amount + fee);
@@ -2654,7 +2663,12 @@ decl_module! {
             let current_block = <system::Module<T>>::block_number();
             let financed_record = <AppFinancedRecord<T>>::get(&fkey);
             // make sure current block over end + end
-            ensure!(financed_record.exchange_end_block + T::AppFinanceExchangePeriod::get() < current_block, Error::<T>::AppFinancedUserExchangeConfirmNotEnd);
+            let confirm_end = financed_record.exchange_end_block + T::AppFinanceExchangePeriod::get() / 2u32.into();
+            ensure!(confirm_end < current_block, Error::<T>::AppFinancedUserExchangeConfirmNotEnd);
+
+            // make sure not over compensate end stage
+            let end = financed_record.exchange_end_block + T::AppFinanceExchangePeriod::get();
+            ensure!(end >= current_block, Error::<T>::AppFinancedUserExchangeCompensateEnded);
 
             // unlock balance
             T::Currency::unreserve(&who, record.exchange_amount);
