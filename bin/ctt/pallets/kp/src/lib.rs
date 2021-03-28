@@ -703,6 +703,8 @@ enum ModelIncomeStage {
     NORMAL,
     COLLECTING,
     REWARDING,
+    CONFIRMING,
+    COMPENSATING,
 }
 
 impl From<ModelIncomeStage> for u8 {
@@ -711,6 +713,8 @@ impl From<ModelIncomeStage> for u8 {
             ModelIncomeStage::NORMAL => 0,
             ModelIncomeStage::COLLECTING => 1,
             ModelIncomeStage::REWARDING => 2,
+            ModelIncomeStage::CONFIRMING => 3,
+            ModelIncomeStage::COMPENSATING => 4,
         };
     }
 }
@@ -1274,7 +1278,10 @@ decl_error! {
         ModelIncomeParamsTooLarge,
         ModelIncomeNotInCollectingStage,
         ModelIncomeNotInRewardingStage,
+        ModelIncomeNotInConfirmingStage,
+        ModelIncomeNotInCompensatingStage,
         ModelIncomeRewardingNotEnd,
+        ModelIncomeConfirmingNotEnd,
         ModelCycleIncomeTotalZero,
         ModelCycleIncomeZero,
         AppCycleIncomeZero,
@@ -2200,6 +2207,10 @@ decl_module! {
             let record = <AppCycleIncomeExchangeRecords<T>>::get(&ukey);
             ensure!(record.status == 1, Error::<T>::AppFinancedUserExchangeStateWrong);
 
+            // check if current model cycle match
+            let block = <system::Module<T>>::block_number();
+            ensure!(Self::model_income_stage(block).0 == ModelIncomeStage::CONFIRMING, Error::<T>::ModelIncomeNotInConfirmingStage);
+
             let fee = Permill::from_rational_approximation(T::RedeemFeeRate::get(), 1000u32) * record.exchange_amount;
             // unreserve account balance
             T::Currency::unreserve(&account, record.exchange_amount + fee);
@@ -2252,8 +2263,10 @@ decl_module! {
             ensure!(record.status == 1, Error::<T>::AppFinancedUserExchangeStateWrong);
 
             let block = <system::Module<T>>::block_number();
-            // make sure current rewarding stage end
-            ensure!(Self::model_income_stage(block).0 != ModelIncomeStage::REWARDING, Error::<T>::ModelIncomeRewardingNotEnd);
+            let stage = Self::model_income_stage(block);
+
+            // check if current model cycle match
+            ensure!(stage.0 == ModelIncomeStage::COMPENSATING, Error::<T>::ModelIncomeNotInCompensatingStage);
 
             // unlock balance
             T::Currency::unreserve(&who, record.exchange_amount);
@@ -4447,6 +4460,8 @@ impl<T: Trait> Module<T> {
 
         let collecting = T::ModelIncomeCollectingPeriod::get();
         let rewarding_blocks = T::ModelIncomeRewardingPeriod::get();
+        let confirming_blocks = rewarding_blocks / 2u32.into();
+        let compensating_blocks = rewarding_blocks / 2u32.into();
         let progress = block % T::ModelIncomeCyclePeriod::get();
 
         return if progress < collecting {
@@ -4455,6 +4470,17 @@ impl<T: Trait> Module<T> {
             (
                 ModelIncomeStage::REWARDING,
                 collecting + rewarding_blocks - progress,
+            )
+        } else if progress < collecting + rewarding_blocks + confirming_blocks {
+            (
+                ModelIncomeStage::CONFIRMING,
+                collecting + rewarding_blocks + confirming_blocks - progress,
+            )
+        } else if progress < collecting + rewarding_blocks + confirming_blocks + compensating_blocks
+        {
+            (
+                ModelIncomeStage::COMPENSATING,
+                collecting + rewarding_blocks + confirming_blocks + compensating_blocks - progress,
             )
         } else {
             (ModelIncomeStage::NORMAL, cycle_blocks - progress)
