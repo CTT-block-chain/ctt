@@ -1351,6 +1351,7 @@ decl_module! {
         const ModelIncomeCyclePeriod: T::BlockNumber = T::ModelIncomeCyclePeriod::get();
         const ModelIncomeCollectingPeriod: T::BlockNumber = T::ModelIncomeCollectingPeriod::get();
         const ModelIncomeRewardingPeriod: T::BlockNumber = T::ModelIncomeRewardingPeriod::get();
+        const AppFinanceExchangePeriod: T::BlockNumber = T::AppFinanceExchangePeriod::get();
 
         #[weight = 0]
         pub fn create_model(origin,
