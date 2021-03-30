@@ -2274,10 +2274,15 @@ decl_module! {
 
             // get slash from finance member
             let finance_member = <AppCycleIncomeFinanceMember<T>>::get(&fkey);
-            T::Membership::slash_finance_member(&finance_member, &who, record.exchange_amount)?;
+
+            let status = if T::Membership::slash_finance_member(&finance_member, &who, record.exchange_amount).is_ok() {
+                3
+            } else {
+                4
+            };
 
             <AppCycleIncomeExchangeRecords<T>>::mutate(&ukey, |record| {
-                record.status = 3;
+                record.status = status;
             });
 
             Self::deposit_event(RawEvent::AppIncomeUserExchangeCompensated(who));
@@ -2689,10 +2694,14 @@ decl_module! {
 
             // get slash from finance member
             let finance_member = <AppFinanceFinanceMember<T>>::get(&fkey);
-            T::Membership::slash_finance_member(&finance_member, &who, record.exchange_amount)?;
+            let status = if T::Membership::slash_finance_member(&finance_member, &who, record.exchange_amount).is_ok() {
+                3
+            } else {
+                4
+            };
 
             <AppFinancedUserExchangeRecord<T>>::mutate(&ukey, |record| {
-                record.status = 3;
+                record.status = status;
             });
 
             Self::deposit_event(RawEvent::AppFinanceUserExchangeCompensated(who));
