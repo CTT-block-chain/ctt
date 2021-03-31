@@ -329,32 +329,38 @@ impl<T: Trait> Module<T> {
     /// return valid finance members (depoist is enough)
     pub fn valid_finance_members() -> Vec<T::AccountId> {
         let min_deposit = T::MinFinanceMemberDeposit::get();
-        let mut members: Vec<T::AccountId> = <FinanceMembers<T>>::get();
+        let members: Vec<T::AccountId> = <FinanceMembers<T>>::get();
 
         if members.len() == 0 {
             return vec![];
         }
 
-        members.sort_by(|a, b| {
-            <FinanceMemberDeposit<T>>::get(a).cmp(&<FinanceMemberDeposit<T>>::get(b))
-        });
+        // read out all deposit
+        let mut deposits: Vec<(&T::AccountId, BalanceOf<T>)> = vec![];
+        for member in members.iter() {
+            deposits.push((member, <FinanceMemberDeposit<T>>::get(member)));
+        }
 
-        // reverse iter to get top equles
-        let max = <FinanceMemberDeposit<T>>::get(members.last().unwrap());
-        if max < min_deposit {
+        deposits.sort_by(|a, b| b.1.cmp(&a.1));
+
+        let max = deposits[0];
+        if max.1 < min_deposit {
             return vec![];
         }
 
-        let mut pos = members.len() - 1;
-        for member in members.iter().rev() {
-            if <FinanceMemberDeposit<T>>::get(member) < max {
+        let mut pos = 0;
+        for deposit in deposits.iter() {
+            if deposit.1 < max.1 {
                 break;
             }
 
-            pos -= 1;
+            pos += 1;
         }
 
-        members[pos..].into()
+        deposits[..pos]
+            .iter()
+            .map(|deposit| deposit.0.clone())
+            .collect::<Vec<T::AccountId>>()
     }
 }
 
