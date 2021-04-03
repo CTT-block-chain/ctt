@@ -47,6 +47,7 @@ sp-externalities = { version = "0.8.0", default-features = false, path = "../../
 
 #CTT
 kp = { version = "2.0.0", default-features = false, path = "../../bin/ctt/pallets/kp", package = "ctt-pallet-kp" }
+sp-staking = { version = "2.0.0", default-features = false, path = "../../primitives/staking" }
 
 # 3rd party
 cfg-if = "0.1.10"
@@ -82,6 +83,7 @@ std = [
 	"sp-std/std",
 	"sp-runtime-interface/std",
 	"sp-io/std",
+	"sp-staking/std",
 	"frame-support/std",
 	"sp-version/std",
 	"serde",

@@ -316,7 +316,7 @@ use sp_runtime::{
 	},
 };
 use sp_staking::{
-	SessionIndex,
+	QueryValidatorWeight, SessionIndex,
 	offence::{OnOffenceHandler, OffenceDetails, Offence, ReportOffence, OffenceError},
 };
 #[cfg(feature = "std")]
@@ -3453,4 +3453,22 @@ fn to_invalid(error_with_post_info: DispatchErrorWithPostInfo) -> InvalidTransac
 		_ => 0,
 	};
 	InvalidTransaction::Custom(error_number)
+}
+
+impl<T: Trait> QueryValidatorWeight<T::AccountId, u64> for Module<T> {
+    fn current_validator_weight(validator: &T::AccountId) -> u64 {
+    	let mut weight: u64 = 0;
+
+    	// get validator self kp power
+    	weight += T::PowerVote::account_power_relative(validator);
+
+        let current_era = Self::current_era().unwrap_or(0);
+        let exposure = Self::eras_stakers(current_era, validator);
+        let norminators = exposure.others.iter();
+        for norminator in norminators {
+        	weight += T::PowerVote::account_power_relative(&norminator.who);
+        }
+
+        weight
+    }
 }

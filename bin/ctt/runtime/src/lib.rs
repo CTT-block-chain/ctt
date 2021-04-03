@@ -337,6 +337,7 @@ impl pallet_babe::Trait for Runtime {
     type WeightInfo = ();
 
     type PowerVote = Kp;
+    type QueryWeight = Staking;
 }
 
 parameter_types! {

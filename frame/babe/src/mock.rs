@@ -204,8 +204,13 @@ impl Convert<u128, u64> for CurrencyToVoteHandler {
 
 // CTT
 use kp::PowerVote;
+use sp_staking::QueryValidatorWeight;
 pub struct PowerVoteMock;
 impl PowerVote<u64> for PowerVoteMock {}
+pub struct QueryWeightMock;
+impl QueryValidatorWeight<Self::AccountId, u64> for QueryWeightMock {
+    fn current_validator_weight(validator: &Self::AccountId) -> u64 {1}
+}
 
 impl pallet_staking::Trait for Test {
     type RewardRemainder = ();
@@ -230,6 +235,7 @@ impl pallet_staking::Trait for Test {
     type MinSolutionScoreBump = ();
     type WeightInfo = ();
     type PowerVote = PowerVoteMock;
+    type QueryWeight = QueryWeightMock;
 }
 
 parameter_types! {

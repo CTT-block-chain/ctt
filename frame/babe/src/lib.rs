@@ -50,6 +50,7 @@ use sp_inherents::{InherentData, InherentIdentifier, MakeFatalError, ProvideInhe
 
 // CTT
 use kp::PowerVote;
+use sp_staking::QueryValidatorWeight;
 
 pub use sp_consensus_babe::{AuthorityId, PUBLIC_KEY_LENGTH, RANDOMNESS_LENGTH, VRF_OUTPUT_LENGTH};
 
@@ -111,6 +112,8 @@ pub trait Trait: pallet_timestamp::Trait {
 
 	/// CTT power vote type
 	type PowerVote: PowerVote<Self::AccountId>;
+
+	type QueryWeight: QueryValidatorWeight<Self::AccountId, u64>;
 }
 
 pub trait WeightInfo {
@@ -720,11 +723,11 @@ impl<T: Trait> pallet_session::OneSessionHandler<T::AccountId> for Module<T> {
 		where I: Iterator<Item=(&'a T::AccountId, AuthorityId)>
 	{
 		let authorities = validators.map(|(account, k)| {
-			(k, 1, T::PowerVote::account_power_relative(account))
+			(k, 1, T::QueryWeight::current_validator_weight(account))
 		}).collect::<Vec<_>>();
 
 		let next_authorities = queued_validators.map(|(account, k)| {
-			(k, 1, T::PowerVote::account_power_relative(account))
+			(k, 1, T::QueryWeight::current_validator_weight(account))
 		}).collect::<Vec<_>>();
 
 		Self::enact_epoch_change(authorities, next_authorities)

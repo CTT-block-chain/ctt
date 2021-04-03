@@ -1,4 +1,3 @@
-
 // Copyright 2019-2020 Parity Technologies (UK) Ltd.
 // This file is part of Substrate.
 
@@ -21,3 +20,8 @@ pub mod offence;
 
 /// Simple index type with which we can count sessions.
 pub type SessionIndex = u32;
+
+/// Query validator weight in current session
+pub trait QueryValidatorWeight<ValidatorId, Weight> {
+    fn current_validator_weight(validator: &ValidatorId) -> Weight;
+}
