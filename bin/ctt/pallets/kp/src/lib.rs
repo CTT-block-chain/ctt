@@ -2143,7 +2143,7 @@ decl_module! {
                         let per = Permill::from_rational_approximation(rate, 10000);
                         let cent: BalanceOf<T> = ((per * record.income) as u32).into();
                         // got cent, needs to convert to balance
-                        record.initial = cent * 100000000000u128.saturated_into();
+                        record.initial = cent * 1000000000000u128.saturated_into();
                         record.balance = record.initial;
 
                         // update count
