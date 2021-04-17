@@ -2210,7 +2210,8 @@ decl_module! {
 
             // check if current model cycle match
             let block = <system::Module<T>>::block_number();
-            ensure!(Self::model_income_stage(block).0 == ModelIncomeStage::CONFIRMING, Error::<T>::ModelIncomeNotInConfirmingStage);
+            let state = Self::model_income_stage(block);
+            ensure!(state.0 == ModelIncomeStage::CONFIRMING || state.0 == ModelIncomeStage::REWARDING, Error::<T>::ModelIncomeNotInConfirmingStage);
 
             let fee = Permill::from_rational_approximation(T::RedeemFeeRate::get(), 1000u32) * record.exchange_amount;
             // unreserve account balance
